@@ -1,0 +1,25 @@
+/* Print media styling for physical thermal label printer */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #printable-label, #printable-label * {
+    visibility: visible;
+  }
+  #printable-label {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    border: none !important;
+    background: white !important;
+  }
+
+  /* Anti-blur rendering: pastikan barcode 1D dan QR 2D dicetak tajam tanpa blur/antialiasing */
+  canvas, img, svg {
+    image-rendering: -moz-crisp-edges;
+    image-rendering: -webkit-crisp-edges;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+  }
+}

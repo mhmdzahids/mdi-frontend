@@ -1,0 +1,146 @@
+@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400..700&family=Poppins:wght@300;400;500;600;700;800&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-brand-blue: #4685ac;
+  --color-brand-blue-light: #6A9DB3;
+  --color-brand-blue-dark: #3A6B80;
+  --color-brand-gold: #C9A23D;
+  --color-brand-gold-light: #D4B55A;
+  --color-brand-gold-dark: #A8862E;
+  --color-brand-red: #E8352D;
+
+  --color-bg-cream: #F5F1EB;
+  --color-bg-cream-dark: #EDE8DF;
+  --color-border-strong: #B7C3CE;
+
+  --color-text-primary: #2C3E50;
+  --color-text-secondary: #6B7B8D;
+
+  --font-display: 'Poppins', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+  --font-heading: 'Fredoka', sans-serif;
+  --font-body: 'Poppins', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+}
+
+@layer base {
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  button:focus:not(:focus-visible),
+  a:focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  :root {
+    /* Canvas & Permukaan (Palet Dapur Brand Dimsum) */
+    --canvas: #F5F1EB;
+    --surface-card: #FFFFFF;
+    --surface-subtle: #EDE8DF;
+    --surface-hover: #E5DFD4;
+    
+    /* Garis & Batas */
+    --border-subtle: #EDE8DF;
+    --border-strong: #B7C3CE;
+
+    /* Tipografi */
+    --text-main: #2C3E50;
+    --text-body: #2C3E50;
+    --text-muted: #6B7B8D;
+
+    /* Aksi Utama (Brand Blue) */
+    --primary-accent: #4685ac;
+    --primary-accent-hover: #3A6B80;
+    --primary-accent-subtle: #EAF2F7;
+
+    /* Status Semantik */
+    --status-success-text: #2F7D5B;
+    --status-success-bg: #EAF5EE;
+    --status-success-border: #BCE3CF;
+
+    --status-warning-text: #A8862E;
+    --status-warning-bg: #FAF4E6;
+    --status-warning-border: #F3E5C1;
+
+    --status-danger-text: #E8352D;
+    --status-danger-bg: #FDEDEC;
+    --status-danger-border: #FADBD8;
+
+    --status-info-text: #3A6B80;
+    --status-info-bg: #EEF5F9;
+    --status-info-border: #D1E4EF;
+
+    /* Identitas Stasiun */
+    --station-meat: #E8352D;
+    --station-meat-bg: #FDEDEC;
+    --station-meat-border: #FADBD8;
+
+    --station-seasoning: #C9A23D;
+    --station-seasoning-bg: #FAF4E6;
+    --station-seasoning-border: #F3E5C1;
+
+    --station-wrapper: #4685ac;
+    --station-wrapper-bg: #EEF5F9;
+    --station-wrapper-border: #D1E4EF;
+
+    --station-sauce: #E8352D;
+    --station-sauce-bg: #FDEEED;
+    --station-sauce-border: #FBD8D6;
+  }
+
+  body {
+    background-color: var(--canvas);
+    color: var(--text-main);
+    margin: 0;
+    padding: 0;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-family: var(--font-body);
+  }
+
+  h1, h2, h3, .font-heading {
+    font-family: var(--font-heading);
+  }
+
+  input, button, select, textarea {
+    font-family: inherit;
+    color: inherit;
+  }
+
+  /* Angka tabular untuk nilai hitungan, lot, dan kuantitas */
+  .tabular-nums, [data-tabular] {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Hilangkan kotak bawaan html5-qrcode agar hanya ada 1 kotak kustom simetris */
+  #qr-shaded-region {
+    display: none !important;
+  }
+
+  #html5-qr-camera-viewport video {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+  }
+}
+
+/* Hilangkan spin button panah up/down pada semua input type=number */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/* Dukungan safe area mobile (iPhone / Android gesture bar) */
+.safe-bottom-padding {
+  padding-bottom: max(1.25rem, env(safe-area-inset-bottom, 1.25rem));
+}
+
+.safe-bottom-margin {
+  margin-bottom: max(1.25rem, env(safe-area-inset-bottom, 1.25rem));
+}
