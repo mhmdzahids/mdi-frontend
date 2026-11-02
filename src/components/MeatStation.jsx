@@ -18,13 +18,16 @@ import { Stepper } from './ui/Stepper'
 import { Badge } from './ui/Badge'
 import { Modal } from './ui/Modal'
 import { Button } from './ui/Button'
-import { groupStationLots } from '../utils/scanMode'
+import { groupStationLots, getLotSemanticBadge } from '../utils/scanMode'
 import { canOpenQr, canManualDispatch } from '../utils/permissions'
+import { exportStationLotsExcel } from '../utils/excelExport'
+import ScanActionBar from './ScanActionBar'
 
 function DoughLotCard({
   lot,
   badgeVariant,
   badgeText,
+  scanMode = '1X',
   isSelected,
   isSelecting,
   isEligible = true,
@@ -50,6 +53,10 @@ function DoughLotCard({
       }
     }
   )
+
+  const badge = badgeVariant && badgeText
+    ? { variant: badgeVariant, label: badgeText }
+    : getLotSemanticBadge(lot.status, scanMode)
 
   return (
     <div
@@ -84,8 +91,8 @@ function DoughLotCard({
         className="flex items-center gap-1.5 shrink-0"
         onClick={(e) => isSelecting && e.stopPropagation()}
       >
-        <Badge variant={badgeVariant} size="sm">
-          {badgeText}
+        <Badge variant={badge.variant} size="sm">
+          {badge.label}
         </Badge>
         {!isSelecting && hasQrPermission && (
           <button
@@ -337,30 +344,70 @@ export default function MeatStation() {
     }
   }
 
+  const handleExportExcel = () => {
+    exportStationLotsExcel({
+      stationName: 'Divisi Daging & Mixing',
+      divisionCode: 'DAGING',
+      dateStr: new Date().toISOString().slice(0, 10),
+      lots: activeMeatTab === 'BUMBU' ? filteredSeasoningLots : filteredDoughLots,
+      operatorName: operatorName || operatorId || 'Operator Daging'
+    })
+  }
+
   return (
     <div className="space-y-3.5 pb-36">
       {/* 1. Target Harian Stasiun (Ringkas 1 Baris Progres) */}
       <StationTargetBanner type="MEAT" />
 
-      {/* 2. Tombol Filter/Tab: Adonan & Bumbu (Gaya Chip seperti di Meja Cetak) */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-0.5">
-        {[
-          { id: 'GILING', label: 'Adonan' },
-          { id: 'BUMBU', label: 'Bumbu' }
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => setActiveMeatTab(tab.id)}
-            className={`px-4 py-2 text-xs rounded-xl border font-bold transition-all cursor-pointer active:scale-95 ${
-              activeMeatTab === tab.id
-                ? 'bg-[#4685ac] text-white border-[#4685ac] shadow-2xs'
-                : 'bg-white text-[#2C3E50] border-[#EDE8DF] hover:bg-[#EDE8DF]'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+      {/* 2. Tombol Scan In / Scan Out Terpadu (di atas toggle, selalu terlihat di semua tab) */}
+      <ScanActionBar
+        stationId="MEAT_STATION"
+        stationName="Daging & Mixing"
+        targetName="Meja Cetak"
+        scanMode={scanMode}
+        readyCount={readyDough.length}
+        pendingCount={pendingDough.length}
+        inTransitCount={transitBumbu.length}
+        scanInSubtext={
+          activeMeatTab === 'BUMBU'
+            ? (transitBumbu.length > 0 ? `${transitBumbu.length} kiriman bumbu` : null)
+            : (scanMode === '2X' && pendingDough.length > 0 ? `${pendingDough.length} perlu scan in` : null)
+        }
+      />
+
+      {/* 3. Tombol Filter/Tab: Adonan & Bumbu (Gaya Chip seperti di Meja Cetak) + Unduh Excel */}
+      <div className="flex items-center justify-between gap-2 overflow-x-auto pb-0.5">
+        <div className="flex items-center gap-2">
+          {[
+            { id: 'GILING', label: 'Adonan' },
+            { id: 'BUMBU', label: 'Bumbu' }
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveMeatTab(tab.id)}
+              className={`px-4 py-2 text-xs rounded-xl border font-bold transition-all cursor-pointer active:scale-95 ${
+                activeMeatTab === tab.id
+                  ? 'bg-[#4685ac] text-white border-[#4685ac] shadow-2xs'
+                  : 'bg-white text-[#2C3E50] border-[#EDE8DF] hover:bg-[#EDE8DF]'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        <button
+          type="button"
+          onClick={handleExportExcel}
+          className="min-h-[36px] px-3 py-1.5 bg-white hover:bg-[#F5F1EB] active:bg-[#EDE8DF] border border-[#3A6B80] text-[#3A6B80] text-xs font-bold rounded-xl flex items-center gap-1.5 cursor-pointer whitespace-nowrap transition-colors"
+          title="Unduh laporan data lot ke format Excel"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          <span>Unduh Excel</span>
+        </button>
       </div>
 
       {/* =================================================================== */}
@@ -368,62 +415,6 @@ export default function MeatStation() {
       {/* =================================================================== */}
       {activeMeatTab === 'GILING' && (
         <div className="space-y-3.5">
-          {/* Tombol Aksi Utama: Scan Out Adonan ke Meja Cetak (Hanya tampil di luar mode pilih) */}
-          {!doughSelect.isSelecting && readyDough.length > 0 && (
-            <Button
-              type="button"
-              variant="primary"
-              size="lg"
-              fullWidth
-              onClick={() =>
-                openCameraScanner({
-                  mode: 'UNIVERSAL',
-                  title: 'Scan Out Adonan ke Meja Cetak'
-                })
-              }
-              icon={ScanIcon}
-            >
-              <div className="flex items-center justify-center gap-2">
-                <span>Scan out ke cetak</span>
-                <Badge variant="neutral" size="sm" className="bg-white/20 text-white border-transparent">
-                  {readyDough.length} siap
-                </Badge>
-              </div>
-            </Button>
-          )}
-
-          {/* Section Menunggu Konfirmasi jika Mode 2x aktif */}
-          {scanMode === '2X' && pendingDough.length > 0 && (
-            <div className="bg-[#FAF4E6] border border-[#F3E5C1] rounded-xl p-3.5 space-y-2">
-              <div className="flex items-center justify-between border-b border-[#F3E5C1] pb-2">
-                <span className="text-xs font-bold text-[#A8862E]">
-                  Menunggu Konfirmasi Stok ({pendingDough.length} gilingan)
-                </span>
-                <Badge variant="warning" size="sm">
-                  Perlu Scan Masuk
-                </Badge>
-              </div>
-              <div className="space-y-1.5">
-                {pendingDough.map((lot) => (
-                  <div
-                    key={lot.lotCode}
-                    className="bg-white/90 border border-[#F3E5C1] rounded-xl p-2.5 flex items-center justify-between text-xs"
-                  >
-                    <div>
-                      <span className="tabular-nums font-bold text-[#2C3E50] block">{lot.lotCode}</span>
-                      <span className="text-[11px] text-[#6B7B8D]">
-                        Adonan
-                      </span>
-                    </div>
-                    <Badge variant="warning" size="sm">
-                      Belum di-scan
-                    </Badge>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
           {/* Card Daftar Adonan */}
           <Card className="border-[#EDE8DF] bg-white shadow-2xs">
             <CardContent className="p-4 space-y-3">
@@ -500,8 +491,7 @@ export default function MeatStation() {
                     <DoughLotCard
                       key={lot.lotCode}
                       lot={lot}
-                      badgeVariant="warning"
-                      badgeText="Label Disiapkan PIC"
+                      scanMode={scanMode}
                       isSelected={doughSelect.selectedCodes.has(lot.lotCode)}
                       isSelecting={doughSelect.isSelecting}
                       isEligible={eligibleCodesSet.has(lot.lotCode)}
@@ -525,8 +515,7 @@ export default function MeatStation() {
                     <DoughLotCard
                       key={lot.lotCode}
                       lot={lot}
-                      badgeVariant="info"
-                      badgeText="Di meja cetak"
+                      scanMode={scanMode}
                       isSelected={false}
                       isSelecting={doughSelect.isSelecting}
                       isEligible={false}
@@ -606,73 +595,6 @@ export default function MeatStation() {
               )}
             </CardContent>
           </Card>
-
-          {/* Panel PIC: Penerbitan Batch Label Baru (Khusus PIC / Supervisor) */}
-          {isPIC && (
-            <Card variant="action" className="border-[#D1E4EF] bg-white">
-              <CardContent className="p-4 space-y-3.5">
-                <div className="flex items-center justify-between border-b border-[#EDE8DF] pb-2.5">
-                  <div>
-                    <span className="text-xs font-bold text-[#2C3E50] block">
-                      Penerbitan label batch baru
-                    </span>
-                    <span className="text-[11px] text-[#6B7B8D] block mt-0.5">
-                      Khusus PIC · Cetak lembar rekap QR troli adonan
-                    </span>
-                  </div>
-                  {lastBatchPrintModal?.lotList?.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={reopenLastBatchPrintModal}
-                      className="text-[11px] font-semibold text-[#6B7B8D] hover:text-[#2C3E50] bg-[#EDE8DF] hover:bg-[#EFE6D9] border border-[#EDE8DF] rounded-lg px-2.5 py-1 cursor-pointer transition-all active:scale-95"
-                      title="Buka kembali lembar rekap QR troli terakhir"
-                    >
-                      Rekap ({lastBatchPrintModal.lotList.length})
-                    </button>
-                  )}
-                </div>
-
-                {/* Stepper Jumlah Gilingan dengan Baris Konversi */}
-                <Stepper
-                  label="Jumlah gilingan"
-                  value={gilinganInput}
-                  onChange={(val) => setGilinganInput(val)}
-                  min={1}
-                  max={100}
-                  presets={[1, 2, 5, 10]}
-                  conversionText={`= ${gilinganInput * 15} kg daging`}
-                />
-
-                {/* Catatan Operasional Batch */}
-                <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-[#6B7B8D] block">
-                    Catatan (opsional)
-                  </label>
-                  <input
-                    type="text"
-                    value={batchNotes}
-                    onChange={(e) => setBatchNotes(e.target.value)}
-                    placeholder="Tambahkan catatan jika ada..."
-                    className="w-full h-11 text-xs border border-[#EDE8DF] rounded-xl px-3.5 bg-white text-[#2C3E50] placeholder-[#6B7B8D] focus:outline-none focus:border-[#4685ac] focus:ring-2 focus:ring-[#4685ac]/20 transition-colors shadow-2xs"
-                  />
-                </div>
-
-                {/* Tombol Aksi Utama 56px */}
-                <Button
-                  type="button"
-                  variant="primary"
-                  size="lg"
-                  fullWidth
-                  loading={isProcessing}
-                  disabled={isProcessing}
-                  onClick={handleExecuteBatchUnified}
-                  icon={PrinterIcon}
-                >
-                  Proses & cetak rekap
-                </Button>
-              </CardContent>
-            </Card>
-          )}
         </div>
       )}
 
@@ -755,55 +677,22 @@ export default function MeatStation() {
                 ))}
               </div>
 
-              {/* Tombol Aksi Penerimaan:
-                  - Karyawan: Hanya 1 tombol "Scan in"
-                  - MODE PPIC / PIC: 2 tombol ("Terima langsung" & "Scan in") */}
-              {isPIC ? (
-                <div className="flex items-center gap-2 pt-1">
+              {/* Tombol Aksi Penerimaan Bumbu:
+                  - PIC: Tombol "Terima langsung" selebar kartu (penerimaan massal tanpa scan)
+                  - Karyawan / Scan In: Menggunakan tombol Scan In di bar atas stasiun */}
+              {isPIC && (
+                <div className="pt-1">
                   <Button
                     type="button"
                     variant="secondary"
                     size="lg"
-                    className="flex-1 min-h-[48px] bg-white border-[#B7C3CE] text-[#2C3E50] hover:bg-[#F5F1EB]"
+                    fullWidth
+                    className="min-h-[48px] bg-white border-[#B7C3CE] text-[#2C3E50] hover:bg-[#F5F1EB]"
                     loading={isReceivingBumbu}
                     disabled={isReceivingBumbu}
                     onClick={handleReceiveAllBumbu}
                   >
                     Terima langsung
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="primary"
-                    size="lg"
-                    className="flex-1 min-h-[48px]"
-                    icon={ScanIcon}
-                    onClick={() =>
-                      openCameraScanner({
-                        mode: 'UNIVERSAL',
-                        title: `Scan In ${transitBumbu.length} Karung Bumbu`
-                      })
-                    }
-                  >
-                    Scan in
-                  </Button>
-                </div>
-              ) : (
-                <div className="pt-1">
-                  <Button
-                    type="button"
-                    variant="primary"
-                    size="lg"
-                    fullWidth
-                    className="min-h-[48px]"
-                    icon={ScanIcon}
-                    onClick={() =>
-                      openCameraScanner({
-                        mode: 'UNIVERSAL',
-                        title: `Scan In ${transitBumbu.length} Karung Bumbu`
-                      })
-                    }
-                  >
-                    Scan in ({transitBumbu.length})
                   </Button>
                 </div>
               )}

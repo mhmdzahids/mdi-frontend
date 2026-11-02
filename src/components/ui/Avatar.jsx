@@ -30,15 +30,19 @@ export function Avatar({
   const borderStyles = size === 'lg'
     ? 'border-[#3A6B80] ring-4 ring-[#EEF5F9] shadow-xs'
     : active
-    ? 'border-[#4685ac] ring-2 ring-[#4685ac]/30'
+    ? 'border-[#3A6B80] ring-2 ring-[#3A6B80]/30'
     : 'border-[#B7C3CE]'
+
+  const bgStyles = active || size === 'lg'
+    ? 'bg-[#3A6B80] text-white'
+    : 'bg-[#EDE8DF] text-[#556575]'
 
   return (
     <div
-      className={`relative inline-flex items-center justify-center rounded-full shrink-0 select-none overflow-hidden bg-[#4685ac] text-white transition-all ${sizeStyles[size] || sizeStyles.md} ${borderStyles} ${className}`}
+      className={`relative inline-flex items-center justify-center rounded-full shrink-0 select-none overflow-hidden transition-all ${sizeStyles[size] || sizeStyles.md} ${borderStyles} ${bgStyles} ${className}`}
       aria-hidden="true"
     >
-      <User className={`${iconSizes[size] || iconSizes.md} text-white stroke-[2.2]`} />
+      <User className={`${iconSizes[size] || iconSizes.md} stroke-[2.2]`} />
     </div>
   )
 }

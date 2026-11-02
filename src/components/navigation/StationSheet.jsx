@@ -1,13 +1,15 @@
 import { useEffect } from 'react'
 import { X } from 'lucide-react'
-import { MixerIcon, BagIcon, WrapperIcon, SauceIcon } from '../Icons'
+import { MixerIcon, BagIcon, WrapperIcon, SauceIcon, PlanIcon, ReceiveIcon } from '../Icons'
 import { useLockBodyScroll } from '../../utils/useLockBodyScroll'
 
 const STATIONS = [
   { id: 'MEAT', label: 'Giling & Mix', description: 'Pengolahan adonan daging', icon: MixerIcon },
   { id: 'SEASONING', label: 'Bumbu', description: 'Penyiapan paket bumbu', icon: BagIcon },
   { id: 'WRAPPER', label: 'Kulit', description: 'Penerimaan & potong kulit', icon: WrapperIcon },
-  { id: 'SAUCE', label: 'Saos', description: 'Pengemasan saos & minyak', icon: SauceIcon }
+  { id: 'SAUCE', label: 'Saos', description: 'Pengemasan saos & minyak', icon: SauceIcon },
+  { id: 'SUMMARY', label: 'Rekap PPIC', description: 'Kontrol rekapitulasi & reject harian', icon: PlanIcon },
+  { id: 'SUPPLIER', label: 'Barang Masuk', description: 'Inbound supplier luar', icon: ReceiveIcon }
 ]
 
 /**

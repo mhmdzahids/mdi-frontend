@@ -13,6 +13,7 @@ import { Modal } from './ui/Modal'
 import { SegmentedControl } from './ui/SegmentedControl'
 import { Button } from './ui/Button'
 import { canOpenQr, canManualDispatch } from '../utils/permissions'
+import { exportStationLotsExcel } from '../utils/excelExport'
 
 function ReceivedLotCard({
   item,
@@ -214,10 +215,16 @@ export default function Production2View() {
 
   // Status Produk Jadi (Meja Packing & Laporan Produksi)
   const pendingPackingLots = finishedGoodsLots.filter(
-    (f) => f.status === 'READY_IN_ASSEMBLY_STATION'
+    (f) =>
+      (f.status === 'READY_IN_ASSEMBLY_STATION' || f.status === 'PRINTED_PENDING_STOCK_IN') &&
+      f.status !== 'VOID' &&
+      f.status !== 'CANCELLED'
   )
   const totalReportedLots = finishedGoodsLots.filter(
-    (f) => f.status !== 'READY_IN_ASSEMBLY_STATION'
+    (f) =>
+      (f.status === 'PACKED_VERIFIED' || f.status === 'IN_FREEZER_STORAGE' || f.status === 'IN_SALES_STOCK') &&
+      f.status !== 'VOID' &&
+      f.status !== 'CANCELLED'
   )
   const fgSelect = useLotMultiSelect(pendingPackingLots)
   const isPIC = canManualDispatch(userRole)
@@ -255,6 +262,16 @@ export default function Production2View() {
   const readySauce = sauceLots.filter(
     (s) => s.status === 'IN_FINISHING_STATION' || s.status === 'READY_IN_FINISHING_STATION'
   )
+
+  const handleExportExcel = () => {
+    exportStationLotsExcel({
+      stationName: 'Produksi 2: Meja Packing & Produk Jadi',
+      divisionCode: 'PACKING',
+      dateStr: new Date().toISOString().slice(0, 10),
+      lots: finishedGoodsLots,
+      operatorName: operatorName || operatorId || 'Operator Packing'
+    })
+  }
 
   const allReceivedLots = [
     ...readyDough.map((d) => ({
@@ -875,6 +892,18 @@ export default function Production2View() {
                     </span>
 
                     <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={handleExportExcel}
+                        className="text-[11px] font-bold rounded-lg px-2.5 py-1 border border-[#3A6B80] text-[#3A6B80] bg-white hover:bg-[#F5F1EB] transition-colors cursor-pointer flex items-center gap-1"
+                        title="Unduh laporan Excel produk jadi"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <span>Excel</span>
+                      </button>
+
                       {lastBatchPrintModal?.lotList?.length > 1 && (
                         <button
                           type="button"
@@ -1152,6 +1181,43 @@ export default function Production2View() {
                   )}
                 </CardContent>
               </Card>
+
+              {/* Daftar Kemasan Sudah Di-Scan / Diverifikasi Hari Ini */}
+              {totalReportedLots.length > 0 && (
+                <Card className="border-[#EDE8DF] bg-white shadow-2xs">
+                  <CardContent className="p-4 space-y-3">
+                    <div className="flex items-center justify-between border-b border-[#EDE8DF] pb-2">
+                      <span className="text-xs font-bold text-[#2C3E50] block">
+                        Sudah diverifikasi ({totalReportedLots.length})
+                      </span>
+                      <Badge variant="success" size="sm">
+                        Selesai
+                      </Badge>
+                    </div>
+
+                    <div className="space-y-2">
+                      {totalReportedLots.map((item) => (
+                        <div
+                          key={item.lotCode}
+                          className="bg-[#F5F1EB] border border-[#EDE8DF] rounded-xl p-3 flex items-center justify-between text-xs gap-2"
+                        >
+                          <div>
+                            <span className="tabular-nums font-bold text-[#2C3E50] block text-xs">
+                              {item.lotCode}
+                            </span>
+                            <span className="text-[11px] text-[#6B7B8D] tabular-nums">
+                              {item.typeName} · {item.createdAt}
+                            </span>
+                          </div>
+                          <Badge variant="success" size="sm">
+                            Diverifikasi
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </div>
           )}
         </div>

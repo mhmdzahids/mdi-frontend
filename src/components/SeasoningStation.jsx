@@ -9,8 +9,10 @@ import { Card, CardContent } from './ui/Card'
 import { Stepper } from './ui/Stepper'
 import { Badge } from './ui/Badge'
 import { Button } from './ui/Button'
-import { groupStationLots } from '../utils/scanMode'
+import { groupStationLots, getLotSemanticBadge } from '../utils/scanMode'
 import { canOpenQr, canManualDispatch } from '../utils/permissions'
+import { exportStationLotsExcel } from '../utils/excelExport'
+import ScanActionBar from './ScanActionBar'
 
 function SeasoningLotCard({
   lot,
@@ -21,6 +23,7 @@ function SeasoningLotCard({
   portionText,
   isSelecting,
   isEligible = true,
+  scanMode = '1X',
   onToggle,
   onStartSelecting,
   canOpenQr: hasQrPermission = false,
@@ -76,26 +79,14 @@ function SeasoningLotCard({
         className="flex items-center gap-2"
         onClick={(e) => isSelecting && e.stopPropagation()}
       >
-        <Badge
-          variant={
-            isReady
-              ? 'warning'
-              : isTransit
-              ? 'info'
-              : isMixing
-              ? 'info'
-              : 'neutral'
-          }
-          size="sm"
-        >
-          {isReady
-            ? 'Siap'
-            : isTransit
-            ? 'Dikirim'
-            : isMixing
-            ? 'Di mixer'
-            : 'Habis'}
-        </Badge>
+        {(() => {
+          const badge = getLotSemanticBadge(lot.status, scanMode)
+          return (
+            <Badge variant={badge.variant} size="sm">
+              {badge.label}
+            </Badge>
+          )
+        })()}
 
         {hasQrPermission && (
           <button
@@ -133,11 +124,13 @@ export default function SeasoningStation() {
   const scanModeSettings = useProduction1Store((s) => s.scanModeSettings)
 
   // Target Bumbu Harian (Sistem Karung: 1 karung = 20 kresek = 20 gilingan)
-  const targetGilingan = dailyPlan.targetGilingan || targetGilinganStore || 40
-  const targetBumbuKarung = dailyPlan.targetBumbuKarung || (targetGilingan > 0 ? Math.ceil(targetGilingan / 20) : 0)
-  const targetBumbuKresek = dailyPlan.targetBumbuKresek || targetGilingan
+  const targetGilingan = dailyPlan.targetGilingan ?? targetGilinganStore ?? 0
+  const targetBumbuKarung = dailyPlan.targetBumbuKarung !== undefined && dailyPlan.targetBumbuKarung !== null
+    ? Number(dailyPlan.targetBumbuKarung)
+    : (targetGilingan > 0 ? Math.ceil(targetGilingan / 20) : 0)
+  const targetBumbuKresek = dailyPlan.targetBumbuKresek ?? targetGilingan ?? 0
 
-  const [sackInput, setSackInput] = useState(() => Math.max(1, targetBumbuKarung || 2))
+  const [sackInput, setSackInput] = useState(() => Math.max(1, targetBumbuKarung || 1))
   const [isSending, setIsSending] = useState(false)
 
   const filteredSeasoningLots = filterAndSortLots(seasoningLots, 'TODAY', 'OPERATOR')
@@ -171,13 +164,14 @@ export default function SeasoningStation() {
     ? Math.max(0, targetBumbuKarung - terkirimCount)
     : Math.max(0, readyLots.length)
 
-  const sackCount = Math.max(1, parseInt(sackInput, 10) || 1)
-  const totalPortions = sackCount * 20
-
-  const handleGenerate = (e) => {
-    e.preventDefault()
-    if (sackCount <= 0) return
-    generateSeasoningSacks(sackCount, 20)
+  const handleExportExcel = () => {
+    exportStationLotsExcel({
+      stationName: 'Divisi Bumbu Sparta',
+      divisionCode: 'BUMBU',
+      dateStr: new Date().toISOString().slice(0, 10),
+      lots: filteredSeasoningLots,
+      operatorName: operatorName || operatorId || 'Operator Bumbu'
+    })
   }
 
   const handleSendSelected = async () => {
@@ -194,114 +188,65 @@ export default function SeasoningStation() {
 
   return (
     <div className="space-y-3.5 pb-24">
-      {/* 1. Tampilan Khusus PIC: Cetak Karung Bumbu */}
-      {isPIC ? (
-        <Card variant="action" className="border-[#B7C3CE] bg-white">
-          <CardContent className="p-4 space-y-3.5">
-            <div className="flex items-center justify-between border-b border-[#EDE8DF] pb-2.5">
-              <span className="text-xs font-bold text-[#2C3E50] font-heading">
-                Cetak label bumbu
+      {/* 1. Status Harian: Target, Terkirim, Sisa */}
+      <div className="space-y-3">
+        <div className="grid grid-cols-3 gap-2 sm:gap-2.5">
+          {/* Card 1: Target */}
+          <Card className="border-[#EDE8DF] bg-white shadow-2xs min-h-[var(--size-hero-card,96px)] flex flex-col justify-center">
+            <CardContent className="p-2.5 sm:p-4 text-center space-y-1">
+              <span className="text-[11px] sm:text-xs text-[#6B7B8D] font-medium block leading-tight">
+                Target
               </span>
-              {targetBumbuKarung > 0 && (
-                <span className="text-[11px] text-[#6B7B8D] font-medium">
-                  Target: <strong className="text-[#2C3E50] font-bold">{targetBumbuKarung} karung</strong> ({targetBumbuKresek} kresek)
-                </span>
-              )}
-            </div>
+              <span className="text-xl sm:text-2xl md:text-3xl font-bold tabular-nums text-[#2C3E50] block">
+                {targetBumbuKarung} <span className="text-[11px] sm:text-xs font-normal text-[#6B7B8D]">karung</span>
+              </span>
+            </CardContent>
+          </Card>
 
-            {/* Stepper Karung Tanpa Satuan Berulang pada Chip */}
-            <Stepper
-              label="Jumlah karung"
-              value={sackCount}
-              onChange={(val) => setSackInput(val)}
-              min={1}
-              max={20}
-              presets={[1, 2, 3, 4]}
-              conversionText={`= ${totalPortions} kresek`}
-            />
+          {/* Card 2: Terkirim */}
+          <Card className="border-[#EDE8DF] bg-white shadow-2xs min-h-[var(--size-hero-card,96px)] flex flex-col justify-center">
+            <CardContent className="p-2.5 sm:p-4 text-center space-y-1">
+              <span className="text-[11px] sm:text-xs text-[#6B7B8D] font-medium block leading-tight">
+                Terkirim
+              </span>
+              <span className="text-xl sm:text-2xl md:text-3xl font-bold tabular-nums text-[#2C3E50] block">
+                {terkirimCount} <span className="text-[11px] sm:text-xs font-normal text-[#6B7B8D]">karung</span>
+              </span>
+            </CardContent>
+          </Card>
 
-            {/* Tombol Cetak Utama 56px */}
-            <Button
-              type="button"
-              variant="primary"
-              size="lg"
-              fullWidth
-              onClick={handleGenerate}
-              icon={PrinterIcon}
-            >
-              Cetak label
-            </Button>
-          </CardContent>
-        </Card>
-      ) : (
-        /* 2. Tampilan Khusus Pegawai: Status & Kirim ke Mixer */
-        <div className="space-y-3">
-          <div className="grid grid-cols-3 gap-2 sm:gap-2.5">
-            {/* Card 1: Target */}
-            <Card className="border-[#EDE8DF] bg-white shadow-2xs">
-              <CardContent className="p-2.5 sm:p-4 text-center space-y-1">
-                <span className="text-[11px] sm:text-xs text-[#6B7B8D] font-medium block leading-tight">
-                  Target
-                </span>
-                <span className="text-xl sm:text-2xl md:text-3xl font-bold tabular-nums text-[#2C3E50] block">
-                  {targetBumbuKarung} <span className="text-[11px] sm:text-xs font-normal text-[#6B7B8D]">karung</span>
-                </span>
-              </CardContent>
-            </Card>
-
-            {/* Card 2: Terkirim */}
-            <Card className="border-[#EDE8DF] bg-white shadow-2xs">
-              <CardContent className="p-2.5 sm:p-4 text-center space-y-1">
-                <span className="text-[11px] sm:text-xs text-[#6B7B8D] font-medium block leading-tight">
-                  Terkirim
-                </span>
-                <span className="text-xl sm:text-2xl md:text-3xl font-bold tabular-nums text-[#2C3E50] block">
-                  {terkirimCount} <span className="text-[11px] sm:text-xs font-normal text-[#6B7B8D]">karung</span>
-                </span>
-              </CardContent>
-            </Card>
-
-            {/* Card 3: Sisa (Menggantikan QR Terdaftar) */}
-            <Card className="border-[#EDE8DF] bg-white shadow-2xs">
-              <CardContent className="p-2.5 sm:p-4 text-center space-y-1">
-                <span className="text-[11px] sm:text-xs text-[#6B7B8D] font-medium block leading-tight">
-                  Sisa
-                </span>
-                <span className="text-xl sm:text-2xl md:text-3xl font-bold tabular-nums text-[#2C3E50] block">
-                  {sisaBumbuKarung} <span className="text-[11px] sm:text-xs font-normal text-[#6B7B8D]">karung</span>
-                </span>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Tombol Scan Out Bumbu ke Mixer Khusus Operator (48px) */}
-          {readyLots.length > 0 && (
-            <Button
-              type="button"
-              variant="primary"
-              size="md"
-              fullWidth
-              onClick={() =>
-                openCameraScanner({
-                  mode: 'UNIVERSAL',
-                  title: 'Scan Out Karung Bumbu ke Mixer'
-                })
-              }
-              icon={ScanIcon}
-            >
-              Scan Out Bumbu ke Mixer ({readyLots.length} siap)
-            </Button>
-          )}
-
-          {transitLots.length > 0 && (
-            <div className="bg-[#FAF4E6] border border-[#F3E5C1] text-[#A8862E] rounded-xl p-3 text-center text-xs font-semibold">
-              {transitLots.length} karung sedang diantar ke mixer
-            </div>
-          )}
+          {/* Card 3: Sisa */}
+          <Card className="border-[#EDE8DF] bg-white shadow-2xs min-h-[var(--size-hero-card,96px)] flex flex-col justify-center">
+            <CardContent className="p-2.5 sm:p-4 text-center space-y-1">
+              <span className="text-[11px] sm:text-xs text-[#6B7B8D] font-medium block leading-tight">
+                Sisa
+              </span>
+              <span className="text-xl sm:text-2xl md:text-3xl font-bold tabular-nums text-[#2C3E50] block">
+                {sisaBumbuKarung} <span className="text-[11px] sm:text-xs font-normal text-[#6B7B8D]">karung</span>
+              </span>
+            </CardContent>
+          </Card>
         </div>
-      )}
 
-      {/* 3. Daftar Karung Bumbu Terbaru */}
+        {/* Tombol Scan In dan Scan Out Terpadu */}
+        <ScanActionBar
+          stationId="SEASONING_STATION"
+          stationName="Bumbu Sparta"
+          targetName="Mixer Daging"
+          scanMode={scanMode}
+          readyCount={readyLots.length}
+          pendingCount={pendingConfirmation.length}
+          inTransitCount={transitLots.length}
+        />
+
+        {transitLots.length > 0 && (
+          <div className="bg-[#FAF4E6] border border-[#F3E5C1] text-[#A8862E] rounded-xl p-3 text-center text-xs font-semibold">
+            {transitLots.length} karung sedang diantar ke mixer
+          </div>
+        )}
+      </div>
+
+      {/* 2. Daftar Karung Bumbu Terbaru */}
       <Card className="border-[#EDE8DF] bg-white shadow-2xs">
         <CardContent className="p-4 space-y-3">
           <div className="flex items-center justify-between border-b border-[#EDE8DF] pb-2.5">
@@ -315,6 +260,18 @@ export default function SeasoningStation() {
             </div>
 
             <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={handleExportExcel}
+                className="text-[11px] font-bold rounded-lg px-2.5 py-1 border border-[#3A6B80] text-[#3A6B80] bg-white hover:bg-[#F5F1EB] transition-colors cursor-pointer flex items-center gap-1"
+                title="Unduh laporan Excel"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <span>Excel</span>
+              </button>
+
               {lastBatchPrintModal?.lotList?.length > 1 && (
                 <button
                   type="button"
@@ -443,6 +400,7 @@ export default function SeasoningStation() {
                         portionText={portionText}
                         isSelecting={seasoningSelect.isSelecting}
                         isEligible={eligibleCodesSet.has(lot.lotCode)}
+                        scanMode={scanMode}
                         onToggle={() => seasoningSelect.toggleSelect(lot.lotCode)}
                         onStartSelecting={() => seasoningSelect.startSelecting()}
                         canOpenQr={canOpenQr(userRole)}

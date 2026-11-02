@@ -134,9 +134,16 @@ export const useProduction1Store = create(
       // Feedback Semantik Hasil Scan & Undo (Single active message)
       scanFeedbackBanner: null, // { type: 'info' | 'warning' | 'danger' | 'success', title: string, message: string, code: string, action: string, canUndo: boolean, expiresAt: number }
       lastUniversalScanTime: { code: '', time: 0 },
+      activeScanSession: null, // { station: string, intent: 'SCAN_IN' | 'SCAN_OUT' } | null
 
 
       // Target & Rencana Harian
+      planStatus: 'DRAFT', // 'DRAFT' | 'PUBLISHED'
+      planVersion: 1,
+      planBatches: [],
+      publishedAt: null,
+      publishedBy: null,
+      lastSavedDraftAt: null,
       dailyPlan: {
         planDate: new Date().toISOString().slice(0, 10),
         orderMika: 0,
@@ -151,7 +158,7 @@ export const useProduction1Store = create(
         totalVakum: 0,
         totalPcs: 0,
         doughKg: 0,
-        targetGilingan: 40
+        targetGilingan: 0
       },
 
       setDailyPlan: (planInput) => {
@@ -159,7 +166,7 @@ export const useProduction1Store = create(
         const metrics = calculatePlanMetrics(planInput)
         const newTarget = (planInput.manualGilingan !== undefined && planInput.manualGilingan !== '')
           ? metrics.targetGilingan
-          : (metrics.targetGilingan > 0 ? metrics.targetGilingan : 40)
+          : (metrics.targetGilingan || 0)
         set({
           dailyPlan: { ...planInput, ...metrics, targetGilingan: newTarget, planDate: todayStr },
           targetGilingan: newTarget,
@@ -188,7 +195,7 @@ export const useProduction1Store = create(
         const dd = String(now.getDate()).padStart(2, '0')
         return `PLAN-${yyyy}${mm}${dd}-01`
       })(),
-      targetGilingan: 40,
+      targetGilingan: 0,
 
       // Master Resep / Parameter Gilingan
       activeRecipe: {
@@ -222,6 +229,12 @@ export const useProduction1Store = create(
 
       // 5d. RIWAYAT PENERIMAAN TOKO BERTAHAP (Multi-Input Acc vs Onhold)
       salesReceiptLogs: [],
+
+      // 5e. SENTRALISASI PPIC & LOGISTIK INBOUND
+      supplierInboundList: [],
+      divisionDailyNotes: [],
+      dailyRecapData: null,
+      isGeneratingLotsAll: false,
 
       // 5c. KATALOG PRODUK DISPLAY (Produksi 2)
       catalogProducts: [
@@ -381,6 +394,9 @@ export const useProduction1Store = create(
       ppicExternalWrapperMode: 'DIRECT',
       setPpicExternalWrapperMode: (mode) => set({ ppicExternalWrapperMode: mode }),
 
+      planDetailMode: 'GENERAL', // 'GENERAL' (Ringkas) | 'DETAILED' (Spesifik per Mika & Vakum)
+      setPlanDetailMode: (mode) => set({ planDetailMode: mode }),
+
       clearFeedback: () => set({ actionFeedback: null }),
       setPrintModal: (lotData) =>
         set((s) => ({
@@ -477,7 +493,7 @@ export const useProduction1Store = create(
             : { mode: 'UNIVERSAL', title: 'Scanner QR Kamera', ...config }
         set({ isCameraScannerOpen: true, cameraScannerConfig: conf })
       },
-      closeCameraScanner: () => set({ isCameraScannerOpen: false }),
+      closeCameraScanner: () => set({ isCameraScannerOpen: false, activeScanSession: null }),
 
       // Shared Selection for Mixing (Accessible by QR Scanner and UI)
       selectedMeatCodes: [],
@@ -2457,6 +2473,14 @@ export const useProduction1Store = create(
         set({ scanFeedbackBanner: null })
       },
 
+      startScanSession: (station, intent) => {
+        set({ activeScanSession: { station, intent } })
+      },
+
+      endScanSession: () => {
+        set({ activeScanSession: null })
+      },
+
       fetchScanModeSettings: async () => {
         set({ isScanModeLoading: true })
         try {
@@ -2535,15 +2559,18 @@ export const useProduction1Store = create(
         }
       },
 
-      triggerScanTransition: async (lotCode, stationId, notes) => {
+      triggerScanTransition: async (lotCode, stationId, notes, intentOverride = null) => {
         const cleanCode = (lotCode || '').trim().toUpperCase()
         if (!cleanCode) return { success: false, message: 'Kode barcode kosong.' }
+        const state = get()
+        const intent = intentOverride || state.activeScanSession?.intent || undefined
         try {
           const res = await apiFetch('/api/v1/scan/process', {
             method: 'POST',
             body: JSON.stringify({
               lot_code: cleanCode,
               station_id: stationId,
+              intent: intent,
               notes: notes || undefined
             })
           })
@@ -2638,8 +2665,10 @@ export const useProduction1Store = create(
           }
         }
 
-        // 3. Raw Materials & Intermediate Lots (DG-, BM-, AD-, KL-, SA-) via Central State Machine
+        // 3. Sesi Scan Aktif ATAU Divisi Produksi 1 / Lot Material via Central State Machine
         if (
+          state.activeScanSession ||
+          state.activeProductionStage === 'PROD_1' ||
           cleanText.startsWith('DG-') ||
           cleanText.startsWith('BM-') ||
           cleanText.startsWith('AD-') ||
@@ -2648,7 +2677,9 @@ export const useProduction1Store = create(
         ) {
           // Tentukan stasiun aktif operator saat ini
           let currentStation
-          if (state.activeProductionStage === 'PROD_2') {
+          if (state.activeScanSession?.station) {
+            currentStation = state.activeScanSession.station
+          } else if (state.activeProductionStage === 'PROD_2') {
             // Sesuai aturan: Saos diterima di Meja Packing (FINISHING_STATION), Adonan & Kulit di Meja Cetak (ASSEMBLY_STATION)
             if (cleanText.startsWith('SA-')) {
               currentStation = 'FINISHING_STATION'
@@ -2662,7 +2693,8 @@ export const useProduction1Store = create(
             else currentStation = 'MEAT_STATION'
           }
 
-          const res = await state.triggerScanTransition(cleanText, currentStation)
+          const intent = state.activeScanSession?.intent || undefined
+          const res = await state.triggerScanTransition(cleanText, currentStation, null, intent)
           return res
         }
 
@@ -2866,9 +2898,9 @@ export const useProduction1Store = create(
               totalVakum: 0,
               totalPcs: 0,
               doughKg: 0,
-              targetGilingan: 40
+              targetGilingan: 0
             },
-            targetGilingan: 40
+            targetGilingan: 0
           })
         }
 
@@ -2876,22 +2908,36 @@ export const useProduction1Store = create(
           const resPlan = await apiFetch('/api/v1/production1/plans/active')
           if (resPlan.ok) {
             const activePlan = await resPlan.json().catch(() => null)
-            if (activePlan && activePlan.target_gilingan) {
+            if (activePlan) {
               const currentPlan = get().dailyPlan
               const planIdChanged = get().activePlanId !== (activePlan.plan_id || todayPlanId)
-              const gilinganChanged = get().targetGilingan !== activePlan.target_gilingan
+              const gilinganChanged = get().targetGilingan !== (activePlan.target_gilingan || 0)
               const mikaChanged = (currentPlan?.totalMika ?? 0) !== (activePlan.target_mika_pax ?? 0)
               const vakumChanged = (currentPlan?.totalVakum ?? 0) !== (activePlan.target_vakum_pax ?? 0)
+              const statusChanged = get().planStatus !== (activePlan.status || 'DRAFT')
+              const versionChanged = get().planVersion !== (activePlan.version || 1)
+              const batchesLengthChanged = (get().planBatches || []).length !== (activePlan.batches || []).length
 
-              // HANYA update state jika ada perubahan nyata dari backend agar tidak memicu re-render tiap 3 detik
-              if (planIdChanged || gilinganChanged || mikaChanged || vakumChanged) {
+              // Update state jika ada perubahan nyata dari backend
+              if (planIdChanged || gilinganChanged || mikaChanged || vakumChanged || statusChanged || versionChanged || batchesLengthChanged) {
                 set((s) => ({
-                  targetGilingan: activePlan.target_gilingan,
+                  planStatus: activePlan.status || 'DRAFT',
+                  planVersion: activePlan.version || 1,
+                  planBatches: Array.isArray(activePlan.batches) ? activePlan.batches : [],
+                  publishedAt: activePlan.published_at || null,
+                  publishedBy: activePlan.published_by || null,
+                  targetGilingan: activePlan.target_gilingan || 0,
                   activePlanId: activePlan.plan_id || todayPlanId,
                   dailyPlan: {
                     ...s.dailyPlan,
                     planDate: activePlan.plan_date || todayStr,
-                    targetGilingan: activePlan.target_gilingan,
+                    orderMika: activePlan.order_mika !== undefined && activePlan.order_mika !== null ? activePlan.order_mika : (s.dailyPlan?.orderMika ?? 0),
+                    orderVakum: activePlan.order_vakum !== undefined && activePlan.order_vakum !== null ? activePlan.order_vakum : (s.dailyPlan?.orderVakum ?? 0),
+                    bumperMika: activePlan.bumper_mika !== undefined && activePlan.bumper_mika !== null ? activePlan.bumper_mika : (s.dailyPlan?.bumperMika ?? 0),
+                    bumperVakum: activePlan.bumper_vakum !== undefined && activePlan.bumper_vakum !== null ? activePlan.bumper_vakum : (s.dailyPlan?.bumperVakum ?? 0),
+                    manualGilingan: activePlan.manual_gilingan !== undefined ? activePlan.manual_gilingan : (s.dailyPlan?.manualGilingan ?? null),
+                    manualBumbuKarung: activePlan.manual_bumbu !== undefined ? activePlan.manual_bumbu : (s.dailyPlan?.manualBumbuKarung ?? null),
+                    targetGilingan: activePlan.target_gilingan || 0,
                     totalMika: activePlan.target_mika_pax ?? s.dailyPlan?.totalMika ?? 0,
                     totalVakum: activePlan.target_vakum_pax ?? s.dailyPlan?.totalVakum ?? 0,
                     targetMikaPax: activePlan.target_mika_pax || 0,
@@ -3016,12 +3062,14 @@ export const useProduction1Store = create(
                 })
 
               const sauceLots = dbLots
-                .filter((l) => l.lot_type === 'SAOS')
+                .filter((l) => l.lot_type === 'SAOS' || l.lot_type?.startsWith('SAOS'))
                 .map((l) => {
                   const existing = state.sauceLots.find((s) => s.lotCode === l.lot_qr_code)
-                  const cleanType = existing?.type || 'REGULER'
+                  let cleanType = existing?.type || 'REGULER'
+                  if (l.lot_type === 'SAOS_VAKUM' || l.lot_type === 'SAOS_MINI') cleanType = 'MINI'
+                  else if (l.lot_type === 'SAOS_MIKA' || l.lot_type === 'SAOS_REGULER') cleanType = 'REGULER'
                   const isMini = cleanType === 'MINI'
-                  const typeName = existing?.typeName || (isMini ? 'Saos Dimsum Mini (200 Plastik)' : 'Saos Dimsum Reguler (50 Pouch)')
+                  const typeName = existing?.typeName || (isMini ? 'Saos Vakum' : 'Saos Mika')
                   const itemsPerBal = isMini ? 200 : 50
 
                   return {
@@ -3338,7 +3386,7 @@ export const useProduction1Store = create(
             activePrintModal: null,
             lastBatchPrintModal: null,
             activePlanId: newPlanId,
-            targetGilingan: 40,
+            targetGilingan: 0,
             dailyPlan: {
               planDate: todayStr,
               orderMika: 0,
@@ -3353,7 +3401,7 @@ export const useProduction1Store = create(
               totalVakum: 0,
               totalPcs: 0,
               doughKg: 0,
-              targetGilingan: 40
+              targetGilingan: 0
             },
             actionFeedback: {
               type: 'success',
@@ -3383,6 +3431,386 @@ export const useProduction1Store = create(
           })
           throw err
         }
+      },
+
+      // 15. AKSI SIKLUS HIDUP RENCANA PPIC & CETAK QR (AYU)
+      updatePlanDraft: async (draftData = {}) => {
+        const state = get()
+        const payload = {
+          plan_id: state.activePlanId,
+          version: state.planVersion || 1,
+          order_mika: draftData.orderMika !== undefined ? Number(draftData.orderMika) : Number(state.dailyPlan.orderMika || 0),
+          order_vakum: draftData.orderVakum !== undefined ? Number(draftData.orderVakum) : Number(state.dailyPlan.orderVakum || 0),
+          bumper_mika: draftData.bumperMika !== undefined ? Number(draftData.bumperMika) : Number(state.dailyPlan.bumperMika || 0),
+          bumper_vakum: draftData.bumperVakum !== undefined ? Number(draftData.bumperVakum) : Number(state.dailyPlan.bumperVakum || 0),
+          manual_gilingan: draftData.manualGilingan !== undefined && draftData.manualGilingan !== '' && draftData.manualGilingan !== null
+            ? Number(draftData.manualGilingan)
+            : null,
+          manual_bumbu: draftData.manualBumbuKarung !== undefined && draftData.manualBumbuKarung !== '' && draftData.manualBumbuKarung !== null
+            ? Number(draftData.manualBumbuKarung)
+            : null
+        }
+
+        try {
+          const res = await apiFetch('/api/v1/production1/plans/draft', {
+            method: 'PUT',
+            body: JSON.stringify(payload)
+          })
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}))
+            if (res.status === 409) {
+              await state.fetchInitialData(true)
+              throw new Error(errData.detail || 'Rencana telah diubah oleh pihak lain. Data dimuat ulang.')
+            }
+            throw new Error(errData.detail || `Gagal menyimpan draft (${res.status})`)
+          }
+          const savedPlan = await res.json()
+          const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          set((s) => ({
+            planVersion: savedPlan.version,
+            lastSavedDraftAt: timeStr,
+            dailyPlan: {
+              ...s.dailyPlan,
+              orderMika: savedPlan.order_mika,
+              orderVakum: savedPlan.order_vakum,
+              bumperMika: savedPlan.bumper_mika,
+              bumperVakum: savedPlan.bumper_vakum,
+              manualGilingan: savedPlan.manual_gilingan,
+              manualBumbuKarung: savedPlan.manual_bumbu
+            }
+          }))
+          return savedPlan
+        } catch (err) {
+          console.warn('[Draft AutoSave Error]:', err.message)
+          throw err
+        }
+      },
+
+      generateDailyLotsAll: async (payload = {}) => {
+        set({ isGeneratingLotsAll: true })
+        try {
+          const idempKey = payload.idempotency_key || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'key-' + Date.now())
+          const res = await apiFetch('/api/v1/production1/generate-daily-lots-all', {
+            method: 'POST',
+            body: JSON.stringify({
+              plan_id: payload.plan_id || get().activePlanId,
+              idempotency_key: idempKey,
+              version: get().planVersion || 1,
+              reason: payload.reason || 'Rencana Harian Utama (Batch 1)',
+              operator_id: payload.operator_id || get().operatorId || 'PPIC-AYU',
+              operator_role: payload.operator_role || get().userRole || 'STAKEHOLDER',
+              gilingan_count: payload.gilingan_count !== undefined ? Number(payload.gilingan_count) : 0,
+              sack_count: payload.sack_count !== undefined ? Number(payload.sack_count) : 0,
+              wrapper_bal: payload.wrapper_bal !== undefined ? Number(payload.wrapper_bal) : 0,
+              sauce_bal: payload.sauce_bal !== undefined ? Number(payload.sauce_bal) : 0,
+              wrapper_9cm_bal: payload.wrapper_9cm_bal !== undefined ? Number(payload.wrapper_9cm_bal) : undefined,
+              wrapper_7cm_bal: payload.wrapper_7cm_bal !== undefined ? Number(payload.wrapper_7cm_bal) : undefined,
+              sauce_mika_bal: payload.sauce_mika_bal !== undefined ? Number(payload.sauce_mika_bal) : undefined,
+              sauce_vakum_bal: payload.sauce_vakum_bal !== undefined ? Number(payload.sauce_vakum_bal) : undefined
+            })
+          })
+
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}))
+            if (res.status === 409) {
+              await get().fetchInitialData(true)
+            }
+            throw new Error(errData.detail || `Gagal menerbitkan QR (${res.status})`)
+          }
+
+          const resData = await res.json()
+          playSuccessBeep()
+          set({
+            isGeneratingLotsAll: false,
+            planStatus: 'PUBLISHED',
+            actionFeedback: {
+              type: 'success',
+              message: resData?.message || 'Seluruh QR Batch 1 berhasil diterbitkan!'
+            }
+          })
+          if (get().fetchInitialData) {
+            await get().fetchInitialData(true)
+          }
+          return resData
+        } catch (err) {
+          playErrorBeep()
+          const errMsg = err?.message || 'Gagal menerbitkan QR massal PPIC.'
+          set({
+            isGeneratingLotsAll: false,
+            actionFeedback: {
+              type: 'error',
+              message: errMsg
+            }
+          })
+          throw err
+        }
+      },
+
+      previewAdditionalBatch: async (payload = {}) => {
+        const res = await apiFetch('/api/v1/production1/plans/batches/preview', {
+          method: 'POST',
+          body: JSON.stringify({
+            plan_id: payload.plan_id || get().activePlanId,
+            add_mika_packs: payload.add_mika_packs || 0,
+            add_vakum_packs: payload.add_vakum_packs || 0,
+            manual_add_gilingan: payload.manual_add_gilingan !== undefined ? payload.manual_add_gilingan : null,
+            manual_add_bumbu: payload.manual_add_bumbu !== undefined ? payload.manual_add_bumbu : null,
+            manual_add_kulit: payload.manual_add_kulit !== undefined ? payload.manual_add_kulit : null,
+            manual_add_saos: payload.manual_add_saos !== undefined ? payload.manual_add_saos : null
+          })
+        })
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}))
+          throw new Error(errData.detail || `Gagal menghitung selisih (${res.status})`)
+        }
+        return await res.json()
+      },
+
+      addProductionBatch: async (payload = {}) => {
+        set({ isGeneratingLotsAll: true })
+        try {
+          const idempKey = payload.idempotency_key || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'key-' + Date.now())
+          const res = await apiFetch('/api/v1/production1/plans/batches/add', {
+            method: 'POST',
+            body: JSON.stringify({
+              plan_id: payload.plan_id || get().activePlanId,
+              idempotency_key: idempKey,
+              reason: payload.reason || null,
+              confirmed_delta_gilingan: Number(payload.confirmed_delta_gilingan || 0),
+              confirmed_delta_bumbu: Number(payload.confirmed_delta_bumbu || 0),
+              confirmed_delta_kulit: Number(payload.confirmed_delta_kulit || 0),
+              confirmed_delta_saos: Number(payload.confirmed_delta_saos || 0),
+              add_mika_packs: Number(payload.add_mika_packs || 0),
+              add_vakum_packs: Number(payload.add_vakum_packs || 0)
+            })
+          })
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}))
+            if (res.status === 409) {
+              await get().fetchInitialData(true)
+            }
+            throw new Error(errData.detail || `Gagal menambah batch (${res.status})`)
+          }
+          const resData = await res.json()
+          playSuccessBeep()
+          set({
+            isGeneratingLotsAll: false,
+            actionFeedback: {
+              type: 'success',
+              message: resData.message || `Batch ${resData.batch_no} berhasil diterbitkan!`
+            }
+          })
+          if (get().fetchInitialData) {
+            await get().fetchInitialData(true)
+          }
+          return resData
+        } catch (err) {
+          playErrorBeep()
+          set({
+            isGeneratingLotsAll: false,
+            actionFeedback: {
+              type: 'error',
+              message: err.message || 'Gagal menambah batch produksi.'
+            }
+          })
+          throw err
+        }
+      },
+
+      voidBatch: async (batchNo) => {
+        try {
+          const planId = get().activePlanId
+          const res = await apiFetch(`/api/v1/production1/plans/batches/${batchNo}/void?plan_id=${encodeURIComponent(planId)}`, {
+            method: 'POST'
+          })
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}))
+            if (res.status === 409) {
+              await get().fetchInitialData(true)
+            }
+            throw new Error(errData.detail || `Gagal membatalkan batch (${res.status})`)
+          }
+          const resData = await res.json()
+          playSuccessBeep()
+          set({
+            actionFeedback: {
+              type: 'success',
+              message: resData.message || `Batch ${batchNo} berhasil dibatalkan.`
+            }
+          })
+          if (get().fetchInitialData) {
+            await get().fetchInitialData(true)
+          }
+          return resData
+        } catch (err) {
+          playErrorBeep()
+          set({
+            actionFeedback: {
+              type: 'error',
+              message: err.message || 'Gagal membatalkan batch.'
+            }
+          })
+          throw err
+        }
+      },
+
+      fetchSupplierInbound: async (dateStr = null, category = null, endDateStr = null, allTime = false) => {
+        try {
+          let url = '/api/v1/production1/supplier-inbound'
+          const params = []
+          if (allTime) {
+            params.push('all_time=true')
+          } else if (endDateStr) {
+            if (dateStr) params.push(`start_date=${encodeURIComponent(dateStr)}`)
+            params.push(`end_date=${encodeURIComponent(endDateStr)}`)
+          } else if (dateStr) {
+            params.push(`inbound_date=${encodeURIComponent(dateStr)}`)
+          }
+          if (category) params.push(`category=${encodeURIComponent(category)}`)
+          if (params.length > 0) url += `?${params.join('&')}`
+
+          const res = await apiFetch(url)
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}))
+            throw new Error(errData.detail || `Server error (${res.status})`)
+          }
+          const data = await res.json()
+          set({ supplierInboundList: Array.isArray(data) ? data : [] })
+          return data
+        } catch (err) {
+          console.error('Gagal mengambil data inbound supplier:', err)
+          return []
+        }
+      },
+
+      createSupplierInbound: async (inboundData) => {
+        try {
+          const res = await apiFetch('/api/v1/production1/supplier-inbound', {
+            method: 'POST',
+            body: JSON.stringify({
+              category: inboundData.category,
+              item_name: inboundData.item_name,
+              quantity: parseFloat(inboundData.quantity),
+              unit: inboundData.unit || 'BAL',
+              supplier_name: inboundData.supplier_name,
+              document_no: inboundData.document_no || null,
+              notes: inboundData.notes || null,
+              received_by: inboundData.received_by || get().operatorId || 'PPIC-AYU'
+            })
+          })
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}))
+            throw new Error(errData.detail || `Server error (${res.status})`)
+          }
+          const created = await res.json()
+          playSuccessBeep()
+          set((state) => ({
+            supplierInboundList: [created, ...state.supplierInboundList],
+            actionFeedback: {
+              type: 'success',
+              message: `Penerimaan ${created.item_name} berhasil dicatat.`
+            }
+          }))
+          return created
+        } catch (err) {
+          playErrorBeep()
+          const errMsg = err?.message || 'Gagal mencatat penerimaan barang supplier.'
+          set({
+            actionFeedback: {
+              type: 'error',
+              message: errMsg
+            }
+          })
+          throw err
+        }
+      },
+
+      fetchDailyNotes: async (dateStr = null) => {
+        try {
+          let url = '/api/v1/production1/daily-notes'
+          if (dateStr) url += `?record_date=${encodeURIComponent(dateStr)}`
+          const res = await apiFetch(url)
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}))
+            throw new Error(errData.detail || `Server error (${res.status})`)
+          }
+          const data = await res.json()
+          set({ divisionDailyNotes: Array.isArray(data) ? data : [] })
+          return data
+        } catch (err) {
+          console.error('Gagal mengambil catatan harian divisi:', err)
+          return []
+        }
+      },
+
+      saveDailyNote: async (noteData) => {
+        try {
+          const res = await apiFetch('/api/v1/production1/daily-notes', {
+            method: 'POST',
+            body: JSON.stringify({
+              division: noteData.division,
+              reject_count: parseInt(noteData.reject_count, 10) || 0,
+              reject_notes: noteData.reject_notes || null,
+              operational_notes: noteData.operational_notes || null,
+              created_by: noteData.created_by || get().operatorId || 'PPIC-AYU'
+            })
+          })
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}))
+            throw new Error(errData.detail || `Server error (${res.status})`)
+          }
+          const saved = await res.json()
+          playSuccessBeep()
+          set((state) => {
+            const idx = state.divisionDailyNotes.findIndex((n) => n.division === saved.division)
+            const updated = idx >= 0
+              ? state.divisionDailyNotes.map((n, i) => (i === idx ? saved : n))
+              : [...state.divisionDailyNotes, saved]
+            return {
+              divisionDailyNotes: updated,
+              actionFeedback: {
+                type: 'success',
+                message: `Catatan divisi ${saved.division} berhasil disimpan.`
+              }
+            }
+          })
+          return saved
+        } catch (err) {
+          playErrorBeep()
+          const errMsg = err?.message || 'Gagal menyimpan catatan harian divisi.'
+          set({
+            actionFeedback: {
+              type: 'error',
+              message: errMsg
+            }
+          })
+          throw err
+        }
+      },
+
+      fetchDailyRecap: async (dateStr = null, endDateStr = null) => {
+        try {
+          let url = '/api/v1/production1/daily-recap'
+          const params = []
+          if (endDateStr) {
+            if (dateStr) params.push(`start_date=${encodeURIComponent(dateStr)}`)
+            params.push(`end_date=${encodeURIComponent(endDateStr)}`)
+          } else if (dateStr) {
+            params.push(`recap_date=${encodeURIComponent(dateStr)}`)
+          }
+          if (params.length > 0) url += `?${params.join('&')}`
+          const res = await apiFetch(url)
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}))
+            throw new Error(errData.detail || `Server error (${res.status})`)
+          }
+          const data = await res.json()
+          set({ dailyRecapData: data })
+          return data
+        } catch (err) {
+          console.error('Gagal mengambil rekapitulasi harian PPIC:', err)
+          return null
+        }
       }
     }),
     {
@@ -3393,6 +3821,7 @@ export const useProduction1Store = create(
         activeProd2Tab: state.activeProd2Tab,
         employeeDateScope: state.employeeDateScope,
         ppicExternalWrapperMode: state.ppicExternalWrapperMode,
+        planDetailMode: state.planDetailMode,
         meatLots: state.meatLots,
         seasoningLots: state.seasoningLots,
         doughLots: state.doughLots,

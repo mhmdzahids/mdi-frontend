@@ -27,7 +27,7 @@ export default function StationTargetBanner({ type = 'MEAT' }) {
   const todayDateStr = `${yyyy}-${mm}-${dd}`
   const todayCodeStr = `${yyyy}${mm}${dd}`
 
-  const targetGilingan = dailyPlan.targetGilingan || targetGilinganStore || 40
+  const targetGilingan = dailyPlan.targetGilingan ?? targetGilinganStore ?? 0
 
   // 1. Tampilan Stasiun Daging & Mixer (Giling & Mix)
   if (type === 'MEAT') {
@@ -41,21 +41,36 @@ export default function StationTargetBanner({ type = 'MEAT' }) {
       return getDaysDiffFromToday(dStr) === 0
     })
 
-    const totalDibuat = todayGilinganLots.length
-    const pct = targetGilingan > 0 ? Math.min(100, Math.round((totalDibuat / targetGilingan) * 100)) : 0
-    const isCompleted = pct >= 100
+    const sentOrDoneLots = todayGilinganLots.filter(
+      (l) =>
+        l.status === 'IN_TRANSIT_TO_ASSEMBLY' ||
+        l.status === 'IN_ASSEMBLY_STATION' ||
+        l.status === 'CONSUMED' ||
+        l.status === 'CLOSED'
+    )
+    const terkirimCount = sentOrDoneLots.length
+    const totalQrCount = todayGilinganLots.length
+    const belumKirimCount = Math.max(0, totalQrCount - terkirimCount)
+
+    const pct = totalQrCount > 0 ? Math.min(100, Math.round((terkirimCount / totalQrCount) * 100)) : 0
+    const isCompleted = totalQrCount > 0 && terkirimCount >= totalQrCount
 
     return (
-      <Card className="border border-[#EDE8DF] bg-white shadow-2xs">
+      <Card className="border border-[#EDE8DF] bg-white shadow-2xs min-h-[var(--size-hero-card,96px)] flex flex-col justify-center">
         <CardContent className="p-3.5 space-y-2">
-          {/* Baris Ringkasan Target Tunggal (2 Detik Comprehension) */}
+          {/* Baris Ringkasan Target & Progres Adonan Eksplisit */}
           <div className="flex items-center justify-between">
-            <div className="flex items-baseline gap-2">
-              <span className="text-xs font-bold text-[#2C3E50] font-heading">
-                Target gilingan
-              </span>
-              <span className="text-sm font-bold tabular-nums text-[#2C3E50]">
-                {totalDibuat} <span className="text-xs font-normal text-[#6B7B8D]">dari {targetGilingan} terdaftar</span>
+            <div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-xs font-bold text-[#2C3E50] font-heading">
+                  Progres adonan
+                </span>
+                <span className="text-sm font-bold tabular-nums text-[#2C3E50]">
+                  {terkirimCount} <span className="text-xs font-normal text-[#6B7B8D]">dari {totalQrCount}</span>
+                </span>
+              </div>
+              <span className="text-[11px] text-[#6B7B8D] block mt-0.5 tabular-nums">
+                {terkirimCount} terkirim ke cetak · {belumKirimCount} belum dikirim {targetGilingan ? `· Target: ${targetGilingan}` : ''}
               </span>
             </div>
 
@@ -83,9 +98,8 @@ export default function StationTargetBanner({ type = 'MEAT' }) {
           {/* Progress Bar Tunggal Horizontal */}
           <div className="w-full bg-[#EDE8DF] h-2.5 rounded-full overflow-hidden border border-[#EDE8DF]/60">
             <div
-              className={`h-full transition-all duration-500 rounded-full ${
-                isCompleted ? 'bg-[#2F7D5B]' : 'bg-[#4685ac]'
-              }`}
+              className={`h-full transition-all duration-500 rounded-full ${isCompleted ? 'bg-[#2F7D5B]' : 'bg-[#4685ac]'
+                }`}
               style={{ width: `${pct}%` }}
             />
           </div>
@@ -120,7 +134,7 @@ export default function StationTargetBanner({ type = 'MEAT' }) {
     const pctVakum = totalVakum > 0 ? Math.min(100, Math.round((dibuatVakum / totalVakum) * 100)) : 0
 
     return (
-      <Card className="border border-[#EDE8DF] bg-white shadow-2xs">
+      <Card className="border border-[#EDE8DF] bg-white shadow-2xs min-h-[var(--size-hero-card,96px)] flex flex-col justify-center">
         <CardContent className="p-3.5 space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-[#2C3E50] font-heading">

@@ -145,6 +145,15 @@ export default function LoginScreen() {
 
               <button
                 type="button"
+                onClick={() => handleSelectPreset('ppic_ayu')}
+                disabled={loading}
+                className="w-full min-h-[48px] rounded-2xl border-2 border-[#4685ac]/30 bg-[#4685ac]/10 hover:bg-[#4685ac]/20 active:bg-[#4685ac]/30 text-[#1E3A5F] text-xs font-bold transition-all cursor-pointer active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4685ac]"
+              >
+                <span>Ayu (PPIC & Cetak Barcode)</span>
+              </button>
+
+              <button
+                type="button"
                 onClick={() => handleSelectPreset('supervisor')}
                 disabled={loading}
                 className="w-full min-h-[48px] rounded-2xl border border-[#EDE8DF] bg-white hover:bg-[#F5F1EB] active:bg-[#EDE8DF] text-[#2C3E50] text-xs font-bold transition-all cursor-pointer active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4685ac]"
