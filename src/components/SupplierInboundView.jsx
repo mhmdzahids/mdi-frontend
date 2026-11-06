@@ -424,12 +424,8 @@ export default function SupplierInboundView() {
         </div>
       )}
 
-      {/* 1. Header Ringkas */}
-      <div className="flex items-center justify-between px-0.5 pt-0.5">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-bold text-[#2C3E50]">Barang Masuk & Keluar</span>
-        </div>
-
+      {/* 1. Tombol Aksi */}
+      <div className="flex items-center justify-end px-0.5 pt-0.5">
         <button
           type="button"
           onClick={openModal}
