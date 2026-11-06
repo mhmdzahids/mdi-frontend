@@ -4,6 +4,8 @@ import { exportSupplierInboundExcel } from '../utils/excelExport'
 import { useLockBodyScroll } from '../utils/useLockBodyScroll'
 import { CustomSelect } from './ui/CustomSelect'
 import { Modal } from './ui/Modal'
+import { Button } from './ui/Button'
+import { ListRowSkeleton } from './ui/Skeleton'
 import {
   SearchIcon,
   FilterIcon,
@@ -106,6 +108,8 @@ export default function SupplierInboundView() {
   const [notes, setNotes] = useState('')
   const [needPrintQr, setNeedPrintQr] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [isSubmitSuccess, setIsSubmitSuccess] = useState(false)
+  const [isLoadingInbound, setIsLoadingInbound] = useState(true)
   const [formError, setFormError] = useState('')
   const [toastSuccess, setToastSuccess] = useState('')
 
@@ -138,14 +142,19 @@ export default function SupplierInboundView() {
   const isFilterActive = filterCategory !== 'ALL' || filterPreset !== 'today'
   const activeFilterCount = (filterCategory !== 'ALL' ? 1 : 0) + (filterPreset !== 'today' ? 1 : 0)
 
-  const loadInboundData = useCallback(() => {
-    const catParam = filterCategory === 'ALL' ? null : filterCategory
-    if (filterPreset === 'range') {
-      fetchSupplierInbound(rangeStartDate, catParam, rangeEndDate)
-    } else if (filterPreset === 'all') {
-      fetchSupplierInbound(null, catParam, null, true)
-    } else {
-      fetchSupplierInbound(selectedDate, catParam)
+  const loadInboundData = useCallback(async () => {
+    setIsLoadingInbound(true)
+    try {
+      const catParam = filterCategory === 'ALL' ? null : filterCategory
+      if (filterPreset === 'range') {
+        await fetchSupplierInbound(rangeStartDate, catParam, rangeEndDate)
+      } else if (filterPreset === 'all') {
+        await fetchSupplierInbound(null, catParam, null, true)
+      } else {
+        await fetchSupplierInbound(selectedDate, catParam)
+      }
+    } finally {
+      setIsLoadingInbound(false)
     }
   }, [fetchSupplierInbound, filterPreset, filterCategory, rangeStartDate, rangeEndDate, selectedDate])
 
@@ -337,8 +346,22 @@ export default function SupplierInboundView() {
         received_by: operatorName || operatorId || 'PPIC-AYU'
       })
 
+      // Micro-interaction: Tampilkan Centang Sukses sebelum tutup modal
+      setIsSubmitSuccess(true)
+      try {
+        if (typeof navigator !== 'undefined' && navigator.vibrate) {
+          navigator.vibrate(40)
+        }
+      } catch {
+        // ignore
+      }
+
+      // Jeda 600ms untuk konfirmasi emosional pengguna
+      await new Promise((resolve) => setTimeout(resolve, 600))
+
       // Tutup modal & tampilkan feedback
       setIsModalOpen(false)
+      setIsSubmitSuccess(false)
       setToastSuccess(`Barang masuk "${cleanName}" (${numQty} ${formatUnitDisplay(unit)}) berhasil dicatat.`)
       setTimeout(() => setToastSuccess(''), 4000)
 
@@ -588,7 +611,11 @@ export default function SupplierInboundView() {
       {/* Kasus 1: Tab SEMUA / BARANG MASUK */}
       {(activeTab === 'ALL' || activeTab === 'INBOUND') && (
         <>
-          {filteredInboundList.length === 0 ? (
+          {isLoadingInbound ? (
+            <div className="pt-2">
+              <ListRowSkeleton count={4} />
+            </div>
+          ) : filteredInboundList.length === 0 ? (
             /* State Kosong Identik Riwayat / Logs */
             <div className="bg-white border border-[#EDE8DF] rounded-2xl p-8 text-center text-xs text-[#6B7B8D] shadow-2xs mt-2">
               <p className="font-medium text-[#2C3E50]">
@@ -996,20 +1023,17 @@ export default function SupplierInboundView() {
 
               {/* Tombol Simpan Barang Masuk */}
               <div className="pt-1">
-                <button
+                <Button
                   type="submit"
-                  disabled={submitting}
-                  className="w-full min-h-[44px] py-2 px-4 rounded-xl font-bold text-xs sm:text-sm text-white bg-[#4685ac] hover:bg-[#3A6B80] active:scale-[0.99] transition-all cursor-pointer flex items-center justify-center gap-2 shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed"
+                  fullWidth
+                  size="md"
+                  loading={submitting}
+                  isSuccess={isSubmitSuccess}
+                  successText="Barang Masuk Tersimpan!"
+                  className="font-bold text-xs sm:text-sm"
                 >
-                  {submitting ? (
-                    <>
-                      <RefreshIcon className="w-4 h-4 animate-spin" />
-                      <span>Menyimpan Barang Masuk...</span>
-                    </>
-                  ) : (
-                    <span>{needPrintQr ? 'Simpan & Buka Cetak QR' : 'Simpan Barang Masuk'}</span>
-                  )}
-                </button>
+                  {needPrintQr ? 'Simpan & Buka Cetak QR' : 'Simpan Barang Masuk'}
+                </Button>
               </div>
             </form>
           </div>

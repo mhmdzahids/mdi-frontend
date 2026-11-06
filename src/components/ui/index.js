@@ -7,3 +7,4 @@ export { SegmentedControl, SegmentedControl as Segmented } from './SegmentedCont
 export { ChoiceChip } from './ChoiceChip'
 export { Modal } from './Modal'
 export { CustomSelect } from './CustomSelect'
+export { Skeleton, SummaryCardSkeleton, DivisionCardSkeleton, ListRowSkeleton } from './Skeleton'

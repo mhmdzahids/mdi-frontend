@@ -1,9 +1,10 @@
 import { forwardRef } from 'react'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Check } from 'lucide-react'
 
 /**
  * Komponen Button bersistem desain dapur profesional untuk mobile MES.
  * Tap target sentuh jempol terstandarisasi (minimal 48px untuk ukuran md, 56px untuk lg/primary CTA).
+ * Dilengkapi Micro-Interaction: status loading (spinner) dan status success (centang hijau).
  */
 export const Button = forwardRef(function Button(
   {
@@ -14,6 +15,8 @@ export const Button = forwardRef(function Button(
     fullWidth = false,
     disabled = false,
     loading = false,
+    isSuccess = false,
+    successText = 'Berhasil!',
     icon: Icon,
     iconPosition = 'left',
     className = '',
@@ -51,13 +54,16 @@ export const Button = forwardRef(function Button(
     'icon-sm': 'w-9 h-9 p-0 flex items-center justify-center rounded-lg shrink-0'
   }
 
+  const successClasses = isSuccess
+    ? '!bg-[#2F7D5B] !text-white !border-[#2F7D5B] shadow-xs '
+    : (variantStyles[variant] || variantStyles.primary) + ' '
+
   const baseClasses =
     'inline-flex items-center justify-center select-none font-medium transition-all duration-150 cursor-pointer ' +
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4685ac] focus-visible:ring-offset-2 ' +
     'active:scale-[0.98] disabled:active:scale-100 disabled:cursor-not-allowed ' +
     (fullWidth ? 'w-full ' : '') +
-    (variantStyles[variant] || variantStyles.primary) +
-    ' ' +
+    successClasses +
     (sizeStyles[size] || sizeStyles.md) +
     ' ' +
     className
@@ -66,12 +72,17 @@ export const Button = forwardRef(function Button(
     <button
       ref={ref}
       type={type}
-      disabled={disabled || loading}
+      disabled={disabled || loading || isSuccess}
       onClick={onClick}
       className={baseClasses}
       {...props}
     >
-      {loading ? (
+      {isSuccess ? (
+        <>
+          <Check className="w-4 h-4 stroke-[3] text-white shrink-0 animate-in zoom-in-75 duration-150" />
+          <span>{successText}</span>
+        </>
+      ) : loading ? (
         <>
           <Loader2 className="w-4 h-4 animate-spin text-current shrink-0" />
           {typeof children === 'string' ? <span>{children}</span> : children}

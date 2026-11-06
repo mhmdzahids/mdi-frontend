@@ -321,14 +321,13 @@ export const useProduction1Store = create(
       // Setters dengan proteksi wewenang divisi
       setProductionStage: (stage) => {
         if (!get().isSupervisorUser()) return
-        set({ activeProductionStage: stage, isProfileActive: false, actionFeedback: null })
+        set({ activeProductionStage: stage, isProfileActive: false })
       },
       toggleProductionStage: () => {
         if (!get().isSupervisorUser()) return
         set((s) => ({
           activeProductionStage: s.activeProductionStage === 'PROD_1' ? 'PROD_2' : 'PROD_1',
-          isProfileActive: false,
-          actionFeedback: null
+          isProfileActive: false
         }))
       },
       setProd2Tab: (tab) => {
@@ -339,7 +338,7 @@ export const useProduction1Store = create(
           if (expectedTab === 'SALES') expectedTab = 'PRODUCTS'
           if (tab !== expectedTab) return
         }
-        set({ activeProd2Tab: tab, isProfileActive: false, actionFeedback: null })
+        set({ activeProd2Tab: tab, isProfileActive: false })
       },
       setPackingSubLine: (line) => {
         const val = line === 'VAKUM' ? 'VAKUM' : 'MIKA'
@@ -398,8 +397,7 @@ export const useProduction1Store = create(
           activeProductionStage: targetStage,
           activeStation: targetStation,
           activeProd2Tab: targetProd2Tab,
-          isProfileActive: false,
-          actionFeedback: null
+          isProfileActive: false
         })
       },
       setStation: (station) => {
@@ -407,7 +405,7 @@ export const useProduction1Store = create(
           const user = get().currentUser
           if (user?.default_station && station !== user.default_station) return
         }
-        set({ activeStation: station, isProfileActive: false, actionFeedback: null })
+        set({ activeStation: station, isProfileActive: false })
       },
       setOperator: (id, name) => set({ operatorId: id, operatorName: name }),
       setUserRole: (role) => set({ userRole: role === 'PIC' ? 'STAKEHOLDER' : role }),
@@ -2926,7 +2924,7 @@ export const useProduction1Store = create(
         }
 
         try {
-          const resPlan = await apiFetch('/api/v1/production1/plans/active')
+          const resPlan = await apiFetch('/api/v1/production1/plans/active', { silent: isSilent })
           if (resPlan.ok) {
             const activePlan = await resPlan.json().catch(() => null)
             if (activePlan) {
@@ -2973,7 +2971,7 @@ export const useProduction1Store = create(
         }
 
         try {
-          const resLots = await apiFetch('/api/v1/production1/lots')
+          const resLots = await apiFetch('/api/v1/production1/lots', { silent: isSilent })
           if (resLots.ok) {
             const text = await resLots.text()
             let dbLots = []
@@ -3170,7 +3168,7 @@ export const useProduction1Store = create(
             }
           }
 
-          const resLogs = await apiFetch('/api/v1/production1/custody-logs')
+          const resLogs = await apiFetch('/api/v1/production1/custody-logs', { silent: isSilent })
           if (resLogs.ok) {
             const text = await resLogs.text()
             let dbLogs = []

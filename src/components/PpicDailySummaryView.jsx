@@ -3,6 +3,7 @@ import { useProduction1Store } from '../store/production1Store'
 import { Button } from './ui/Button'
 import { Input } from './ui/Input'
 import { exportPpicRecapExcel } from '../utils/excelExport'
+import { SummaryCardSkeleton, DivisionCardSkeleton } from './ui/Skeleton'
 import { SquarePen, Lock, AlertTriangle, CheckCircle2 } from 'lucide-react'
 
 const DIVISION_CONFIG = [
@@ -57,13 +58,16 @@ export default function PpicDailySummaryView() {
   const [rejectNotesInput, setRejectNotesInput] = useState('')
   const [opNotesInput, setOpNotesInput] = useState('')
   const [savingNote, setSavingNote] = useState(false)
+  const [noteSuccess, setNoteSuccess] = useState(false)
   const [feedback, setFeedback] = useState(null)
+  const [loadingRecap, setLoadingRecap] = useState(true)
 
   // State untuk Rekonsiliasi / Void Sisa QR yang tidak diproduksi
   const [selectedDivForVoid, setSelectedDivForVoid] = useState(null)
   const [selectedVoidLots, setSelectedVoidLots] = useState(() => new Set())
   const [voidReason, setVoidReason] = useState('Sisa rencana harian tidak terealisasi')
   const [isVoiding, setIsVoiding] = useState(false)
+  const [voidSuccess, setVoidSuccess] = useState(false)
 
   const dailyRecapData = useProduction1Store((s) => s.dailyRecapData)
   const fetchDailyRecap = useProduction1Store((s) => s.fetchDailyRecap)
@@ -84,11 +88,16 @@ export default function PpicDailySummaryView() {
     ? `${rangeStartDate} s/d ${rangeEndDate}`
     : selectedDate
 
-  const loadRecap = useCallback(() => {
-    if (filterPreset === 'range') {
-      fetchDailyRecap(rangeStartDate, rangeEndDate)
-    } else {
-      fetchDailyRecap(selectedDate)
+  const loadRecap = useCallback(async () => {
+    setLoadingRecap(true)
+    try {
+      if (filterPreset === 'range') {
+        await fetchDailyRecap(rangeStartDate, rangeEndDate)
+      } else {
+        await fetchDailyRecap(selectedDate)
+      }
+    } finally {
+      setLoadingRecap(false)
     }
   }, [fetchDailyRecap, filterPreset, rangeStartDate, rangeEndDate, selectedDate])
 
@@ -148,11 +157,21 @@ export default function PpicDailySummaryView() {
       const codes = Array.from(selectedVoidLots)
       const ok = await voidLots(codes, voidReason)
       if (ok) {
+        setVoidSuccess(true)
+        try {
+          if (typeof navigator !== 'undefined' && navigator.vibrate) {
+            navigator.vibrate(40)
+          }
+        } catch {
+          // ignore
+        }
+        await new Promise((resolve) => setTimeout(resolve, 600))
+        setSelectedDivForVoid(null)
+        setVoidSuccess(false)
         setFeedback({
           type: 'success',
           message: `${codes.length} QR berhasil dibatalkan (VOID). Scanner stasiun otomatis menolak stiker ini jika discan.`
         })
-        setSelectedDivForVoid(null)
         loadRecap()
       } else {
         setFeedback({
@@ -194,8 +213,18 @@ export default function PpicDailySummaryView() {
         operational_notes: opNotesInput.trim() || null,
         created_by: operatorName || operatorId || 'PPIC-AYU'
       })
-      setFeedback({ type: 'success', message: `Catatan divisi ${selectedDivForEdit.name} berhasil disimpan.` })
+      setNoteSuccess(true)
+      try {
+        if (typeof navigator !== 'undefined' && navigator.vibrate) {
+          navigator.vibrate(40)
+        }
+      } catch {
+        // ignore
+      }
+      await new Promise((resolve) => setTimeout(resolve, 600))
       setSelectedDivForEdit(null)
+      setNoteSuccess(false)
+      setFeedback({ type: 'success', message: `Catatan divisi ${selectedDivForEdit.name} berhasil disimpan.` })
       loadRecap()
     } catch (err) {
       setFeedback({ type: 'error', message: err?.message || 'Gagal menyimpan catatan.' })
@@ -353,228 +382,247 @@ export default function PpicDailySummaryView() {
         )}
       </div>
 
-      {/* Ringkasan Ringkas */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="p-4 rounded-3xl bg-white border border-[#EDE8DF] shadow-xs">
-          <div className="text-[11px] font-bold text-[#6B7B8D] uppercase tracking-wider">
-            Target Gilingan
+      {/* Skeletons saat data pertama kali dimuat */}
+      {loadingRecap && !dailyRecapData ? (
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <SummaryCardSkeleton />
+            <SummaryCardSkeleton />
+            <SummaryCardSkeleton />
+            <SummaryCardSkeleton />
           </div>
-          <div className="text-xl sm:text-2xl font-black text-[#2C3E50] mt-1">
-            {dailyRecapData?.target_gilingan || 0}
+          <div className="space-y-3">
+            <DivisionCardSkeleton />
+            <DivisionCardSkeleton />
+            <DivisionCardSkeleton />
           </div>
-          <div className="text-[11px] text-[#6B7B8D] mt-0.5">Target shift</div>
         </div>
-
-        <div className="p-4 rounded-3xl bg-white border border-[#EDE8DF] shadow-xs">
-          <div className="text-[11px] font-bold text-[#6B7B8D] uppercase tracking-wider">
-            Barcode Terbit
-          </div>
-          <div className="text-xl sm:text-2xl font-black text-[#4685ac] mt-1">
-            {totalLots}
-          </div>
-          <div className="text-[11px] text-[#6B7B8D] mt-0.5">Total lot terbit</div>
-        </div>
-
-        <div className="p-4 rounded-3xl bg-white border border-[#EDE8DF] shadow-xs">
-          <div className="text-[11px] font-bold text-[#6B7B8D] uppercase tracking-wider">
-            Total Reject
-          </div>
-          <div className="text-xl sm:text-2xl font-black text-[#D32F2F] mt-1">
-            {totalReject}
-          </div>
-          <div className="text-[11px] text-[#6B7B8D] mt-0.5">Semua stasiun</div>
-        </div>
-
-        <div className="p-4 rounded-3xl bg-white border border-[#EDE8DF] shadow-xs">
-          <div className="text-[11px] font-bold text-[#6B7B8D] uppercase tracking-wider">
-            Barang Masuk
-          </div>
-          <div className="text-xl sm:text-2xl font-black text-[#3A6B80] mt-1">
-            {dailyRecapData?.supplier_inbound?.length || 0}
-          </div>
-          <div className="text-[11px] text-[#6B7B8D] mt-0.5">Inbound supplier</div>
-        </div>
-      </div>
-
-      {/* Tombol Unduh Excel */}
-      <div className="flex items-center justify-end">
-        <button
-          type="button"
-          onClick={handleExportExcel}
-          className="min-h-[44px] px-4 py-2 bg-white hover:bg-[#F5F1EB] active:bg-[#EDE8DF] border border-[#3A6B80] text-[#3A6B80] text-xs sm:text-sm font-bold rounded-2xl flex items-center justify-center gap-2 cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3A6B80] shadow-2xs"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
-          <span>Unduh Excel</span>
-        </button>
-      </div>
-
-      {/* Daftar Kartu Rekap Per Divisi */}
-      <div className="space-y-4">
-        {DIVISION_CONFIG.map((divConfig) => {
-          const divData = divisions[divConfig.id] || {}
-          const isProd2 = divConfig.id === 'CETAK' || divConfig.id === 'PACKING'
-
-          const hasDiffOfficer = Boolean(divData.updated_by && divData.updated_by !== primaryOfficer)
-
-          return (
-            <div
-              key={divConfig.id}
-              className="border border-bg-cream-dark shadow-2xs rounded-2xl bg-white overflow-hidden"
-            >
-              {/* Header Card Satu Baris */}
-              <div className="px-4 py-2 flex items-center justify-between border-b border-bg-cream-dark">
-                <div className="flex items-center gap-2 flex-wrap min-w-0">
-                  <h2 className="text-sm font-bold text-text-primary tracking-tight">
-                    {divConfig.name}
-                  </h2>
-                  {hasDiffOfficer && (
-                    <span className="text-[11px] font-medium text-text-secondary bg-bg-cream px-2 py-0.5 rounded-md border border-bg-cream-dark">
-                      Petugas: {divData.updated_by}
-                    </span>
-                  )}
-                  {divData.reject_count > 0 && (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-brand-red/10 text-brand-red border border-brand-red/20">
-                      {divData.reject_count} Reject
-                    </span>
-                  )}
-                </div>
-
-                {isHistorical ? (
-                  <div
-                    className="min-w-[44px] min-h-[44px] flex items-center justify-center text-text-secondary/60"
-                    title="Arsip Riwayat"
-                    aria-label="Arsip Riwayat"
-                  >
-                    <Lock className="w-5 h-5" />
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => openEditModal(divConfig)}
-                    aria-label="Catat Reject & Kendala"
-                    title="Catat Reject & Kendala"
-                    className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-brand-blue hover:text-brand-blue-dark hover:bg-bg-cream active:scale-95 transition-all cursor-pointer"
-                  >
-                    <SquarePen className="w-5 h-5" />
-                  </button>
-                )}
+      ) : (
+        <>
+          {/* Ringkasan Ringkas */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="p-4 rounded-3xl bg-white border border-[#EDE8DF] shadow-xs">
+              <div className="text-[11px] font-bold text-[#6B7B8D] uppercase tracking-wider">
+                Target Gilingan
               </div>
-
-              {/* Metrik Satu Baris */}
-              {isProd2 ? (
-                <div className="grid grid-cols-2 gap-3 px-4 py-3">
-                  <div>
-                    <div className="text-xs uppercase text-text-secondary leading-tight truncate">
-                      Status
-                    </div>
-                    <div className="text-lg font-semibold text-text-primary mt-0.5">
-                      Aktif
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="text-xs uppercase text-text-secondary leading-tight truncate">
-                      Total Kuantitas
-                    </div>
-                    <div className="text-lg font-semibold text-text-primary tabular-nums mt-0.5">
-                      {divData.total_quantity || 0} <span className="text-xs font-normal text-text-secondary">{divConfig.defaultUnit}</span>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 px-4 py-3">
-                  <div>
-                    <div className="text-xs uppercase text-text-secondary leading-tight truncate">
-                      Terbit (Rencana)
-                    </div>
-                    <div className="text-lg font-semibold text-text-primary tabular-nums mt-0.5">
-                      {divData.total_lots || 0} <span className="text-xs font-normal text-text-secondary">lot</span>
-                    </div>
-                    <div className="text-[11px] text-text-secondary mt-0.5 truncate">
-                      {divData.total_quantity || 0} {divConfig.defaultUnit}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="text-xs uppercase text-text-secondary leading-tight truncate">
-                      Realisasi Selesai
-                    </div>
-                    <div className="text-lg font-semibold text-brand-green-dark tabular-nums mt-0.5">
-                      {divData.completed_count || 0} <span className="text-xs font-normal text-text-secondary">lot</span>
-                    </div>
-                    <div className="text-[11px] text-text-secondary mt-0.5 truncate">
-                      {divData.completed_quantity ?? divData.total_quantity ?? 0} {divConfig.defaultUnit}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="text-xs uppercase text-text-secondary leading-tight truncate">
-                      Sisa Belum Dibuat
-                    </div>
-                    <div className={`text-lg font-semibold tabular-nums mt-0.5 ${(divData.printed_count || 0) > 0 ? 'text-amber-600' : 'text-text-secondary'}`}>
-                      {divData.printed_count || 0} <span className="text-xs font-normal text-text-secondary">lot</span>
-                    </div>
-                    <div className="text-[11px] text-text-secondary mt-0.5 truncate">
-                      {(divData.printed_count || 0) > 0 ? 'Stiker fisik aktif' : 'Nihil'}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="text-xs uppercase text-text-secondary leading-tight truncate">
-                      Batal (VOID)
-                    </div>
-                    <div className={`text-lg font-semibold tabular-nums mt-0.5 ${(divData.void_count || 0) > 0 ? 'text-rose-600' : 'text-text-secondary'}`}>
-                      {divData.void_count || 0} <span className="text-xs font-normal text-text-secondary">lot</span>
-                    </div>
-                    <div className="text-[11px] text-text-secondary mt-0.5 truncate">
-                      {(divData.void_count || 0) > 0 ? 'Stiker mati' : 'Nihil'}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Alert & Tombol Rekonsiliasi Sisa QR */}
-              {(divData.printed_count || 0) > 0 && !isHistorical && (
-                <div className="px-4 py-2.5 bg-amber-50/80 border-t border-amber-200/70 flex items-center justify-between gap-3 text-xs">
-                  <div className="flex items-center gap-2 text-amber-900 font-medium min-w-0">
-                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
-                    <span className="truncate">
-                      Ada <strong>{divData.printed_count} QR</strong> belum dikerjakan (sisa stiker fisik)
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => openVoidModal(divConfig, divData)}
-                    className="shrink-0 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white font-semibold rounded-lg text-xs shadow-2xs transition-all cursor-pointer flex items-center gap-1.5"
-                  >
-                    <span>Batalkan Sisa QR</span>
-                  </button>
-                </div>
-              )}
-
-              {/* Catatan Reject & Operasional (Hanya jika ada isinya) */}
-              {(divData.reject_notes || divData.operational_notes) && (
-                <div className="px-4 pb-3 pt-2.5 border-t border-bg-cream-dark space-y-1 text-xs">
-                  {divData.reject_notes && (
-                    <div className="leading-relaxed">
-                      <span className="font-semibold text-text-primary">Alasan Reject: </span>
-                      <span className="text-text-secondary">{divData.reject_notes}</span>
-                    </div>
-                  )}
-                  {divData.operational_notes && (
-                    <div className="leading-relaxed">
-                      <span className="font-semibold text-text-primary">Catatan Operasional: </span>
-                      <span className="text-text-secondary">{divData.operational_notes}</span>
-                    </div>
-                  )}
-                </div>
-              )}
+              <div className="text-xl sm:text-2xl font-black text-[#2C3E50] mt-1">
+                {dailyRecapData?.target_gilingan || 0}
+              </div>
+              <div className="text-[11px] text-[#6B7B8D] mt-0.5">Target shift</div>
             </div>
-          )
-        })}
-      </div>
+
+            <div className="p-4 rounded-3xl bg-white border border-[#EDE8DF] shadow-xs">
+              <div className="text-[11px] font-bold text-[#6B7B8D] uppercase tracking-wider">
+                Barcode Terbit
+              </div>
+              <div className="text-xl sm:text-2xl font-black text-[#4685ac] mt-1">
+                {totalLots}
+              </div>
+              <div className="text-[11px] text-[#6B7B8D] mt-0.5">Total lot terbit</div>
+            </div>
+
+            <div className="p-4 rounded-3xl bg-white border border-[#EDE8DF] shadow-xs">
+              <div className="text-[11px] font-bold text-[#6B7B8D] uppercase tracking-wider">
+                Total Reject
+              </div>
+              <div className="text-xl sm:text-2xl font-black text-[#D32F2F] mt-1">
+                {totalReject}
+              </div>
+              <div className="text-[11px] text-[#6B7B8D] mt-0.5">Semua stasiun</div>
+            </div>
+
+            <div className="p-4 rounded-3xl bg-white border border-[#EDE8DF] shadow-xs">
+              <div className="text-[11px] font-bold text-[#6B7B8D] uppercase tracking-wider">
+                Barang Masuk
+              </div>
+              <div className="text-xl sm:text-2xl font-black text-[#3A6B80] mt-1">
+                {dailyRecapData?.supplier_inbound?.length || 0}
+              </div>
+              <div className="text-[11px] text-[#6B7B8D] mt-0.5">Inbound supplier</div>
+            </div>
+          </div>
+
+          {/* Tombol Unduh Excel */}
+          <div className="flex items-center justify-end">
+            <button
+              type="button"
+              onClick={handleExportExcel}
+              className="min-h-[44px] px-4 py-2 bg-white hover:bg-[#F5F1EB] active:bg-[#EDE8DF] border border-[#3A6B80] text-[#3A6B80] text-xs sm:text-sm font-bold rounded-2xl flex items-center justify-center gap-2 cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3A6B80] shadow-2xs"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <span>Unduh Excel</span>
+            </button>
+          </div>
+
+          {/* Daftar Kartu Rekap Per Divisi */}
+          <div className="space-y-4">
+            {DIVISION_CONFIG.map((divConfig) => {
+              const divData = divisions[divConfig.id] || {}
+              const isProd2 = divConfig.id === 'CETAK' || divConfig.id === 'PACKING'
+
+              const hasDiffOfficer = Boolean(divData.updated_by && divData.updated_by !== primaryOfficer)
+
+              return (
+                <div
+                  key={divConfig.id}
+                  className="border border-bg-cream-dark shadow-2xs rounded-2xl bg-white overflow-hidden"
+                >
+                  {/* Header Card Satu Baris */}
+                  <div className="px-4 py-2 flex items-center justify-between border-b border-bg-cream-dark">
+                    <div className="flex items-center gap-2 flex-wrap min-w-0">
+                      <h2 className="text-sm font-bold text-text-primary tracking-tight">
+                        {divConfig.name}
+                      </h2>
+                      {hasDiffOfficer && (
+                        <span className="text-[11px] font-medium text-text-secondary bg-bg-cream px-2 py-0.5 rounded-md border border-bg-cream-dark">
+                          Petugas: {divData.updated_by}
+                        </span>
+                      )}
+                      {divData.reject_count > 0 && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-brand-red/10 text-brand-red border border-brand-red/20">
+                          {divData.reject_count} Reject
+                        </span>
+                      )}
+                    </div>
+
+                    {isHistorical ? (
+                      <div
+                        className="min-w-[44px] min-h-[44px] flex items-center justify-center text-text-secondary/60"
+                        title="Arsip Riwayat"
+                        aria-label="Arsip Riwayat"
+                      >
+                        <Lock className="w-5 h-5" />
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => openEditModal(divConfig)}
+                        aria-label="Catat Reject & Kendala"
+                        title="Catat Reject & Kendala"
+                        className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-brand-blue hover:text-brand-blue-dark hover:bg-bg-cream active:scale-95 transition-all cursor-pointer"
+                      >
+                        <SquarePen className="w-5 h-5" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Metrik Satu Baris */}
+                  {isProd2 ? (
+                    <div className="grid grid-cols-2 gap-3 px-4 py-3">
+                      <div>
+                        <div className="text-xs uppercase text-text-secondary leading-tight truncate">
+                          Status
+                        </div>
+                        <div className="text-lg font-semibold text-text-primary mt-0.5">
+                          Aktif
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="text-xs uppercase text-text-secondary leading-tight truncate">
+                          Total Kuantitas
+                        </div>
+                        <div className="text-lg font-semibold text-text-primary tabular-nums mt-0.5">
+                          {divData.total_quantity || 0} <span className="text-xs font-normal text-text-secondary">{divConfig.defaultUnit}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 px-4 py-3">
+                      <div>
+                        <div className="text-xs uppercase text-text-secondary leading-tight truncate">
+                          Terbit (Rencana)
+                        </div>
+                        <div className="text-lg font-semibold text-text-primary tabular-nums mt-0.5">
+                          {divData.total_lots || 0} <span className="text-xs font-normal text-text-secondary">lot</span>
+                        </div>
+                        <div className="text-[11px] text-text-secondary mt-0.5 truncate">
+                          {divData.total_quantity || 0} {divConfig.defaultUnit}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="text-xs uppercase text-text-secondary leading-tight truncate">
+                          Realisasi Selesai
+                        </div>
+                        <div className="text-lg font-semibold text-brand-green-dark tabular-nums mt-0.5">
+                          {divData.completed_count || 0} <span className="text-xs font-normal text-text-secondary">lot</span>
+                        </div>
+                        <div className="text-[11px] text-text-secondary mt-0.5 truncate">
+                          {divData.completed_quantity ?? divData.total_quantity ?? 0} {divConfig.defaultUnit}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="text-xs uppercase text-text-secondary leading-tight truncate">
+                          Sisa Belum Dibuat
+                        </div>
+                        <div className={`text-lg font-semibold tabular-nums mt-0.5 ${(divData.printed_count || 0) > 0 ? 'text-amber-600' : 'text-text-secondary'}`}>
+                          {divData.printed_count || 0} <span className="text-xs font-normal text-text-secondary">lot</span>
+                        </div>
+                        <div className="text-[11px] text-text-secondary mt-0.5 truncate">
+                          {(divData.printed_count || 0) > 0 ? 'Stiker fisik aktif' : 'Nihil'}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="text-xs uppercase text-text-secondary leading-tight truncate">
+                          Batal (VOID)
+                        </div>
+                        <div className={`text-lg font-semibold tabular-nums mt-0.5 ${(divData.void_count || 0) > 0 ? 'text-rose-600' : 'text-text-secondary'}`}>
+                          {divData.void_count || 0} <span className="text-xs font-normal text-text-secondary">lot</span>
+                        </div>
+                        <div className="text-[11px] text-text-secondary mt-0.5 truncate">
+                          {(divData.void_count || 0) > 0 ? 'Stiker mati' : 'Nihil'}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Alert & Tombol Rekonsiliasi Sisa QR */}
+                  {(divData.printed_count || 0) > 0 && !isHistorical && (
+                    <div className="px-4 py-2.5 bg-amber-50/80 border-t border-amber-200/70 flex items-center justify-between gap-3 text-xs">
+                      <div className="flex items-center gap-2 text-amber-900 font-medium min-w-0">
+                        <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
+                        <span className="truncate">
+                          Ada <strong>{divData.printed_count} QR</strong> belum dikerjakan (sisa stiker fisik)
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => openVoidModal(divConfig, divData)}
+                        className="shrink-0 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white font-semibold rounded-lg text-xs shadow-2xs transition-all cursor-pointer flex items-center gap-1.5"
+                      >
+                        <span>Batalkan Sisa QR</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Catatan Reject & Operasional (Hanya jika ada isinya) */}
+                  {(divData.reject_notes || divData.operational_notes) && (
+                    <div className="px-4 pb-3 pt-2.5 border-t border-bg-cream-dark space-y-1 text-xs">
+                      {divData.reject_notes && (
+                        <div className="leading-relaxed">
+                          <span className="font-semibold text-text-primary">Alasan Reject: </span>
+                          <span className="text-text-secondary">{divData.reject_notes}</span>
+                        </div>
+                      )}
+                      {divData.operational_notes && (
+                        <div className="leading-relaxed">
+                          <span className="font-semibold text-text-primary">Catatan Operasional: </span>
+                          <span className="text-text-secondary">{divData.operational_notes}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </>
+      )}
 
       {/* Modal Edit Catatan & Reject */}
       {selectedDivForEdit && !isHistorical && (
@@ -656,6 +704,8 @@ export default function PpicDailySummaryView() {
                   type="submit"
                   variant="primary"
                   loading={savingNote}
+                  isSuccess={noteSuccess}
+                  successText="Catatan Tersimpan!"
                   disabled={savingNote}
                   className="flex-1 min-h-[44px] bg-[#4685ac] hover:bg-[#3A6B80]"
                 >
@@ -796,9 +846,12 @@ export default function PpicDailySummaryView() {
                 variant="destructive"
                 size="sm"
                 onClick={handleConfirmVoid}
+                loading={isVoiding}
+                isSuccess={voidSuccess}
+                successText="Berhasil Dibatalkan!"
                 disabled={isVoiding || selectedVoidLots.size === 0}
               >
-                {isVoiding ? 'Membatalkan...' : `Batalkan ${selectedVoidLots.size} QR (VOID)`}
+                Batalkan {selectedVoidLots.size} QR (VOID)
               </Button>
             </div>
           </div>

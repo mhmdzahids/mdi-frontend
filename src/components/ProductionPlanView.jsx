@@ -23,6 +23,7 @@ import {
 } from 'lucide-react'
 import { Card, CardContent } from './ui/Card'
 import { SegmentedControl } from './ui/SegmentedControl'
+import { Button } from './ui/Button'
 import { lockBodyScroll, unlockBodyScroll } from '../utils/useLockBodyScroll'
 
 function formatTime(isoStr) {
@@ -80,6 +81,7 @@ export default function ProductionPlanView() {
   const [showPublishModal, setShowPublishModal] = useState(false)
   const [publishIdempKey, setPublishIdempKey] = useState('')
   const [isPublishing, setIsPublishing] = useState(false)
+  const [publishSuccess, setPublishSuccess] = useState(false)
 
   // State untuk Bottom Sheet Tambah Produksi (Batch 2+)
   const [showAddBatchModal, setShowAddBatchModal] = useState(false)
@@ -91,10 +93,12 @@ export default function ProductionPlanView() {
   const [isPreviewLoading, setIsPreviewLoading] = useState(false)
   const [batchPreviewData, setBatchPreviewData] = useState(null)
   const [isAddingBatch, setIsAddingBatch] = useState(false)
+  const [addBatchSuccess, setAddBatchSuccess] = useState(false)
 
   // State untuk Konfirmasi Pembatalan Batch
   const [batchToVoid, setBatchToVoid] = useState(null)
   const [isVoiding, setIsVoiding] = useState(false)
+  const [voidBatchSuccess, setVoidBatchSuccess] = useState(false)
 
   // State auto-save debounce
   const [isDraftSaving, setIsDraftSaving] = useState(false)
@@ -301,7 +305,18 @@ export default function ProductionPlanView() {
         sauce_vakum_bal: isDetailed ? plannedSaosVakum : undefined
       })
 
+      setPublishSuccess(true)
+      try {
+        if (typeof navigator !== 'undefined' && navigator.vibrate) {
+          navigator.vibrate(40)
+        }
+      } catch {
+        // ignore
+      }
+      await new Promise((resolve) => setTimeout(resolve, 600))
+
       setShowPublishModal(false)
+      setPublishSuccess(false)
       setPublishIdempKey('')
 
       if (res?.lots && res.lots.length > 0) {
@@ -399,7 +414,18 @@ export default function ProductionPlanView() {
         add_vakum_packs: parseInt(addVakumPacks, 10) || 0
       })
 
+      setAddBatchSuccess(true)
+      try {
+        if (typeof navigator !== 'undefined' && navigator.vibrate) {
+          navigator.vibrate(40)
+        }
+      } catch {
+        // ignore
+      }
+      await new Promise((resolve) => setTimeout(resolve, 600))
+
       setShowAddBatchModal(false)
+      setAddBatchSuccess(false)
       setAddIdempKey('')
 
       if (res?.lots && res.lots.length > 0) {
@@ -424,7 +450,17 @@ export default function ProductionPlanView() {
     setIsVoiding(true)
     try {
       await voidBatch(batchToVoid.batch_no)
+      setVoidBatchSuccess(true)
+      try {
+        if (typeof navigator !== 'undefined' && navigator.vibrate) {
+          navigator.vibrate(40)
+        }
+      } catch {
+        // ignore
+      }
+      await new Promise((resolve) => setTimeout(resolve, 600))
       setBatchToVoid(null)
+      setVoidBatchSuccess(false)
     } catch (err) {
       setValidationError(err.message || 'Gagal membatalkan batch.')
       setBatchToVoid(null)
@@ -1621,29 +1657,26 @@ export default function ProductionPlanView() {
 
             {/* Footer Aksi Sheet */}
             <div className="p-3 border-t border-[#EDE8DF] bg-[#F5F1EB]/50 flex items-center gap-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-              <button
-                type="button"
+              <Button
+                variant="outline"
                 disabled={isPublishing}
                 onClick={() => setShowPublishModal(false)}
-                className="flex-1 min-h-[44px] h-11 rounded-xl border border-[#EDE8DF] bg-white text-xs font-semibold text-[#2C3E50] hover:bg-[#F5F1EB] transition cursor-pointer"
+                className="flex-1 min-h-[44px]"
               >
                 Kembali
-              </button>
-              <button
-                type="button"
+              </Button>
+              <Button
+                variant="primary"
                 disabled={isPublishing}
+                loading={isPublishing}
+                isSuccess={publishSuccess}
+                successText="QR Berhasil Diterbitkan!"
                 onClick={handleExecutePublish}
-                className="flex-1 min-h-[44px] h-11 rounded-xl bg-[#4685ac] hover:bg-[#3A6B80] active:scale-[0.99] text-white text-xs font-bold transition flex items-center justify-center gap-2 shadow-xs cursor-pointer disabled:opacity-50"
+                className="flex-1 min-h-[44px]"
               >
-                {isPublishing ? (
-                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <>
-                    <Printer className="w-4 h-4 text-white" />
-                    <span>Terbitkan QR</span>
-                  </>
-                )}
-              </button>
+                <Printer className="w-4 h-4 text-white" />
+                <span>Terbitkan QR</span>
+              </Button>
             </div>
           </div>
         </div>
@@ -1798,29 +1831,26 @@ export default function ProductionPlanView() {
 
             {/* Footer Aksi Sheet */}
             <div className="p-3 border-t border-[#EDE8DF] bg-[#F5F1EB]/50 flex items-center gap-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-              <button
-                type="button"
+              <Button
+                variant="outline"
                 disabled={isAddingBatch}
                 onClick={() => setShowAddBatchModal(false)}
-                className="flex-1 min-h-[44px] h-11 rounded-xl border border-[#EDE8DF] bg-white text-xs font-semibold text-[#2C3E50] hover:bg-[#F5F1EB] transition cursor-pointer"
+                className="flex-1 min-h-[44px]"
               >
                 Kembali
-              </button>
-              <button
-                type="button"
+              </Button>
+              <Button
+                variant="primary"
                 disabled={isAddingBatch || !batchPreviewData || batchPreviewData.delta?.total === 0}
+                loading={isAddingBatch}
+                isSuccess={addBatchSuccess}
+                successText="Batch Berhasil Ditambahkan!"
                 onClick={handleExecuteAddBatch}
-                className="flex-1 min-h-[44px] h-11 rounded-xl bg-[#4685ac] hover:bg-[#3A6B80] active:scale-[0.99] text-white text-xs font-bold transition flex items-center justify-center gap-2 shadow-xs cursor-pointer disabled:opacity-50"
+                className="flex-1 min-h-[44px]"
               >
-                {isAddingBatch ? (
-                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <>
-                    <Printer className="w-4 h-4 text-white" />
-                    <span>Terbitkan Batch {batchPreviewData?.next_batch_no || planBatches.length + 1}</span>
-                  </>
-                )}
-              </button>
+                <Printer className="w-4 h-4 text-white" />
+                <span>Terbitkan Batch {batchPreviewData?.next_batch_no || planBatches.length + 1}</span>
+              </Button>
             </div>
           </div>
         </div>
@@ -1862,26 +1892,25 @@ export default function ProductionPlanView() {
             </p>
 
             <div className="flex items-center gap-2 pt-2 border-t border-[#EDE8DF]">
-              <button
-                type="button"
+              <Button
+                variant="outline"
                 disabled={isVoiding}
                 onClick={() => setBatchToVoid(null)}
-                className="flex-1 min-h-[44px] h-10 rounded-xl border border-[#EDE8DF] bg-white text-xs font-semibold text-[#2C3E50] hover:bg-[#F5F1EB] transition cursor-pointer"
+                className="flex-1 min-h-[44px]"
               >
                 Kembali
-              </button>
-              <button
-                type="button"
+              </Button>
+              <Button
+                variant="danger"
                 disabled={isVoiding}
+                loading={isVoiding}
+                isSuccess={voidBatchSuccess}
+                successText="Batch Dibatalkan!"
                 onClick={handleExecuteVoidBatch}
-                className="flex-1 min-h-[44px] h-10 rounded-xl bg-[#E8352D] hover:bg-[#C92A24] active:scale-[0.99] text-white text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer disabled:opacity-50"
+                className="flex-1 min-h-[44px]"
               >
-                {isVoiding ? (
-                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <span>Batalkan Batch</span>
-                )}
-              </button>
+                Batalkan Batch
+              </Button>
             </div>
           </div>
         </div>
