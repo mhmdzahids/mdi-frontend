@@ -79,6 +79,29 @@ function formatIndoDateFull(dStr) {
   return `${day} ${months[monthIdx] || parts[1]} ${year}`
 }
 
+const INDO_DAYS = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu']
+
+function getIndoDayName(dStr) {
+  if (!dStr) return ''
+  const parts = dStr.split('-')
+  if (parts.length !== 3) return ''
+  const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10))
+  return INDO_DAYS[d.getDay()] || ''
+}
+
+function formatItemTime(isoStr) {
+  if (!isoStr) return ''
+  try {
+    const s = String(isoStr)
+    const normalized = s.endsWith('Z') || s.includes('+') ? s : s.replace(' ', 'T') + 'Z'
+    const d = new Date(normalized)
+    if (isNaN(d.getTime())) return ''
+    return d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' }).replace('.', ':') + ' WIB'
+  } catch {
+    return ''
+  }
+}
+
 export default function SupplierInboundView() {
   // Modal Pop up State & Scroll Lock
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -89,11 +112,11 @@ export default function SupplierInboundView() {
   const [searchQuery, setSearchQuery] = useState('')
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
 
-  // Filter Kategori & Tanggal
+  // Filter Kategori & Tanggal (Default: 'recent' = Hari Ini & Kemarin agar pergantian hari 00:00 tidak mengosongkan data)
   const [filterCategory, setFilterCategory] = useState('ALL') // 'ALL' | 'KULIT' | 'DAGING' | ...
-  const [filterPreset, setFilterPreset] = useState('today') // 'today' | 'yesterday' | 'single' | 'range' | 'all'
+  const [filterPreset, setFilterPreset] = useState('recent') // 'recent' | 'today' | 'yesterday' | 'single' | 'range' | 'all'
   const [selectedDate, setSelectedDate] = useState(getTodayStr())
-  const [rangeStartDate, setRangeStartDate] = useState(getTodayStr())
+  const [rangeStartDate, setRangeStartDate] = useState(getYesterdayStr())
   const [rangeEndDate, setRangeEndDate] = useState(getTodayStr())
 
   // Form State Modal Catat Barang Masuk (Awalnya kosong tanpa nilai default)
@@ -129,24 +152,34 @@ export default function SupplierInboundView() {
 
   const activePeriodLabel = isRange
     ? `${formatIndoDate(rangeStartDate)} – ${formatIndoDate(rangeEndDate)}`
-    : filterPreset === 'all'
-      ? 'Semua Waktu'
-      : formatIndoDateFull(selectedDate)
+    : filterPreset === 'recent'
+      ? 'Hari Ini & Kemarin'
+      : filterPreset === 'today'
+        ? `Hari Ini (${formatIndoDate(selectedDate)})`
+        : filterPreset === 'yesterday'
+          ? `Kemarin (${formatIndoDate(selectedDate)})`
+          : filterPreset === 'all'
+            ? 'Semua Waktu'
+            : formatIndoDateFull(selectedDate)
 
   const activeExportDateStr = isRange
     ? `${rangeStartDate} s/d ${rangeEndDate}`
-    : filterPreset === 'all'
-      ? 'Semua'
-      : selectedDate
+    : filterPreset === 'recent'
+      ? `${getYesterdayStr()} s/d ${getTodayStr()}`
+      : filterPreset === 'all'
+        ? 'Semua'
+        : selectedDate
 
-  const isFilterActive = filterCategory !== 'ALL' || filterPreset !== 'today'
-  const activeFilterCount = (filterCategory !== 'ALL' ? 1 : 0) + (filterPreset !== 'today' ? 1 : 0)
+  const isFilterActive = filterCategory !== 'ALL' || filterPreset !== 'recent'
+  const activeFilterCount = (filterCategory !== 'ALL' ? 1 : 0) + (filterPreset !== 'recent' ? 1 : 0)
 
   const loadInboundData = useCallback(async () => {
     setIsLoadingInbound(true)
     try {
       const catParam = filterCategory === 'ALL' ? null : filterCategory
-      if (filterPreset === 'range') {
+      if (filterPreset === 'recent') {
+        await fetchSupplierInbound(getYesterdayStr(), catParam, getTodayStr())
+      } else if (filterPreset === 'range') {
         await fetchSupplierInbound(rangeStartDate, catParam, rangeEndDate)
       } else if (filterPreset === 'all') {
         await fetchSupplierInbound(null, catParam, null, true)
@@ -165,7 +198,14 @@ export default function SupplierInboundView() {
   const applyPreset = (preset) => {
     setFilterPreset(preset)
     const catParam = filterCategory === 'ALL' ? null : filterCategory
-    if (preset === 'today') {
+    if (preset === 'recent') {
+      const t = getTodayStr()
+      const y = getYesterdayStr()
+      setSelectedDate(t)
+      setRangeStartDate(y)
+      setRangeEndDate(t)
+      fetchSupplierInbound(y, catParam, t)
+    } else if (preset === 'today') {
       const t = getTodayStr()
       setSelectedDate(t)
       fetchSupplierInbound(t, catParam)
@@ -185,7 +225,9 @@ export default function SupplierInboundView() {
   const handleFilterCategoryChange = (catId) => {
     setFilterCategory(catId)
     const catParam = catId === 'ALL' ? null : catId
-    if (filterPreset === 'range') {
+    if (filterPreset === 'recent') {
+      fetchSupplierInbound(getYesterdayStr(), catParam, getTodayStr())
+    } else if (filterPreset === 'range') {
       fetchSupplierInbound(rangeStartDate, catParam, rangeEndDate)
     } else if (filterPreset === 'all') {
       fetchSupplierInbound(null, catParam, null, true)
@@ -196,10 +238,13 @@ export default function SupplierInboundView() {
 
   const handleResetFilter = () => {
     setFilterCategory('ALL')
-    setFilterPreset('today')
+    setFilterPreset('recent')
     const t = getTodayStr()
+    const y = getYesterdayStr()
     setSelectedDate(t)
-    fetchSupplierInbound(t, null)
+    setRangeStartDate(y)
+    setRangeEndDate(t)
+    fetchSupplierInbound(y, null, t)
   }
 
   // Handler Perubahan Kategori Form Modal
@@ -432,6 +477,62 @@ export default function SupplierInboundView() {
     return list
   }, [supplierInboundList, filterCategory, searchQuery])
 
+  // Kelompokkan daftar transaksi barang masuk berdasarkan tanggal (divide beda hari)
+  const groupedInboundByDate = useMemo(() => {
+    const today = getTodayStr()
+    const yesterday = getYesterdayStr()
+
+    const map = new Map()
+    for (const item of filteredInboundList) {
+      const d = item.inbound_date || (item.created_at ? String(item.created_at).slice(0, 10) : today)
+      if (!map.has(d)) {
+        map.set(d, [])
+      }
+      map.get(d).push(item)
+    }
+
+    // Jika filter preset 'recent' dan tidak sedang mencari teks,
+    // tampilkan slot 'Hari Ini' agar PPIC melihat dengan jelas pembagian hari ini vs kemarin
+    if (filterPreset === 'recent' && !searchQuery.trim() && !map.has(today)) {
+      map.set(today, [])
+    }
+
+    // Urutkan tanggal menurun (terbaru di atas)
+    const sortedDates = Array.from(map.keys()).sort((a, b) => (b > a ? 1 : b < a ? -1 : 0))
+
+    return sortedDates.map((dateStr) => {
+      const items = map.get(dateStr) || []
+      const isToday = dateStr === today
+      const isYesterday = dateStr === yesterday
+
+      let badgeLabel = ''
+      let title = ''
+
+      if (isToday) {
+        badgeLabel = 'Hari Ini'
+        const dayName = getIndoDayName(dateStr)
+        title = dayName ? `${dayName}, ${formatIndoDate(dateStr)}` : formatIndoDate(dateStr)
+      } else if (isYesterday) {
+        badgeLabel = 'Kemarin'
+        const dayName = getIndoDayName(dateStr)
+        title = dayName ? `${dayName}, ${formatIndoDate(dateStr)}` : formatIndoDate(dateStr)
+      } else {
+        const dayName = getIndoDayName(dateStr)
+        badgeLabel = dayName || 'Riwayat'
+        title = formatIndoDate(dateStr)
+      }
+
+      return {
+        dateStr,
+        isToday,
+        isYesterday,
+        badgeLabel,
+        title,
+        items
+      }
+    })
+  }, [filteredInboundList, filterPreset, searchQuery])
+
   // Ringkasan Stok / Inventory
   const inventoryItems = useMemo(() => {
     const map = new Map()
@@ -583,12 +684,12 @@ export default function SupplierInboundView() {
             </span>
           )}
 
-          {filterPreset !== 'today' && (
+          {filterPreset !== 'recent' && (
             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#FAF7F2] border border-[#EDE8DF] text-[11px] text-[#2C3E50] font-medium">
               <span>Waktu: {activePeriodLabel}</span>
               <button
                 type="button"
-                onClick={() => applyPreset('today')}
+                onClick={() => applyPreset('recent')}
                 className="hover:text-rose-600 cursor-pointer ml-0.5"
                 aria-label="Hapus filter waktu"
               >
@@ -634,50 +735,104 @@ export default function SupplierInboundView() {
               )}
             </div>
           ) : (
-            <div className="space-y-2 pt-1">
+            <div className="space-y-4 pt-1">
               <div className="flex items-center justify-between px-1 text-[11px] text-[#6B7B8D] font-medium">
-                <span>{filteredInboundList.length} transaksi</span>
+                <span>{filteredInboundList.length} total transaksi</span>
                 <span>Periode: {activePeriodLabel}</span>
               </div>
-              <div className="space-y-2">
-                {filteredInboundList.map((item, idx) => (
-                  <div
-                    key={item.inbound_id || idx}
-                    className="bg-white border border-[#EDE8DF] rounded-2xl p-3 shadow-2xs transition-all hover:border-[#D5CEBF]"
-                  >
-                    <div className="flex items-start justify-between gap-2.5">
-                      <div className="space-y-1 min-w-0 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-[#FAF7F2] text-[#4685ac] border border-[#EDE8DF]">
-                            {item.category}
+
+              {groupedInboundByDate.map((group) => {
+                if (group.items.length === 0) {
+                  return (
+                    <div key={group.dateStr} className="space-y-1.5">
+                      <div className="flex items-center justify-between px-1 pt-1 pb-0.5">
+                        <div className="flex items-center gap-1.5">
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-[#EAF5EE] text-[#2F7D5B] border border-[#CBEAD6]">
+                            {group.badgeLabel || 'Hari Ini'}
                           </span>
-                          <span className="font-bold text-xs text-[#2C3E50] block truncate">
-                            {item.item_name}
+                          <span className="text-xs font-bold text-[#2C3E50]">
+                            {group.title}
                           </span>
                         </div>
-                        <span className="text-[11px] text-[#6B7B8D] block">
-                          {item.inbound_date ? formatIndoDate(item.inbound_date) : '-'} • Supplier: <span className="font-semibold text-[#2C3E50]">{item.supplier_name}</span>
-                          {item.document_no ? ` • SJ: ${item.document_no}` : ''}
+                        <span className="text-[10px] text-[#6B7B8D] font-medium">
+                          0 transaksi
                         </span>
-                        {item.notes && (
-                          <span className="text-[11px] text-[#6B7B8D] italic block">
-                            &ldquo;{item.notes}&rdquo;
-                          </span>
-                        )}
                       </div>
-
-                      <div className="text-right shrink-0">
-                        <span className="font-bold text-xs text-[#2C3E50] tabular-nums block">
-                          {item.quantity} <span className="text-[11px] font-semibold text-[#6B7B8D]">{formatUnitDisplay(item.unit)}</span>
-                        </span>
-                        <span className="text-[10px] text-[#6B7B8D] block mt-0.5">
-                          {item.received_by || 'PPIC'}
-                        </span>
+                      <div className="bg-[#FAF7F2]/60 border border-dashed border-[#EDE8DF] rounded-xl p-3 text-center text-[11px] text-[#6B7B8D]">
+                        Belum ada barang masuk tercatat hari ini.
                       </div>
                     </div>
+                  )
+                }
+
+                return (
+                  <div key={group.dateStr} className="space-y-1.5">
+                    {/* Section Divider per Hari */}
+                    <div className="flex items-center justify-between px-1 pt-1 pb-0.5">
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${
+                            group.isToday
+                              ? 'bg-[#EAF5EE] text-[#2F7D5B] border-[#CBEAD6]'
+                              : group.isYesterday
+                              ? 'bg-[#F5F1EB] text-[#556575] border-[#EDE8DF]'
+                              : 'bg-[#FAF7F2] text-[#6B7B8D] border-[#EDE8DF]'
+                          }`}
+                        >
+                          {group.badgeLabel || 'Riwayat'}
+                        </span>
+                        <span className="text-xs font-bold text-[#2C3E50]">
+                          {group.title}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-[#6B7B8D] font-semibold">
+                        {group.items.length} transaksi
+                      </span>
+                    </div>
+
+                    {/* Kartu Transaksi per Hari */}
+                    <div className="space-y-2">
+                      {group.items.map((item, idx) => (
+                        <div
+                          key={item.inbound_id || idx}
+                          className="bg-white border border-[#EDE8DF] rounded-2xl p-3 shadow-2xs transition-all hover:border-[#D5CEBF]"
+                        >
+                          <div className="flex items-start justify-between gap-2.5">
+                            <div className="space-y-1 min-w-0 flex-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-[#FAF7F2] text-[#4685ac] border border-[#EDE8DF]">
+                                  {item.category}
+                                </span>
+                                <span className="font-bold text-xs text-[#2C3E50] block truncate">
+                                  {item.item_name}
+                                </span>
+                              </div>
+                              <span className="text-[11px] text-[#6B7B8D] block">
+                                {formatItemTime(item.created_at) ? `${formatItemTime(item.created_at)} • ` : ''}Supplier: <span className="font-semibold text-[#2C3E50]">{item.supplier_name}</span>
+                                {item.document_no ? ` • SJ: ${item.document_no}` : ''}
+                              </span>
+                              {item.notes && (
+                                <span className="text-[11px] text-[#6B7B8D] italic block">
+                                  &ldquo;{item.notes}&rdquo;
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="text-right shrink-0">
+                              <span className="font-bold text-xs text-[#2C3E50] tabular-nums block">
+                                {item.quantity} <span className="text-[11px] font-semibold text-[#6B7B8D]">{formatUnitDisplay(item.unit)}</span>
+                              </span>
+                              <span className="text-[10px] text-[#6B7B8D] block mt-0.5">
+                                {item.received_by || 'PPIC'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                ))}
-              </div>
+                )
+              })}
             </div>
           )}
         </>
@@ -1085,6 +1240,7 @@ export default function SupplierInboundView() {
             </label>
             <div className="grid grid-cols-2 gap-1.5">
               {[
+                { id: 'recent', label: 'Hari Ini & Kemarin' },
                 { id: 'today', label: 'Hari Ini' },
                 { id: 'yesterday', label: 'Kemarin' },
                 { id: 'single', label: 'Pilih Tanggal' },
