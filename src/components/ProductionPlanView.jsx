@@ -499,7 +499,7 @@ export default function ProductionPlanView() {
       list.push({
         lotCode: l.lotCode || l.lot_qr_code,
         category: 'DAGING',
-        title: 'Wadah Adonan',
+        title: 'Gilingan',
         detail: `${l.quantity || 20} kg adonan`,
         weight: `${l.quantity || 20} kg`
       })
@@ -510,7 +510,7 @@ export default function ProductionPlanView() {
       list.push({
         lotCode: l.lotCode || l.lot_qr_code,
         category: 'KULIT',
-        title: is7cm ? 'Bal Kulit 7cm' : 'Bal Kulit 9cm',
+        title: is7cm ? 'Kulit 7cm' : 'Kulit 9cm',
         detail: `${l.balQty || 1} Bal kulit (${is7cm ? '7 cm' : '9 cm'})`,
         weight: `${(l.balQty || 1) * 15} kg`
       })
@@ -520,7 +520,7 @@ export default function ProductionPlanView() {
       list.push({
         lotCode: l.lotCode || l.lot_qr_code,
         category: 'BUMBU',
-        title: 'Karung Bumbu',
+        title: 'Bumbu',
         detail: 'Bumbu racik 20 gilingan',
         weight: '1 Karung'
       })
@@ -531,7 +531,7 @@ export default function ProductionPlanView() {
       list.push({
         lotCode: l.lotCode || l.lot_qr_code,
         category: 'SAOS',
-        title: isVakum ? 'Bal Saos Vakum' : 'Bal Saos Mika',
+        title: isVakum ? 'Saos Vakum' : 'Saos Mika',
         detail: `${l.balQty || 1} Bal saos (${isVakum ? '200 sachet' : '50 pouch'})`,
         weight: '1 Bal kemasan'
       })
@@ -913,18 +913,18 @@ export default function ProductionPlanView() {
               <div className="bg-white border border-bg-cream-dark rounded-xl shadow-2xs overflow-hidden divide-y divide-bg-cream-dark">
                 {(isDetailed
                   ? [
-                      { id: 'adonan', field: 'gilingan', name: 'Wadah Adonan', count: plannedGilingan, unit: 'wdh', Icon: Boxes },
-                      { id: 'bumbu', field: 'bumbu', name: 'Karung Bumbu', count: plannedKarung, unit: 'krg', Icon: Package },
-                      { id: 'kulit9', field: 'kulit9cm', name: 'Bal Kulit 9cm', count: plannedKulit9cm, unit: 'bal', Icon: Scroll },
-                      { id: 'kulit7', field: 'kulit7cm', name: 'Bal Kulit 7cm', count: plannedKulit7cm, unit: 'bal', Icon: Scroll },
-                      { id: 'saosMika', field: 'saosMika', name: 'Bal Saos Mika', count: plannedSaosMika, unit: 'bal', Icon: Droplets },
-                      { id: 'saosVakum', field: 'saosVakum', name: 'Bal Saos Vakum', count: plannedSaosVakum, unit: 'bal', Icon: Droplets }
+                      { id: 'adonan', field: 'gilingan', name: 'Gilingan', count: plannedGilingan, unit: 'gil', Icon: Boxes },
+                      { id: 'bumbu', field: 'bumbu', name: 'Bumbu', count: plannedKarung, unit: 'krg', Icon: Package },
+                      { id: 'kulit9', field: 'kulit9cm', name: 'Kulit 9cm', count: plannedKulit9cm, unit: 'bal', Icon: Scroll },
+                      { id: 'kulit7', field: 'kulit7cm', name: 'Kulit 7cm', count: plannedKulit7cm, unit: 'bal', Icon: Scroll },
+                      { id: 'saosMika', field: 'saosMika', name: 'Saos Mika', count: plannedSaosMika, unit: 'bal', Icon: Droplets },
+                      { id: 'saosVakum', field: 'saosVakum', name: 'Saos Vakum', count: plannedSaosVakum, unit: 'bal', Icon: Droplets }
                     ]
                   : [
-                      { id: 'adonan', field: 'gilingan', name: 'Wadah Adonan', count: plannedGilingan, unit: 'wdh', Icon: Boxes },
-                      { id: 'bumbu', field: 'bumbu', name: 'Karung Bumbu', count: plannedKarung, unit: 'krg', Icon: Package },
-                      { id: 'kulit', field: 'kulit', name: 'Bal Kulit', count: plannedKulit, unit: 'bal', Icon: Scroll },
-                      { id: 'saos', field: 'saos', name: 'Bal Saos', count: plannedSaos, unit: 'bal', Icon: Droplets }
+                      { id: 'adonan', field: 'gilingan', name: 'Gilingan', count: plannedGilingan, unit: 'gil', Icon: Boxes },
+                      { id: 'bumbu', field: 'bumbu', name: 'Bumbu', count: plannedKarung, unit: 'krg', Icon: Package },
+                      { id: 'kulit', field: 'kulit', name: 'Kulit', count: plannedKulit, unit: 'bal', Icon: Scroll },
+                      { id: 'saos', field: 'saos', name: 'Saos', count: plannedSaos, unit: 'bal', Icon: Droplets }
                     ]
                 ).map((item) => (
                   <div
@@ -1083,7 +1083,7 @@ export default function ProductionPlanView() {
                         {/* Breakdown per Tipe QR */}
                         {!isVoid && (
                           <div className="flex items-center gap-1.5 flex-wrap mt-2 pt-2 border-t border-[#EDE8DF]/70 text-[11px] text-[#556575]">
-                            {counts.adonan > 0 && <span className="px-1.5 py-0.5 rounded bg-[#F5F1EB] border border-[#EDE8DF]">{counts.adonan} Adonan</span>}
+                            {counts.adonan > 0 && <span className="px-1.5 py-0.5 rounded bg-[#F5F1EB] border border-[#EDE8DF]">{counts.adonan} Gilingan</span>}
                             {counts.bumbu > 0 && <span className="px-1.5 py-0.5 rounded bg-[#F5F1EB] border border-[#EDE8DF]">{counts.bumbu} Bumbu</span>}
                             {counts.kulit > 0 && <span className="px-1.5 py-0.5 rounded bg-[#F5F1EB] border border-[#EDE8DF]">{counts.kulit} Kulit</span>}
                             {counts.saos > 0 && <span className="px-1.5 py-0.5 rounded bg-[#F5F1EB] border border-[#EDE8DF]">{counts.saos} Saos</span>}
@@ -1594,10 +1594,10 @@ export default function ProductionPlanView() {
               <div className="p-3 bg-[#EEF5F9] border border-[#D1E4EF] rounded-xl space-y-1.5 text-xs text-[#2C3E50]">
                 <span className="font-bold block text-[#3A6B80]">Ringkasan Kuantitas Terbit:</span>
                 <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div>Wadah Adonan: <span className="font-bold">{plannedGilingan} wdh</span></div>
-                  <div>Karung Bumbu: <span className="font-bold">{plannedKarung} krg</span></div>
-                  <div>Bal Kulit: <span className="font-bold">{plannedKulit} bal</span></div>
-                  <div>Bal Saos: <span className="font-bold">{plannedSaos} bal</span></div>
+                  <div>Gilingan: <span className="font-bold">{plannedGilingan} gil</span></div>
+                  <div>Bumbu: <span className="font-bold">{plannedKarung} krg</span></div>
+                  <div>Kulit: <span className="font-bold">{plannedKulit} bal</span></div>
+                  <div>Saos: <span className="font-bold">{plannedSaos} bal</span></div>
                 </div>
                 <div className="pt-2 border-t border-[#D1E4EF] font-bold text-sm text-[#3A6B80]">
                   Total: {totalLotsToIssue} QR Baru
@@ -1736,10 +1736,10 @@ export default function ProductionPlanView() {
                 {batchPreviewData ? (
                   <div className="space-y-1.5 text-xs text-[#2C3E50]">
                     <div className="grid grid-cols-2 gap-1.5">
-                      <div className="font-semibold">+{batchPreviewData.delta?.adonan || 0} Wadah Adonan</div>
-                      <div className="font-semibold">+{batchPreviewData.delta?.bumbu || 0} Karung Bumbu</div>
-                      <div className="font-semibold">+{batchPreviewData.delta?.kulit || 0} Bal Kulit</div>
-                      <div className="font-semibold">+{batchPreviewData.delta?.saos || 0} Bal Saos</div>
+                      <div className="font-semibold">+{batchPreviewData.delta?.adonan || 0} Gilingan</div>
+                      <div className="font-semibold">+{batchPreviewData.delta?.bumbu || 0} Bumbu</div>
+                      <div className="font-semibold">+{batchPreviewData.delta?.kulit || 0} Kulit</div>
+                      <div className="font-semibold">+{batchPreviewData.delta?.saos || 0} Saos</div>
                     </div>
                     <div className="pt-2 border-t border-[#D1E4EF] font-bold text-sm text-[#3A6B80] flex items-center justify-between">
                       <span>Total QR Baru:</span>
