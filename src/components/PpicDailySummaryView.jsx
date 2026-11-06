@@ -197,11 +197,11 @@ export default function PpicDailySummaryView() {
 
       {/* Toolbar Filter Tanggal & Periode */}
       <div className="bg-white border border-[#EDE8DF] rounded-3xl p-3 sm:p-4 shadow-xs space-y-3">
-        <div className="flex items-center gap-1.5 p-1 bg-[#F5F1EB] rounded-2xl w-full overflow-x-auto">
+        <div className="flex items-stretch gap-1.5 p-1 bg-[#F5F1EB] rounded-2xl w-full overflow-x-auto">
           <button
             type="button"
             onClick={() => applyPreset('today')}
-            className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${filterPreset === 'today'
+            className={`flex-1 sm:flex-none min-h-[42px] px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center text-center leading-tight ${filterPreset === 'today'
               ? 'bg-white text-[#2C3E50] shadow-xs'
               : 'text-[#6B7B8D] hover:text-[#2C3E50]'
               }`}
@@ -211,7 +211,7 @@ export default function PpicDailySummaryView() {
           <button
             type="button"
             onClick={() => applyPreset('yesterday')}
-            className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${filterPreset === 'yesterday'
+            className={`flex-1 sm:flex-none min-h-[42px] px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center text-center leading-tight ${filterPreset === 'yesterday'
               ? 'bg-white text-[#2C3E50] shadow-xs'
               : 'text-[#6B7B8D] hover:text-[#2C3E50]'
               }`}
@@ -221,7 +221,7 @@ export default function PpicDailySummaryView() {
           <button
             type="button"
             onClick={() => applyPreset('single')}
-            className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${filterPreset === 'single'
+            className={`flex-1 sm:flex-none min-h-[42px] px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center text-center leading-tight ${filterPreset === 'single'
               ? 'bg-white text-[#2C3E50] shadow-xs'
               : 'text-[#6B7B8D] hover:text-[#2C3E50]'
               }`}
@@ -231,7 +231,7 @@ export default function PpicDailySummaryView() {
           <button
             type="button"
             onClick={() => applyPreset('range')}
-            className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${filterPreset === 'range'
+            className={`flex-1 sm:flex-none min-h-[42px] px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center text-center leading-tight ${filterPreset === 'range'
               ? 'bg-white text-[#2C3E50] shadow-xs'
               : 'text-[#6B7B8D] hover:text-[#2C3E50]'
               }`}
