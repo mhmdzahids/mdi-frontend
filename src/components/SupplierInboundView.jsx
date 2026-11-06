@@ -12,7 +12,7 @@ import {
   CheckIcon,
   AlertIcon
 } from './Icons'
-import { FileSpreadsheet, NotebookPen } from 'lucide-react'
+import { FileSpreadsheet, NotebookPen, QrCode, Printer } from 'lucide-react'
 
 const INBOUND_CATEGORIES = [
   { id: 'KULIT', label: 'Kulit Dimsum' },
@@ -104,6 +104,7 @@ export default function SupplierInboundView() {
   const [supplierName, setSupplierName] = useState('')
   const [documentNo, setDocumentNo] = useState('')
   const [notes, setNotes] = useState('')
+  const [needPrintQr, setNeedPrintQr] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState('')
   const [toastSuccess, setToastSuccess] = useState('')
@@ -116,6 +117,7 @@ export default function SupplierInboundView() {
   const supplierInboundList = rawSupplierInboundList || EMPTY_INBOUND_LIST
   const fetchSupplierInbound = useProduction1Store((s) => s.fetchSupplierInbound)
   const createSupplierInbound = useProduction1Store((s) => s.createSupplierInbound)
+  const openBatchPrintModal = useProduction1Store((s) => s.openBatchPrintModal)
   const operatorName = useProduction1Store((s) => s.operatorName)
   const operatorId = useProduction1Store((s) => s.operatorId)
 
@@ -267,6 +269,7 @@ export default function SupplierInboundView() {
     setSupplierName('')
     setDocumentNo('')
     setNotes('')
+    setNeedPrintQr(false)
     setFormError('')
     setIsModalOpen(true)
   }
@@ -323,7 +326,7 @@ export default function SupplierInboundView() {
 
     setSubmitting(true)
     try {
-      await createSupplierInbound({
+      const created = await createSupplierInbound({
         category,
         item_name: cleanName,
         quantity: numQty,
@@ -341,6 +344,37 @@ export default function SupplierInboundView() {
 
       // Muat ulang data
       loadInboundData()
+
+      // Buka modal cetak QR jika toggle aktif
+      if (needPrintQr) {
+        const todayCode = getTodayStr().replace(/-/g, '')
+        const catPrefix = category === 'KULIT' ? 'KL'
+          : category === 'DAGING' ? 'DG'
+          : category === 'BUMBU' ? 'BM'
+          : category === 'SAOS' ? 'SA'
+          : category === 'KEMASAN' ? 'KM'
+          : 'SP'
+        const rawId = created?.inbound_id || Math.floor(Date.now() / 1000) % 1000
+        const idStr = String(rawId).padStart(3, '0')
+        const baseCode = `IN-${catPrefix}-${todayCode}-${idStr}`
+
+        const isIntQty = Number.isInteger(numQty) && numQty >= 1 && numQty <= 50
+        const count = isIntQty ? Math.floor(numQty) : 1
+        const printItems = []
+        for (let i = 1; i <= count; i++) {
+          const itemCode = count > 1 ? `${baseCode}-${String(i).padStart(2, '0')}` : baseCode
+          printItems.push({
+            lotCode: itemCode,
+            title: `BARANG MASUK: ${cleanName.toUpperCase()}`,
+            detail: `${cleanSupplier} · ${count > 1 ? `Unit ${i}/${count} (${formatUnitDisplay(unit)})` : `${numQty} ${formatUnitDisplay(unit)}`}`,
+            weight: count > 1 ? `1 ${formatUnitDisplay(unit)}` : `${numQty} ${formatUnitDisplay(unit)}`,
+            supplierName: cleanSupplier,
+            createdAt: new Date().toISOString()
+          })
+        }
+
+        openBatchPrintModal(printItems, `BARANG MASUK: ${cleanName.toUpperCase()}`)
+      }
     } catch (err) {
       setFormError(err?.message || 'Gagal menyimpan barang masuk ke server.')
     } finally {
@@ -920,8 +954,79 @@ export default function SupplierInboundView() {
                 />
               </div>
 
+              {/* 8. Toggle Perlu Cetak QR atau Tidak */}
+              <div className="space-y-2 p-3 bg-[#F5F1EB]/70 border border-[#EDE8DF] rounded-xl">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div
+                      className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+                        needPrintQr ? 'bg-[#3A6B80] text-white shadow-2xs' : 'bg-white text-[#6B7B8D] border border-[#EDE8DF]'
+                      }`}
+                    >
+                      <QrCode className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-xs font-bold text-[#2C3E50] block leading-tight">
+                        Cetak Label QR
+                      </span>
+                      <span className="text-[11px] text-[#556575] block truncate">
+                        {needPrintQr ? 'Label QR akan langsung dibuka untuk dicetak' : 'Hanya simpan data tanpa cetak QR'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Switch Toggle */}
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={needPrintQr}
+                    disabled={submitting}
+                    onClick={() => setNeedPrintQr((prev) => !prev)}
+                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                      needPrintQr ? 'bg-[#3A6B80]' : 'bg-[#D1D5DB]'
+                    }`}
+                    aria-label="Toggle perlu cetak QR"
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                        needPrintQr ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* Segmented Button: Tidak Perlu vs Perlu Cetak QR */}
+                <div className="grid grid-cols-2 gap-1.5 pt-0.5">
+                  <button
+                    type="button"
+                    disabled={submitting}
+                    onClick={() => setNeedPrintQr(false)}
+                    className={`min-h-[34px] py-1.5 px-2 rounded-lg text-xs font-bold border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                      !needPrintQr
+                        ? 'bg-white text-[#2C3E50] border-[#3A6B80] shadow-2xs'
+                        : 'bg-transparent text-[#6B7B8D] border-transparent hover:bg-white/50'
+                    }`}
+                  >
+                    <span>Tidak Perlu</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={submitting}
+                    onClick={() => setNeedPrintQr(true)}
+                    className={`min-h-[34px] py-1.5 px-2 rounded-lg text-xs font-bold border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                      needPrintQr
+                        ? 'bg-[#3A6B80] text-white border-[#3A6B80] shadow-2xs'
+                        : 'bg-transparent text-[#6B7B8D] border-transparent hover:bg-white/50'
+                    }`}
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                    <span>Perlu Cetak QR</span>
+                  </button>
+                </div>
+              </div>
+
               {/* Tombol Simpan Barang Masuk */}
-              <div className="pt-2">
+              <div className="pt-1">
                 <button
                   type="submit"
                   disabled={submitting}
@@ -933,7 +1038,7 @@ export default function SupplierInboundView() {
                       <span>Menyimpan Barang Masuk...</span>
                     </>
                   ) : (
-                    <span>Simpan Barang Masuk</span>
+                    <span>{needPrintQr ? 'Simpan & Buka Cetak QR' : 'Simpan Barang Masuk'}</span>
                   )}
                 </button>
               </div>
