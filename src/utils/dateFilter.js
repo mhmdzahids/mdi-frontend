@@ -226,17 +226,39 @@ export function filterAndSortCustodyLogs(logs, options = {}) {
     const notes = String(log.notes || '').toUpperCase()
 
     if (div === 'WRAPPER' || div === 'KULIT') {
+      if (
+        code.startsWith('SA-') ||
+        code.startsWith('SS-') ||
+        code.startsWith('DG-') ||
+        code.startsWith('AD-') ||
+        code.startsWith('BM-') ||
+        code.startsWith('BS-') ||
+        code.startsWith('TR-') ||
+        code.startsWith('FG-')
+      ) {
+        return false
+      }
       return (
         code.startsWith('KL-') ||
         st.includes('WRAPPER') ||
         st.includes('SKIN') ||
         tgt.includes('WRAPPER') ||
-        user.includes('KULIT') ||
-        notes.includes('KULIT')
+        user.includes('KULIT')
       )
     }
 
     if (div === 'MEAT' || div === 'DAGING') {
+      if (
+        code.startsWith('SA-') ||
+        code.startsWith('SS-') ||
+        code.startsWith('KL-') ||
+        code.startsWith('BM-') ||
+        code.startsWith('BS-') ||
+        code.startsWith('TR-') ||
+        code.startsWith('FG-')
+      ) {
+        return false
+      }
       return (
         code.startsWith('DG-') ||
         code.startsWith('AD-') ||
@@ -246,36 +268,70 @@ export function filterAndSortCustodyLogs(logs, options = {}) {
         tgt.includes('MEAT') ||
         tgt.includes('MIX') ||
         user.includes('DAGING') ||
-        user.includes('GILING') ||
-        notes.includes('DAGING') ||
-        notes.includes('ADONAN')
+        user.includes('GILING')
       )
     }
 
     if (div === 'SEASONING' || div === 'BUMBU') {
+      if (
+        code.startsWith('SA-') ||
+        code.startsWith('SS-') ||
+        code.startsWith('KL-') ||
+        code.startsWith('DG-') ||
+        code.startsWith('AD-') ||
+        code.startsWith('TR-') ||
+        code.startsWith('FG-')
+      ) {
+        return false
+      }
       return (
         code.startsWith('BM-') ||
         code.startsWith('BS-') ||
         st.includes('SEASONING') ||
         st.includes('BUMBU') ||
         tgt.includes('SEASONING') ||
-        user.includes('BUMBU') ||
-        notes.includes('BUMBU')
+        user.includes('BUMBU')
       )
     }
 
     if (div === 'SAUCE' || div === 'SAOS') {
+      if (
+        code.startsWith('KL-') ||
+        code.startsWith('BM-') ||
+        code.startsWith('BS-') ||
+        code.startsWith('DG-') ||
+        code.startsWith('AD-') ||
+        code.startsWith('TR-') ||
+        code.startsWith('FG-')
+      ) {
+        return false
+      }
       return (
         code.startsWith('SS-') ||
+        code.startsWith('SA-') ||
         st.includes('SAUCE') ||
         st.includes('SAOS') ||
         tgt.includes('SAUCE') ||
-        user.includes('SAOS') ||
-        notes.includes('SAOS')
+        user.includes('SAOS')
       )
     }
 
     if (div === 'ASSEMBLY' || div === 'CETAK') {
+      // Meja Cetak memproses Adonan (AD-) & Kulit (KL-) yang masuk ke Cetak, serta Tray (TR-) hasil cetak.
+      // Tidak boleh mencakup Saos (SA-), Bumbu (BM-), atau Daging (DG-).
+      if (
+        code.startsWith('SA-') ||
+        code.startsWith('SS-') ||
+        code.startsWith('BM-') ||
+        code.startsWith('BS-') ||
+        code.startsWith('DG-')
+      ) {
+        return false
+      }
+      // Meja Cetak tidak mencetak QR bahan baku (itu dicetak di hulu oleh PPIC/Giling/Kulit)
+      if (log.actionType === 'QR_PRINTED' && !code.startsWith('TR-')) {
+        return false
+      }
       return (
         st.includes('ASSEMBLY') ||
         st.includes('CETAK') ||
@@ -283,12 +339,23 @@ export function filterAndSortCustodyLogs(logs, options = {}) {
         tgt.includes('CETAK') ||
         code.startsWith('TR-') ||
         user.includes('CETAK') ||
-        notes.includes('CETAK') ||
-        ((code.startsWith('AD-') || code.startsWith('KL-')) && (log.actionType === 'SCAN_IN' || log.actionType === 'CONSUMED'))
+        ((code.startsWith('AD-') || code.startsWith('KL-')) &&
+          (log.actionType === 'SCAN_IN' ||
+            log.actionType === 'CONSUMED' ||
+            tgt.includes('ASSEMBLY') ||
+            tgt.includes('CETAK')))
       )
     }
 
     if (div === 'PACKING' || div === 'FREEZER') {
+      if (
+        code.startsWith('DG-') ||
+        code.startsWith('BM-') ||
+        code.startsWith('BS-') ||
+        code.startsWith('AD-')
+      ) {
+        return false
+      }
       return (
         st.includes('PACKING') ||
         st.includes('FINISHING') ||
@@ -297,8 +364,9 @@ export function filterAndSortCustodyLogs(logs, options = {}) {
         tgt.includes('FINISHING') ||
         code.startsWith('FG-') ||
         code.startsWith('TR-') ||
-        user.includes('PACKING') ||
-        notes.includes('PACKING')
+        code.startsWith('SA-') ||
+        code.startsWith('SS-') ||
+        user.includes('PACKING')
       )
     }
 

@@ -250,33 +250,34 @@ export default function SeasoningStation() {
       <Card className="border-[#EDE8DF] bg-white shadow-2xs">
         <CardContent className="p-4 space-y-3">
           <div className="flex items-center justify-between border-b border-[#EDE8DF] pb-2.5">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-[#2C3E50] font-heading">
-                Daftar karung bumbu
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="text-xs font-bold text-[#2C3E50] font-heading whitespace-nowrap">
+                Daftar Karung Bumbu
               </span>
-              <Badge variant="neutral" size="sm" tabular>
-                {filteredSeasoningLots.length}
-              </Badge>
+              <span className="text-xs text-[#6B7B8D] tabular-nums font-medium">
+                ({filteredSeasoningLots.length})
+              </span>
             </div>
 
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 shrink-0">
               <button
                 type="button"
                 onClick={handleExportExcel}
-                className="text-[11px] font-bold rounded-lg px-2.5 py-1 border border-[#3A6B80] text-[#3A6B80] bg-white hover:bg-[#F5F1EB] transition-colors cursor-pointer flex items-center gap-1"
+                className="h-8 px-2.5 text-xs font-semibold rounded-lg text-[#556575] hover:text-[#2C3E50] hover:bg-[#F5F1EB] border border-[#EDE8DF] bg-white transition-all cursor-pointer flex items-center gap-1.5 active:scale-95"
                 title="Unduh laporan Excel"
+                aria-label="Unduh laporan Excel"
               >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-3.5 h-3.5 text-[#556575]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                <span>Excel</span>
+                <span className="text-[11px] font-bold">Excel</span>
               </button>
 
-              {lastBatchPrintModal?.lotList?.length > 1 && (
+              {isPIC && lastBatchPrintModal?.lotList?.length > 1 && (
                 <button
                   type="button"
                   onClick={reopenLastBatchPrintModal}
-                  className="text-[11px] font-semibold text-[#6B7B8D] hover:text-[#2C3E50] bg-[#EDE8DF] hover:bg-[#E2DDD3] border border-[#EDE8DF] rounded-lg px-2.5 py-1 cursor-pointer transition-colors duration-150 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4685ac]"
+                  className="h-8 px-2.5 text-[11px] font-semibold text-[#556575] hover:text-[#2C3E50] bg-[#EDE8DF] hover:bg-[#E2DDD3] rounded-lg cursor-pointer transition-colors"
                   title="Buka kembali QR batch terakhir"
                 >
                   Rekap ({lastBatchPrintModal.lotList.length})
@@ -291,10 +292,10 @@ export default function SeasoningStation() {
                       ? seasoningSelect.clearSelection()
                       : seasoningSelect.startSelecting()
                   }
-                  className={`text-[11px] font-bold rounded-lg px-2.5 py-1 border transition-colors duration-150 cursor-pointer active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4685ac] ${
+                  className={`h-8 px-3 text-xs font-bold rounded-lg border transition-all cursor-pointer active:scale-95 ${
                     seasoningSelect.isSelecting
                       ? 'bg-[#4685ac] text-white border-[#4685ac]'
-                      : 'bg-white text-[#2C3E50] border-[#B7C3CE] hover:bg-[#F5F1EB]'
+                      : 'bg-white text-[#2C3E50] border-[#EDE8DF] hover:bg-[#F5F1EB]'
                   }`}
                 >
                   {seasoningSelect.isSelecting ? 'Selesai' : 'Pilih'}

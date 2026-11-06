@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { User, Building2, Calendar, LogOut } from 'lucide-react'
 import { useProduction1Store } from '../store/production1Store'
 import { Avatar } from './ui/Avatar'
@@ -26,11 +26,21 @@ export default function ProfileView() {
   const operatorName = useProduction1Store((s) => s.operatorName)
   const operatorId = useProduction1Store((s) => s.operatorId)
   const userRole = useProduction1Store((s) => s.userRole)
+  const isPpicUser = useProduction1Store((s) => s.isPpicUser)
   const logout = useProduction1Store((s) => s.logout)
+
+  const isPPIC = Boolean(isPpicUser && isPpicUser())
 
   const [activeTab, setActiveTab] = useState('ACCOUNT')
   const [showConfirmLogout, setShowConfirmLogout] = useState(false)
   useLockBodyScroll(showConfirmLogout)
+
+  // Karyawan dan PIC tidak berhak mengakses halaman Printer & Label dan Pengaturan
+  useEffect(() => {
+    if (!isPPIC && activeTab !== 'ACCOUNT') {
+      setActiveTab('ACCOUNT')
+    }
+  }, [isPPIC, activeTab])
 
   const roleLabel = userRole === 'STAKEHOLDER' || userRole === 'PIC' ? 'PIC' : 'Karyawan'
   const displayName = currentUser?.full_name || operatorName || operatorId || '-'
@@ -56,42 +66,44 @@ export default function ProfileView() {
         </div>
       </div>
 
-      {/* Navigasi Kategori (Segmented Switcher) */}
-      <div className="grid grid-cols-3 gap-1 bg-[#EDE8DF]/60 p-1 rounded-xl border border-[#EDE8DF]">
-        <button
-          type="button"
-          onClick={() => setActiveTab('ACCOUNT')}
-          className={`min-h-[44px] rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center ${activeTab === 'ACCOUNT'
-            ? 'bg-white text-[#1E293B] shadow-2xs'
-            : 'text-[#64748B] hover:text-[#1E293B]'
-            }`}
-        >
-          Akun
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('PRINTER')}
-          className={`min-h-[44px] rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center ${activeTab === 'PRINTER'
-            ? 'bg-white text-[#1E293B] shadow-2xs'
-            : 'text-[#64748B] hover:text-[#1E293B]'
-            }`}
-        >
-          Printer & Label
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('SETTINGS')}
-          className={`min-h-[44px] rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center ${activeTab === 'SETTINGS'
-            ? 'bg-white text-[#1E293B] shadow-2xs'
-            : 'text-[#64748B] hover:text-[#1E293B]'
-            }`}
-        >
-          Pengaturan
-        </button>
-      </div>
+      {/* Navigasi Kategori (Segmented Switcher) - Khusus Akun PPIC */}
+      {isPPIC && (
+        <div className="grid grid-cols-3 gap-1 bg-[#EDE8DF]/60 p-1 rounded-xl border border-[#EDE8DF]">
+          <button
+            type="button"
+            onClick={() => setActiveTab('ACCOUNT')}
+            className={`min-h-[44px] rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center ${activeTab === 'ACCOUNT'
+              ? 'bg-white text-[#1E293B] shadow-2xs'
+              : 'text-[#64748B] hover:text-[#1E293B]'
+              }`}
+          >
+            Akun
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('PRINTER')}
+            className={`min-h-[44px] rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center ${activeTab === 'PRINTER'
+              ? 'bg-white text-[#1E293B] shadow-2xs'
+              : 'text-[#64748B] hover:text-[#1E293B]'
+              }`}
+          >
+            Printer & Label
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('SETTINGS')}
+            className={`min-h-[44px] rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center ${activeTab === 'SETTINGS'
+              ? 'bg-white text-[#1E293B] shadow-2xs'
+              : 'text-[#64748B] hover:text-[#1E293B]'
+              }`}
+          >
+            Pengaturan
+          </button>
+        </div>
+      )}
 
-      {/* Konten Kategori 1: Akun & Info Pribadi */}
-      {activeTab === 'ACCOUNT' && (
+      {/* Konten Kategori 1: Akun & Info Pribadi (Semua Akun / Karyawan & PIC) */}
+      {(!isPPIC || activeTab === 'ACCOUNT') && (
         <div className="space-y-4">
           <div className="bg-white border border-[#EDE8DF] rounded-2xl p-4 shadow-2xs">
             <span className="text-xs font-bold text-[#1E293B] block mb-3">
@@ -143,11 +155,11 @@ export default function ProfileView() {
         </div>
       )}
 
-      {/* Konten Kategori 2: Printer & Kalibrasi Label */}
-      {activeTab === 'PRINTER' && <BarcodeCalibrationStudio />}
+      {/* Konten Kategori 2: Printer & Kalibrasi Label (Khusus PPIC) */}
+      {isPPIC && activeTab === 'PRINTER' && <BarcodeCalibrationStudio />}
 
-      {/* Konten Kategori 3: Pengaturan Operasional & Pemeliharaan */}
-      {activeTab === 'SETTINGS' && <OperationalSettingsCard />}
+      {/* Konten Kategori 3: Pengaturan Operasional & Pemeliharaan (Khusus PPIC) */}
+      {isPPIC && activeTab === 'SETTINGS' && <OperationalSettingsCard />}
 
       {/* Modal Dialog Konfirmasi Keluar */}
       {showConfirmLogout && (

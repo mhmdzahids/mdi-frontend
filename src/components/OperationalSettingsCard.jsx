@@ -8,8 +8,6 @@ import { Modal } from './ui/Modal'
 export default function OperationalSettingsCard() {
   const employeeDateScope = useProduction1Store((s) => s.employeeDateScope)
   const setEmployeeDateScope = useProduction1Store((s) => s.setEmployeeDateScope)
-  const ppicExternalWrapperMode = useProduction1Store((s) => s.ppicExternalWrapperMode)
-  const setPpicExternalWrapperMode = useProduction1Store((s) => s.setPpicExternalWrapperMode)
   const planDetailMode = useProduction1Store((s) => s.planDetailMode) || 'GENERAL'
   const setPlanDetailMode = useProduction1Store((s) => s.setPlanDetailMode)
   const currentUser = useProduction1Store((s) => s.currentUser)
@@ -18,7 +16,6 @@ export default function OperationalSettingsCard() {
 
   const [scope, setScope] = useState(employeeDateScope || 'TODAY')
   const [detailMode, setDetailMode] = useState(planDetailMode || 'GENERAL')
-  const [wrapperMode, setWrapperMode] = useState(ppicExternalWrapperMode || 'DIRECT')
   const [saveNotification, setSaveNotification] = useState('')
   const [isSavedRecently, setIsSavedRecently] = useState(false)
 
@@ -34,10 +31,6 @@ export default function OperationalSettingsCard() {
     if (planDetailMode) setDetailMode(planDetailMode)
   }, [planDetailMode])
 
-  useEffect(() => {
-    if (ppicExternalWrapperMode) setWrapperMode(ppicExternalWrapperMode)
-  }, [ppicExternalWrapperMode])
-
   const isPPIC = isPpicUser ? isPpicUser() : Boolean(
     currentUser && (
       currentUser.username === 'supervisor' ||
@@ -50,9 +43,6 @@ export default function OperationalSettingsCard() {
   const handleSaveSettings = () => {
     setEmployeeDateScope(scope)
     setPlanDetailMode(detailMode)
-    if (isPPIC) {
-      setPpicExternalWrapperMode(wrapperMode)
-    }
 
     const modeLabel = detailMode === 'DETAILED' ? 'Spesifik' : 'Ringkas'
     setSaveNotification(`Pengaturan berhasil disimpan (Format: ${modeLabel})`)
@@ -163,50 +153,6 @@ export default function OperationalSettingsCard() {
         </div>
       </div>
 
-      {/* 3. Alur Cetak Kulit PPIC (Khusus PPIC / Supervisor) */}
-      {isPPIC && (
-        <div className="bg-white border border-[#EDE8DF] rounded-2xl p-4 space-y-2.5 shadow-2xs">
-          <div>
-            <span className="text-xs font-bold text-[#1E293B] block">
-              Alur Cetak Kulit di Halaman Rencana
-            </span>
-            <span className="text-[11px] text-[#64748B] block mt-0.5">
-              Tentukan aksi tombol kulit di form rencana harian
-            </span>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <button
-              type="button"
-              onClick={() => {
-                setWrapperMode('DIRECT')
-                setSaveNotification('')
-              }}
-              className={`min-h-[44px] py-2 px-3 rounded-xl font-bold text-center border transition-all cursor-pointer ${
-                wrapperMode === 'DIRECT'
-                  ? 'bg-[#1E293B] text-white border-[#1E293B] shadow-2xs'
-                  : 'bg-white text-[#1E293B] border-[#EDE8DF] hover:bg-[#F5F1EB]'
-              }`}
-            >
-              Langsung di Rencana
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setWrapperMode('REDIRECT')
-                setSaveNotification('')
-              }}
-              className={`min-h-[44px] py-2 px-3 rounded-xl font-bold text-center border transition-all cursor-pointer ${
-                wrapperMode === 'REDIRECT'
-                  ? 'bg-[#1E293B] text-white border-[#1E293B] shadow-2xs'
-                  : 'bg-white text-[#1E293B] border-[#EDE8DF] hover:bg-[#F5F1EB]'
-              }`}
-            >
-              Buka Tab Kulit
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Aksi Simpan Pengaturan & Notifikasi */}
       <div className="space-y-2 pt-0.5">

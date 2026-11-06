@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useProduction1Store } from '../store/production1Store'
-import { Card, CardContent } from './ui/Card'
 import { Button } from './ui/Button'
 import { Input } from './ui/Input'
 import { exportPpicRecapExcel } from '../utils/excelExport'
+import { SquarePen, Lock } from 'lucide-react'
 
 const DIVISION_CONFIG = [
   { id: 'DAGING', name: 'Daging (Giling & Mix)', defaultUnit: 'KG' },
@@ -149,6 +149,23 @@ export default function PpicDailySummaryView() {
   }
 
   const divisions = dailyRecapData?.divisions || {}
+  const primaryOfficer = useMemo(() => {
+    const officers = DIVISION_CONFIG.map((d) => divisions[d.id]?.updated_by).filter(Boolean)
+    if (officers.length === 0) return operatorName || operatorId || 'PPIC-AYU'
+    const counts = {}
+    officers.forEach((o) => {
+      counts[o] = (counts[o] || 0) + 1
+    })
+    let top = officers[0]
+    let max = 0
+    for (const [name, count] of Object.entries(counts)) {
+      if (count > max) {
+        max = count
+        top = name
+      }
+    }
+    return top || operatorName || operatorId || 'PPIC-AYU'
+  }, [divisions, operatorName, operatorId])
   const totalReject = Object.values(divisions).reduce(
     (acc, div) => acc + (typeof div.reject_count === 'number' ? div.reject_count : 0),
     0
@@ -160,22 +177,6 @@ export default function PpicDailySummaryView() {
 
   return (
     <div className="w-full max-w-4xl mx-auto space-y-5 font-sans pb-28">
-      {/* Header Halaman */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-[#EDE8DF]">
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={handleExportExcel}
-            className="min-h-[44px] px-4 py-2 bg-white hover:bg-[#F5F1EB] active:bg-[#EDE8DF] border border-[#3A6B80] text-[#3A6B80] text-xs sm:text-sm font-bold rounded-2xl flex items-center justify-center gap-2 cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3A6B80]"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-            <span>Unduh Excel</span>
-          </button>
-        </div>
-      </div>
-
       {feedback && (
         <div
           className={`p-3.5 rounded-2xl text-xs sm:text-sm font-semibold flex items-center justify-between ${feedback.type === 'success'
@@ -240,15 +241,20 @@ export default function PpicDailySummaryView() {
             </button>
           </div>
 
-          <div className="flex items-center gap-2">
-            <div className="text-xs font-bold text-[#2C3E50] bg-[#F5F1EB] px-3 py-1.5 rounded-xl border border-[#EDE8DF]">
-              Rekapitulasi: <span className="text-[#3A6B80]">{activePeriodLabel}</span>
+          <div className="flex flex-col sm:items-end gap-1">
+            <div className="flex items-center gap-2">
+              <div className="text-xs font-bold text-text-primary bg-bg-cream px-3 py-1.5 rounded-xl border border-bg-cream-dark">
+                Rekapitulasi: <span className="text-brand-blue-dark">{activePeriodLabel}</span>
+              </div>
+              {isHistorical && (
+                <span className="px-2.5 py-1 rounded-xl text-[11px] font-semibold bg-bg-cream-dark/60 text-text-secondary border border-bg-cream-dark">
+                  Arsip Riwayat
+                </span>
+              )}
             </div>
-            {isHistorical && (
-              <span className="px-2.5 py-1 rounded-xl text-[11px] font-semibold bg-[#EDE8DF]/60 text-[#6B7B8D] border border-[#EDE8DF]">
-                Arsip Riwayat
-              </span>
-            )}
+            <p className="text-xs text-text-secondary px-0.5">
+              Petugas pencatat: <span className="font-semibold text-text-primary">{primaryOfficer}</span>
+            </p>
           </div>
         </div>
 
@@ -344,102 +350,142 @@ export default function PpicDailySummaryView() {
         </div>
       </div>
 
+      {/* Tombol Unduh Excel */}
+      <div className="flex items-center justify-end">
+        <button
+          type="button"
+          onClick={handleExportExcel}
+          className="min-h-[44px] px-4 py-2 bg-white hover:bg-[#F5F1EB] active:bg-[#EDE8DF] border border-[#3A6B80] text-[#3A6B80] text-xs sm:text-sm font-bold rounded-2xl flex items-center justify-center gap-2 cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3A6B80] shadow-2xs"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          <span>Unduh Excel</span>
+        </button>
+      </div>
+
       {/* Daftar Kartu Rekap Per Divisi */}
       <div className="space-y-4">
         {DIVISION_CONFIG.map((divConfig) => {
           const divData = divisions[divConfig.id] || {}
           const isProd2 = divConfig.id === 'CETAK' || divConfig.id === 'PACKING'
 
+          const hasDiffOfficer = Boolean(divData.updated_by && divData.updated_by !== primaryOfficer)
+
           return (
-            <Card key={divConfig.id} className="border border-[#EDE8DF] shadow-xs rounded-3xl bg-white overflow-hidden">
-              <div className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-[#F5F1EB]/40 border-b border-[#EDE8DF]">
-                <div>
-                  <h2 className="text-sm sm:text-base font-bold text-[#2C3E50]">
+            <div
+              key={divConfig.id}
+              className="border border-bg-cream-dark shadow-2xs rounded-2xl bg-white overflow-hidden"
+            >
+              {/* Header Card Satu Baris */}
+              <div className="px-4 py-2 flex items-center justify-between border-b border-bg-cream-dark">
+                <div className="flex items-center gap-2 flex-wrap min-w-0">
+                  <h2 className="text-sm font-bold text-text-primary tracking-tight">
                     {divConfig.name}
                   </h2>
-                  <p className="text-xs text-[#6B7B8D] mt-0.5">
-                    Petugas pencatat: <span className="font-semibold text-[#2C3E50]">{divData.updated_by || 'PPIC-AYU'}</span>
-                  </p>
+                  {hasDiffOfficer && (
+                    <span className="text-[11px] font-medium text-text-secondary bg-bg-cream px-2 py-0.5 rounded-md border border-bg-cream-dark">
+                      Petugas: {divData.updated_by}
+                    </span>
+                  )}
+                  {divData.reject_count > 0 && (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-brand-red/10 text-brand-red border border-brand-red/20">
+                      {divData.reject_count} Reject
+                    </span>
+                  )}
                 </div>
 
                 {isHistorical ? (
-                  <div className="px-3 py-1.5 rounded-xl bg-[#F5F1EB] text-[#6B7B8D] border border-[#EDE8DF] text-xs font-semibold flex items-center gap-1.5 self-start sm:self-auto select-none">
-                    <svg className="w-3.5 h-3.5 text-[#6B7B8D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                    </svg>
-                    <span>Arsip Riwayat</span>
+                  <div
+                    className="min-w-[44px] min-h-[44px] flex items-center justify-center text-text-secondary/60"
+                    title="Arsip Riwayat"
+                    aria-label="Arsip Riwayat"
+                  >
+                    <Lock className="w-5 h-5" />
                   </div>
                 ) : (
                   <button
                     type="button"
                     onClick={() => openEditModal(divConfig)}
-                    className="min-h-[40px] px-3.5 py-1.5 bg-white hover:bg-[#F5F1EB] active:bg-[#EDE8DF] border border-[#4685ac] text-[#4685ac] text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer self-start sm:self-auto transition-colors"
+                    aria-label="Catat Reject & Kendala"
+                    title="Catat Reject & Kendala"
+                    className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-brand-blue hover:text-brand-blue-dark hover:bg-bg-cream active:scale-95 transition-all cursor-pointer"
                   >
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
-                    <span>Catat Reject & Kendala</span>
+                    <SquarePen className="w-5 h-5" />
                   </button>
                 )}
               </div>
 
-              <CardContent className="p-4 sm:p-5">
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pb-3 border-b border-[#EDE8DF]">
+              {/* Metrik Satu Baris */}
+              {isProd2 ? (
+                <div className="grid grid-cols-2 gap-3 px-4 py-3">
                   <div>
-                    <div className="text-[11px] font-bold text-[#6B7B8D] uppercase">
-                      {isProd2 ? 'Status' : 'Lot Barcode'}
+                    <div className="text-xs uppercase text-text-secondary leading-tight truncate">
+                      Status
                     </div>
-                    <div className="text-base sm:text-lg font-extrabold text-[#2C3E50] mt-0.5">
-                      {isProd2 ? 'Aktif' : `${divData.total_lots || 0} lot`}
+                    <div className="text-lg font-semibold text-text-primary mt-0.5">
+                      Aktif
                     </div>
                   </div>
 
                   <div>
-                    <div className="text-[11px] font-bold text-[#6B7B8D] uppercase">
+                    <div className="text-xs uppercase text-text-secondary leading-tight truncate">
                       Total Kuantitas
                     </div>
-                    <div className="text-base sm:text-lg font-extrabold text-[#2C3E50] mt-0.5">
-                      {isProd2 ? '-' : `${divData.total_quantity || 0} ${divConfig.defaultUnit}`}
+                    <div className="text-lg font-semibold text-text-primary tabular-nums mt-0.5">
+                      {divData.total_quantity || 0} <span className="text-xs font-normal text-text-secondary">{divConfig.defaultUnit}</span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-3 gap-3 px-4 py-3">
+                  <div>
+                    <div className="text-xs uppercase text-text-secondary leading-tight truncate">
+                      Lot Barcode
+                    </div>
+                    <div className="text-lg font-semibold text-text-primary tabular-nums mt-0.5">
+                      {divData.total_lots || 0} <span className="text-xs font-normal text-text-secondary">lot</span>
                     </div>
                   </div>
 
                   <div>
-                    <div className="text-[11px] font-bold text-[#6B7B8D] uppercase">
+                    <div className="text-xs uppercase text-text-secondary leading-tight truncate">
+                      Total Kuantitas
+                    </div>
+                    <div className="text-lg font-semibold text-text-primary tabular-nums mt-0.5">
+                      {divData.total_quantity || 0} <span className="text-xs font-normal text-text-secondary">{divConfig.defaultUnit}</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="text-xs uppercase text-text-secondary leading-tight truncate">
                       Terkirim / Siap
                     </div>
-                    <div className="text-base sm:text-lg font-extrabold text-[#1E7E34] mt-0.5">
-                      {isProd2 ? '-' : `${divData.completed_count || 0}`}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="text-[11px] font-bold text-[#6B7B8D] uppercase">
-                      Jumlah Reject
-                    </div>
-                    <div className={`text-base sm:text-lg font-extrabold mt-0.5 ${divData.reject_count > 0 ? 'text-[#D32F2F]' : 'text-[#6B7B8D]'
-                      }`}>
-                      {divData.reject_count || 0}
+                    <div className="text-lg font-semibold text-text-primary tabular-nums mt-0.5">
+                      {divData.completed_count || 0}
                     </div>
                   </div>
                 </div>
+              )}
 
-                {/* Catatan Reject & Operasional */}
-                <div className="pt-3 space-y-2 text-xs">
-                  <div>
-                    <span className="font-bold text-[#2C3E50]">Alasan Reject: </span>
-                    <span className="text-[#6B7B8D]">
-                      {divData.reject_notes ? divData.reject_notes : 'Tidak ada reject tercatat.'}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="font-bold text-[#2C3E50]">Catatan Operasional: </span>
-                    <span className="text-[#6B7B8D]">
-                      {divData.operational_notes ? divData.operational_notes : 'Tidak ada kendala operasional.'}
-                    </span>
-                  </div>
+              {/* Catatan Reject & Operasional (Hanya jika ada isinya) */}
+              {(divData.reject_notes || divData.operational_notes) && (
+                <div className="px-4 pb-3 pt-2.5 border-t border-bg-cream-dark space-y-1 text-xs">
+                  {divData.reject_notes && (
+                    <div className="leading-relaxed">
+                      <span className="font-semibold text-text-primary">Alasan Reject: </span>
+                      <span className="text-text-secondary">{divData.reject_notes}</span>
+                    </div>
+                  )}
+                  {divData.operational_notes && (
+                    <div className="leading-relaxed">
+                      <span className="font-semibold text-text-primary">Catatan Operasional: </span>
+                      <span className="text-text-secondary">{divData.operational_notes}</span>
+                    </div>
+                  )}
                 </div>
-              </CardContent>
-            </Card>
+              )}
+            </div>
           )
         })}
       </div>

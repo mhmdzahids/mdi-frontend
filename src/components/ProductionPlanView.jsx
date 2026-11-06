@@ -47,6 +47,7 @@ export default function ProductionPlanView() {
   const seasoningLots = useProduction1Store((s) => s.seasoningLots) || []
   const wrapperLots = useProduction1Store((s) => s.wrapperLots) || []
   const sauceLots = useProduction1Store((s) => s.sauceLots) || []
+  const finishedGoodsLots = useProduction1Store((s) => s.finishedGoodsLots) || []
 
   // Siklus hidup rencana dari backend
   const planStatus = useProduction1Store((s) => s.planStatus) || 'DRAFT'
@@ -58,6 +59,7 @@ export default function ProductionPlanView() {
   // Actions dari store
   const updatePlanDraft = useProduction1Store((s) => s.updatePlanDraft)
   const generateDailyLotsAll = useProduction1Store((s) => s.generateDailyLotsAll)
+  const generatePackagingLotsBatch = useProduction1Store((s) => s.generatePackagingLotsBatch)
   const previewAdditionalBatch = useProduction1Store((s) => s.previewAdditionalBatch)
   const addProductionBatch = useProduction1Store((s) => s.addProductionBatch)
   const voidBatch = useProduction1Store((s) => s.voidBatch)
@@ -66,6 +68,13 @@ export default function ProductionPlanView() {
   // Segmented Control Utama: 'PLAN' (Rencana) | 'REPRINT' (Cetak Ulang)
   const [activeMainSegment, setActiveMainSegment] = useState('PLAN')
   const [validationError, setValidationError] = useState('')
+
+  // State untuk Cetak QR Kemasan per Batch (Stiker 2-Line)
+  const [selectedPkgType, setSelectedPkgType] = useState('FG_MIKA') // 'FG_MIKA' | 'FG_VAKUM'
+  const [pkgBatchQty, setPkgBatchQty] = useState(50)
+  const [isGeneratingPkg, setIsGeneratingPkg] = useState(false)
+  const [pkgError, setPkgError] = useState('')
+  const [pkgSuccessMsg, setPkgSuccessMsg] = useState('')
 
   // State untuk Bottom Sheet Konfirmasi Terbitkan Batch 1
   const [showPublishModal, setShowPublishModal] = useState(false)
@@ -159,11 +168,12 @@ export default function ProductionPlanView() {
   }, [])
 
   const [form, setForm] = useState(() => getInitialForm(dailyPlan))
-  const [prevPlanId, setPrevPlanId] = useState(activePlanId)
+  const planSyncKey = `${activePlanId}_${planStatus}_${dailyPlan?.planDate || ''}_${dailyPlan?.targetGilingan ?? 0}_${dailyPlan?.orderMika ?? 0}`
+  const [prevPlanSyncKey, setPrevPlanSyncKey] = useState(planSyncKey)
 
-  // Sinkronisasi state saat ID rencana berganti (misal ganti hari)
-  if (activePlanId && activePlanId !== prevPlanId) {
-    setPrevPlanId(activePlanId)
+  // Sinkronisasi state saat ID rencana atau status berganti (misal ganti hari atau reset/wipe)
+  if (planSyncKey !== prevPlanSyncKey) {
+    setPrevPlanSyncKey(planSyncKey)
     setForm(getInitialForm(dailyPlan))
   }
 
@@ -175,7 +185,7 @@ export default function ProductionPlanView() {
   })
   const todayStr = getTodayIndonesian()
 
-  // Nilai aktif kuantitas bahan yang direncanakan PPIC
+  // Nilai aktif kuantitas bahan yang direncanakan PPIC (Input Manual)
   const plannedGilingan = parseInt(form.gilingan, 10) || 0
   const plannedKarung = parseInt(form.bumbu, 10) || 0
 
@@ -196,7 +206,7 @@ export default function ProductionPlanView() {
 
   // Hak akses (Hanya PPIC Ayu / Supervisor yang berwenang mengubah dan menerbitkan)
   const isAyuOrSupervisor = isPpicAyu(currentUser)
-  const isAuthorized = isAyuOrSupervisor || userRole === 'STAKEHOLDER'
+  const isAuthorized = isAyuOrSupervisor || userRole === 'STAKEHOLDER' || userRole === 'PIC'
   // Jika sudah DITERBITKAN, input rencana terkunci secara permanen (hanya bisa tambah batch)
   const isInputDisabled = !isAuthorized || isPublished
 
@@ -217,7 +227,13 @@ export default function ProductionPlanView() {
           bumperMika: form.bumperMika,
           bumperVakum: form.bumperVakum,
           manualGilingan: form.gilingan,
-          manualBumbuKarung: form.bumbu
+          manualBumbuKarung: form.bumbu,
+          kulit: form.kulit,
+          kulit9cm: form.kulit9cm,
+          kulit7cm: form.kulit7cm,
+          saos: form.saos,
+          saosMika: form.saosMika,
+          saosVakum: form.saosVakum
         })
         setValidationError('')
       } catch (err) {
@@ -417,11 +433,63 @@ export default function ProductionPlanView() {
     }
   }
 
-  // Daftar seluruh lot yang sudah diterbitkan hari ini dibagi per 4 kategori pilar bahan
+  // Eksekusi Cetak Batch QR Kemasan (Stiker 2-Line)
+  const handlePrintPackagingBatch = async () => {
+    const isMika = selectedPkgType === 'FG_MIKA'
+    const qty = Number(pkgBatchQty) || 0
+    if (qty <= 0) {
+      setPkgError('Jumlah batch cetak harus minimal 1 pack.')
+      return
+    }
+
+    setIsGeneratingPkg(true)
+    setPkgError('')
+    setPkgSuccessMsg('')
+    try {
+      const createdLots = await generatePackagingLotsBatch({
+        plan_id: activePlanId,
+        product_type: selectedPkgType,
+        batch_qty: qty
+      })
+
+      if (createdLots && createdLots.length > 0) {
+        const printList = createdLots.map((l) => ({
+          lotCode: l.lot_qr_code,
+          title: isMika ? 'DIMSUM MIKA (50 PCS)' : 'DIMSUM VAKUM (25 PCS)',
+          detail: isMika ? 'Isi 50 Buah · Kulit 9 cm' : 'Isi 25 Buah · Frozen Seal',
+          weight: isMika ? '50 pcs' : '25 pcs'
+        }))
+        openBatchPrintModal(printList, isMika ? 'LABEL KEMASAN MIKA' : 'LABEL KEMASAN VAKUM')
+        setPkgSuccessMsg(`${createdLots.length} label kemasan ${isMika ? 'Mika' : 'Vakum'} berhasil diterbitkan.`)
+        setTimeout(() => setPkgSuccessMsg(''), 4000)
+      }
+    } catch (err) {
+      setPkgError(err?.message || 'Gagal menerbitkan batch kemasan.')
+    } finally {
+      setIsGeneratingPkg(false)
+    }
+  }
+
+  // Daftar seluruh lot yang sudah diterbitkan hari ini dibagi per kategori
   const todayDoughLots = filterAndSortLots(doughLots, 'TODAY', 'OPERATOR')
   const todaySeasoningLots = filterAndSortLots(seasoningLots, 'TODAY', 'OPERATOR')
   const todayWrapperLots = filterAndSortLots(wrapperLots, 'TODAY', 'OPERATOR')
   const todaySauceLots = filterAndSortLots(sauceLots, 'TODAY', 'OPERATOR')
+  const todayFgLots = filterAndSortLots(finishedGoodsLots, 'TODAY', 'OPERATOR')
+
+  // Hitungan progres cetak label kemasan produk jadi
+  const printedMikaLots = todayFgLots.filter(
+    (f) => (f.type === 'FG_MIKA' || f.lot_type === 'FG_MIKA') && f.status !== 'VOID' && f.status !== 'CANCELLED'
+  )
+  const printedVakumLots = todayFgLots.filter(
+    (f) => (f.type === 'FG_VAKUM' || f.lot_type === 'FG_VAKUM') && f.status !== 'VOID' && f.status !== 'CANCELLED'
+  )
+
+  const targetMikaPacks = (dailyPlan?.orderMika || 0) + (dailyPlan?.bumperMika || 0) || (parseInt(form.mikaTotal, 10) || 0)
+  const targetVakumPacks = (dailyPlan?.orderVakum || 0) + (dailyPlan?.bumperVakum || 0) || (parseInt(form.vakumTotal, 10) || 0)
+
+  const remainingMikaPacks = Math.max(0, targetMikaPacks - printedMikaLots.length)
+  const remainingVakumPacks = Math.max(0, targetVakumPacks - printedVakumLots.length)
 
   // Struktur data lot cetak ulang
   const allReprintLots = useMemo(() => {
@@ -469,8 +537,19 @@ export default function ProductionPlanView() {
       })
     })
 
+    todayFgLots.forEach((l) => {
+      const isMika = l.type === 'FG_MIKA' || l.lot_type === 'FG_MIKA'
+      list.push({
+        lotCode: l.lotCode || l.lot_qr_code,
+        category: 'KEMASAN',
+        title: isMika ? 'Dimsum Mika (50 pcs)' : 'Dimsum Vakum (25 pcs)',
+        detail: isMika ? 'Isi 50 Buah · Kulit 9 cm' : 'Isi 25 Buah · Frozen Seal',
+        weight: isMika ? '50 pcs' : '25 pcs'
+      })
+    })
+
     return list
-  }, [todayDoughLots, todayWrapperLots, todaySeasoningLots, todaySauceLots])
+  }, [todayDoughLots, todayWrapperLots, todaySeasoningLots, todaySauceLots, todayFgLots])
 
   const totalIssuedCount = allReprintLots.length
 
@@ -568,6 +647,7 @@ export default function ProductionPlanView() {
 
   const filterChips = [
     { id: 'ALL', label: 'Semua' },
+    { id: 'KEMASAN', label: 'Kemasan' },
     { id: 'DAGING', label: 'Daging' },
     { id: 'KULIT', label: 'Kulit' },
     { id: 'BUMBU', label: 'Bumbu' },
@@ -644,7 +724,8 @@ export default function ProductionPlanView() {
       {/* SEGMEN 1: RENCANA PRODUKSI (Satu Card Utama dengan 3 Langkah Bernomor)    */}
       {/* ========================================================================= */}
       {activeMainSegment === 'PLAN' && (
-        <Card className="border-[#EDE8DF] bg-white shadow-2xs">
+        <>
+          <Card className="border-[#EDE8DF] bg-white shadow-2xs">
           <CardContent className="p-4 space-y-4">
             {/* Header Rencana & Banner Status Publikasi */}
             <div className="border-b border-[#EDE8DF] pb-3 space-y-2">
@@ -818,533 +899,98 @@ export default function ProductionPlanView() {
               </div>
             </div>
 
-            {/* ② LANGKAH 2: Kebutuhan QR (4 Baris Ringkas ±64px dengan Formula Singkat) */}
+            {/* ② LANGKAH 2: Kebutuhan QR */}
             <div className="space-y-2">
               <div className="flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full bg-[#3A6B80] text-white text-[11px] font-bold flex items-center justify-center shrink-0">
+                <span className="w-5 h-5 rounded-full bg-brand-blue-dark text-white text-[11px] font-bold flex items-center justify-center shrink-0">
                   2
                 </span>
-                <h2 className="text-xs font-bold text-[#2C3E50] uppercase tracking-wide">
+                <h2 className="text-xs font-bold text-text-primary uppercase tracking-wide">
                   Kebutuhan QR
                 </h2>
               </div>
 
-              <div className="space-y-2">
-                {/* 1. Wadah Adonan */}
-                <div className="min-h-[64px] p-2.5 bg-[#F5F1EB]/70 border border-[#EDE8DF] rounded-xl flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="w-9 h-9 rounded-xl bg-white border border-[#EDE8DF] flex items-center justify-center text-[#3A6B80] shrink-0">
-                      <Boxes className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <span id="label-adonan" className="text-xs font-bold text-[#2C3E50] block truncate">
-                        Wadah Adonan
-                      </span>
-                      <span className="text-[11px] text-[#556575] block truncate">
-                        1 wadah per 5 pack (19 kg)
-                      </span>
-                    </div>
-                  </div>
-
+              <div className="bg-white border border-bg-cream-dark rounded-xl shadow-2xs overflow-hidden divide-y divide-bg-cream-dark">
+                {(isDetailed
+                  ? [
+                      { id: 'adonan', field: 'gilingan', name: 'Wadah Adonan', count: plannedGilingan, unit: 'wdh', Icon: Boxes },
+                      { id: 'bumbu', field: 'bumbu', name: 'Karung Bumbu', count: plannedKarung, unit: 'krg', Icon: Package },
+                      { id: 'kulit9', field: 'kulit9cm', name: 'Bal Kulit 9cm', count: plannedKulit9cm, unit: 'bal', Icon: Scroll },
+                      { id: 'kulit7', field: 'kulit7cm', name: 'Bal Kulit 7cm', count: plannedKulit7cm, unit: 'bal', Icon: Scroll },
+                      { id: 'saosMika', field: 'saosMika', name: 'Bal Saos Mika', count: plannedSaosMika, unit: 'bal', Icon: Droplets },
+                      { id: 'saosVakum', field: 'saosVakum', name: 'Bal Saos Vakum', count: plannedSaosVakum, unit: 'bal', Icon: Droplets }
+                    ]
+                  : [
+                      { id: 'adonan', field: 'gilingan', name: 'Wadah Adonan', count: plannedGilingan, unit: 'wdh', Icon: Boxes },
+                      { id: 'bumbu', field: 'bumbu', name: 'Karung Bumbu', count: plannedKarung, unit: 'krg', Icon: Package },
+                      { id: 'kulit', field: 'kulit', name: 'Bal Kulit', count: plannedKulit, unit: 'bal', Icon: Scroll },
+                      { id: 'saos', field: 'saos', name: 'Bal Saos', count: plannedSaos, unit: 'bal', Icon: Droplets }
+                    ]
+                ).map((item) => (
                   <div
-                    role="group"
-                    aria-labelledby="label-adonan"
-                    className="flex items-center gap-1.5 shrink-0"
+                    key={item.id}
+                    className="min-h-[56px] py-2 px-4 flex items-center justify-between gap-3"
                   >
-                    {!isPublished && (
-                      <button
-                        type="button"
-                        aria-label="Kurangi Wadah Adonan"
-                        disabled={isInputDisabled}
-                        onClick={() => handleStep('gilingan', -1)}
-                        className="w-10 h-10 bg-white hover:bg-[#F5F1EB] active:scale-95 border border-[#EDE8DF] rounded-lg flex items-center justify-center text-[#2C3E50] disabled:opacity-40 transition cursor-pointer focus-visible:outline-none"
-                      >
-                        <Minus className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                    <div className="relative w-16">
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        aria-label="Jumlah Wadah Adonan"
-                        disabled={isInputDisabled}
-                        value={form.gilingan}
-                        placeholder="0"
-                        onChange={(e) => handleChange('gilingan', e.target.value)}
-                        className={`w-full h-10 pl-2 pr-6 border rounded-lg text-xs tabular-nums font-bold text-[#2C3E50] text-center focus-visible:outline-none transition shadow-2xs ${
-                          isInputDisabled ? 'bg-[#F5F1EB]/50 border-[#EDE8DF] cursor-not-allowed' : 'bg-white border-[#EDE8DF] focus-visible:border-[#3A6B80]'
-                        }`}
-                      />
-                      <span className="absolute right-1.5 top-2.5 text-[10px] font-semibold text-[#556575] pointer-events-none select-none">
-                        wdh
+                    <div className="flex items-center gap-3 min-w-0">
+                      <item.Icon className="size-5 text-brand-blue shrink-0" />
+                      <span className="text-sm font-semibold text-text-primary truncate">
+                        {item.name}
                       </span>
                     </div>
-                    {!isPublished && (
-                      <button
-                        type="button"
-                        aria-label="Tambah Wadah Adonan"
-                        disabled={isInputDisabled}
-                        onClick={() => handleStep('gilingan', 1)}
-                        className="w-10 h-10 bg-white hover:bg-[#F5F1EB] active:scale-95 border border-[#EDE8DF] rounded-lg flex items-center justify-center text-[#2C3E50] disabled:opacity-40 transition cursor-pointer focus-visible:outline-none"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
-                </div>
 
-                {/* 2. Karung Bumbu */}
-                <div className="min-h-[64px] p-2.5 bg-[#F5F1EB]/70 border border-[#EDE8DF] rounded-xl flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="w-9 h-9 rounded-xl bg-white border border-[#EDE8DF] flex items-center justify-center text-[#C9A23D] shrink-0">
-                      <Package className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <span id="label-bumbu" className="text-xs font-bold text-[#2C3E50] block truncate">
-                        Karung Bumbu
-                      </span>
-                      <span className="text-[11px] text-[#556575] block truncate">
-                        1 karung per 20 wadah adonan
-                      </span>
-                    </div>
-                  </div>
-
-                  <div
-                    role="group"
-                    aria-labelledby="label-bumbu"
-                    className="flex items-center gap-1.5 shrink-0"
-                  >
-                    {!isPublished && (
-                      <button
-                        type="button"
-                        aria-label="Kurangi Karung Bumbu"
-                        disabled={isInputDisabled}
-                        onClick={() => handleStep('bumbu', -1)}
-                        className="w-10 h-10 bg-white hover:bg-[#F5F1EB] active:scale-95 border border-[#EDE8DF] rounded-lg flex items-center justify-center text-[#2C3E50] disabled:opacity-40 transition cursor-pointer focus-visible:outline-none"
-                      >
-                        <Minus className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                    <div className="relative w-16">
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        aria-label="Jumlah Karung Bumbu"
-                        disabled={isInputDisabled}
-                        value={form.bumbu}
-                        placeholder="0"
-                        onChange={(e) => handleChange('bumbu', e.target.value)}
-                        className={`w-full h-10 pl-2 pr-6 border rounded-lg text-xs tabular-nums font-bold text-[#2C3E50] text-center focus-visible:outline-none transition shadow-2xs ${
-                          isInputDisabled ? 'bg-[#F5F1EB]/50 border-[#EDE8DF] cursor-not-allowed' : 'bg-white border-[#EDE8DF] focus-visible:border-[#3A6B80]'
-                        }`}
-                      />
-                      <span className="absolute right-1.5 top-2.5 text-[10px] font-semibold text-[#556575] pointer-events-none select-none">
-                        krg
-                      </span>
-                    </div>
-                    {!isPublished && (
-                      <button
-                        type="button"
-                        aria-label="Tambah Karung Bumbu"
-                        disabled={isInputDisabled}
-                        onClick={() => handleStep('bumbu', 1)}
-                        className="w-10 h-10 bg-white hover:bg-[#F5F1EB] active:scale-95 border border-[#EDE8DF] rounded-lg flex items-center justify-center text-[#2C3E50] disabled:opacity-40 transition cursor-pointer focus-visible:outline-none"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* 3. Bal Kulit */}
-                {!isDetailed ? (
-                  <div className="min-h-[64px] p-2.5 bg-[#F5F1EB]/70 border border-[#EDE8DF] rounded-xl flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-9 h-9 rounded-xl bg-white border border-[#EDE8DF] flex items-center justify-center text-[#3A6B80] shrink-0">
-                        <Scroll className="w-4 h-4" />
-                      </div>
-                      <div className="min-w-0">
-                        <span id="label-kulit" className="text-xs font-bold text-[#2C3E50] block truncate">
-                          Bal Kulit
+                    {isPublished ? (
+                      <div className="text-right tabular-nums shrink-0">
+                        <span className="text-lg font-semibold text-text-primary">
+                          {item.count}
                         </span>
-                        <span className="text-[11px] text-[#556575] block truncate">
-                          1 bal per 10 wadah adonan
+                        <span className="text-sm text-text-secondary ml-1">
+                          {item.unit}
                         </span>
                       </div>
-                    </div>
-
-                    <div
-                      role="group"
-                      aria-labelledby="label-kulit"
-                      className="flex items-center gap-1.5 shrink-0"
-                    >
-                      {!isPublished && (
+                    ) : (
+                      <div className="flex items-center gap-1.5 shrink-0">
                         <button
                           type="button"
-                          aria-label="Kurangi Bal Kulit"
+                          aria-label={`Kurangi ${item.name}`}
                           disabled={isInputDisabled}
-                          onClick={() => handleStep('kulit', -1)}
-                          className="w-10 h-10 bg-white hover:bg-[#F5F1EB] active:scale-95 border border-[#EDE8DF] rounded-lg flex items-center justify-center text-[#2C3E50] disabled:opacity-40 transition cursor-pointer focus-visible:outline-none"
+                          onClick={() => handleStep(item.field, -1)}
+                          className="w-9 h-9 bg-white hover:bg-bg-cream active:scale-95 border border-bg-cream-dark rounded-lg flex items-center justify-center text-text-primary disabled:opacity-40 transition cursor-pointer focus-visible:outline-none"
                         >
-                          <Minus className="w-3.5 h-3.5" />
+                          <Minus className="size-3.5" />
                         </button>
-                      )}
-                      <div className="relative w-16">
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          pattern="[0-9]*"
-                          aria-label="Jumlah Bal Kulit"
-                          disabled={isInputDisabled}
-                          value={form.kulit}
-                          placeholder="0"
-                          onChange={(e) => handleChange('kulit', e.target.value)}
-                          className={`w-full h-10 pl-2 pr-6 border rounded-lg text-xs tabular-nums font-bold text-[#2C3E50] text-center focus-visible:outline-none transition shadow-2xs ${
-                            isInputDisabled ? 'bg-[#F5F1EB]/50 border-[#EDE8DF] cursor-not-allowed' : 'bg-white border-[#EDE8DF] focus-visible:border-[#3A6B80]'
-                          }`}
-                        />
-                        <span className="absolute right-1.5 top-2.5 text-[10px] font-semibold text-[#556575] pointer-events-none select-none">
-                          bal
-                        </span>
-                      </div>
-                      {!isPublished && (
-                        <button
-                          type="button"
-                          aria-label="Tambah Bal Kulit"
-                          disabled={isInputDisabled}
-                          onClick={() => handleStep('kulit', 1)}
-                          className="w-10 h-10 bg-white hover:bg-[#F5F1EB] active:scale-95 border border-[#EDE8DF] rounded-lg flex items-center justify-center text-[#2C3E50] disabled:opacity-40 transition cursor-pointer focus-visible:outline-none"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <div className="min-h-[64px] p-2.5 bg-[#F5F1EB]/70 border border-[#EDE8DF] rounded-xl flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="w-9 h-9 rounded-xl bg-white border border-[#EDE8DF] flex items-center justify-center text-[#3A6B80] shrink-0">
-                          <Scroll className="w-4 h-4" />
-                        </div>
-                        <div className="min-w-0">
-                          <span id="label-kulit9" className="text-xs font-bold text-[#2C3E50] block truncate">
-                            Bal Kulit 9cm
-                          </span>
-                          <span className="text-[11px] text-[#556575] block truncate">
-                            Khusus kemasan Mika (50 pcs)
-                          </span>
-                        </div>
-                      </div>
-
-                      <div
-                        role="group"
-                        aria-labelledby="label-kulit9"
-                        className="flex items-center gap-1.5 shrink-0"
-                      >
-                        {!isPublished && (
-                          <button
-                            type="button"
-                            aria-label="Kurangi Bal Kulit 9cm"
-                            disabled={isInputDisabled}
-                            onClick={() => handleStep('kulit9cm', -1)}
-                            className="w-10 h-10 bg-white hover:bg-[#F5F1EB] active:scale-95 border border-[#EDE8DF] rounded-lg flex items-center justify-center text-[#2C3E50] disabled:opacity-40 transition cursor-pointer focus-visible:outline-none"
-                          >
-                            <Minus className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                        <div className="relative w-16">
+                        <div className="relative w-18">
                           <input
                             type="text"
                             inputMode="numeric"
                             pattern="[0-9]*"
-                            aria-label="Jumlah Bal Kulit 9cm"
+                            aria-label={`Jumlah ${item.name}`}
                             disabled={isInputDisabled}
-                            value={form.kulit9cm}
+                            value={form[item.field]}
                             placeholder="0"
-                            onChange={(e) => handleChange('kulit9cm', e.target.value)}
-                            className={`w-full h-10 pl-2 pr-6 border rounded-lg text-xs tabular-nums font-bold text-[#2C3E50] text-center focus-visible:outline-none transition shadow-2xs ${
-                              isInputDisabled ? 'bg-[#F5F1EB]/50 border-[#EDE8DF] cursor-not-allowed' : 'bg-white border-[#EDE8DF] focus-visible:border-[#3A6B80]'
+                            onChange={(e) => handleChange(item.field, e.target.value)}
+                            className={`w-full h-9 pl-2 pr-7 border rounded-lg text-xs tabular-nums font-bold text-text-primary text-center focus-visible:outline-none transition shadow-2xs ${
+                              isInputDisabled
+                                ? 'bg-bg-cream/50 border-bg-cream-dark cursor-not-allowed opacity-80'
+                                : 'bg-white border-bg-cream-dark focus-visible:border-brand-blue'
                             }`}
                           />
-                          <span className="absolute right-1.5 top-2.5 text-[10px] font-semibold text-[#556575] pointer-events-none select-none">
-                            bal
+                          <span className="absolute right-2 top-2 text-[11px] font-semibold text-text-secondary pointer-events-none select-none">
+                            {item.unit}
                           </span>
                         </div>
-                        {!isPublished && (
-                          <button
-                            type="button"
-                            aria-label="Tambah Bal Kulit 9cm"
-                            disabled={isInputDisabled}
-                            onClick={() => handleStep('kulit9cm', 1)}
-                            className="w-10 h-10 bg-white hover:bg-[#F5F1EB] active:scale-95 border border-[#EDE8DF] rounded-lg flex items-center justify-center text-[#2C3E50] disabled:opacity-40 transition cursor-pointer focus-visible:outline-none"
-                          >
-                            <Plus className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="min-h-[64px] p-2.5 bg-[#F5F1EB]/70 border border-[#EDE8DF] rounded-xl flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="w-9 h-9 rounded-xl bg-white border border-[#EDE8DF] flex items-center justify-center text-[#3A6B80] shrink-0">
-                          <Scroll className="w-4 h-4" />
-                        </div>
-                        <div className="min-w-0">
-                          <span id="label-kulit7" className="text-xs font-bold text-[#2C3E50] block truncate">
-                            Bal Kulit 7cm
-                          </span>
-                          <span className="text-[11px] text-[#556575] block truncate">
-                            Khusus kemasan Vakum (25 pcs)
-                          </span>
-                        </div>
-                      </div>
-
-                      <div
-                        role="group"
-                        aria-labelledby="label-kulit7"
-                        className="flex items-center gap-1.5 shrink-0"
-                      >
-                        {!isPublished && (
-                          <button
-                            type="button"
-                            aria-label="Kurangi Bal Kulit 7cm"
-                            disabled={isInputDisabled}
-                            onClick={() => handleStep('kulit7cm', -1)}
-                            className="w-10 h-10 bg-white hover:bg-[#F5F1EB] active:scale-95 border border-[#EDE8DF] rounded-lg flex items-center justify-center text-[#2C3E50] disabled:opacity-40 transition cursor-pointer focus-visible:outline-none"
-                          >
-                            <Minus className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                        <div className="relative w-16">
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            pattern="[0-9]*"
-                            aria-label="Jumlah Bal Kulit 7cm"
-                            disabled={isInputDisabled}
-                            value={form.kulit7cm}
-                            placeholder="0"
-                            onChange={(e) => handleChange('kulit7cm', e.target.value)}
-                            className={`w-full h-10 pl-2 pr-6 border rounded-lg text-xs tabular-nums font-bold text-[#2C3E50] text-center focus-visible:outline-none transition shadow-2xs ${
-                              isInputDisabled ? 'bg-[#F5F1EB]/50 border-[#EDE8DF] cursor-not-allowed' : 'bg-white border-[#EDE8DF] focus-visible:border-[#3A6B80]'
-                            }`}
-                          />
-                          <span className="absolute right-1.5 top-2.5 text-[10px] font-semibold text-[#556575] pointer-events-none select-none">
-                            bal
-                          </span>
-                        </div>
-                        {!isPublished && (
-                          <button
-                            type="button"
-                            aria-label="Tambah Bal Kulit 7cm"
-                            disabled={isInputDisabled}
-                            onClick={() => handleStep('kulit7cm', 1)}
-                            className="w-10 h-10 bg-white hover:bg-[#F5F1EB] active:scale-95 border border-[#EDE8DF] rounded-lg flex items-center justify-center text-[#2C3E50] disabled:opacity-40 transition cursor-pointer focus-visible:outline-none"
-                          >
-                            <Plus className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </>
-                )}
-
-                {/* 4. Bal Saos */}
-                {!isDetailed ? (
-                  <div className="min-h-[64px] p-2.5 bg-[#F5F1EB]/70 border border-[#EDE8DF] rounded-xl flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-9 h-9 rounded-xl bg-white border border-[#EDE8DF] flex items-center justify-center text-[#E8352D] shrink-0">
-                        <Droplets className="w-4 h-4" />
-                      </div>
-                      <div className="min-w-0">
-                        <span id="label-saos" className="text-xs font-bold text-[#2C3E50] block truncate">
-                          Bal Saos
-                        </span>
-                        <span className="text-[11px] text-[#556575] block truncate">
-                          1 bal per 20 pack kemasan
-                        </span>
-                      </div>
-                    </div>
-
-                    <div
-                      role="group"
-                      aria-labelledby="label-saos"
-                      className="flex items-center gap-1.5 shrink-0"
-                    >
-                      {!isPublished && (
                         <button
                           type="button"
-                          aria-label="Kurangi Bal Saos"
+                          aria-label={`Tambah ${item.name}`}
                           disabled={isInputDisabled}
-                          onClick={() => handleStep('saos', -1)}
-                          className="w-10 h-10 bg-white hover:bg-[#F5F1EB] active:scale-95 border border-[#EDE8DF] rounded-lg flex items-center justify-center text-[#2C3E50] disabled:opacity-40 transition cursor-pointer focus-visible:outline-none"
+                          onClick={() => handleStep(item.field, 1)}
+                          className="w-9 h-9 bg-white hover:bg-bg-cream active:scale-95 border border-bg-cream-dark rounded-lg flex items-center justify-center text-text-primary disabled:opacity-40 transition cursor-pointer focus-visible:outline-none"
                         >
-                          <Minus className="w-3.5 h-3.5" />
+                          <Plus className="size-3.5" />
                         </button>
-                      )}
-                      <div className="relative w-16">
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          pattern="[0-9]*"
-                          aria-label="Jumlah Bal Saos"
-                          disabled={isInputDisabled}
-                          value={form.saos}
-                          placeholder="0"
-                          onChange={(e) => handleChange('saos', e.target.value)}
-                          className={`w-full h-10 pl-2 pr-6 border rounded-lg text-xs tabular-nums font-bold text-[#2C3E50] text-center focus-visible:outline-none transition shadow-2xs ${
-                            isInputDisabled ? 'bg-[#F5F1EB]/50 border-[#EDE8DF] cursor-not-allowed' : 'bg-white border-[#EDE8DF] focus-visible:border-[#3A6B80]'
-                          }`}
-                        />
-                        <span className="absolute right-1.5 top-2.5 text-[10px] font-semibold text-[#556575] pointer-events-none select-none">
-                          bal
-                        </span>
                       </div>
-                      {!isPublished && (
-                        <button
-                          type="button"
-                          aria-label="Tambah Bal Saos"
-                          disabled={isInputDisabled}
-                          onClick={() => handleStep('saos', 1)}
-                          className="w-10 h-10 bg-white hover:bg-[#F5F1EB] active:scale-95 border border-[#EDE8DF] rounded-lg flex items-center justify-center text-[#2C3E50] disabled:opacity-40 transition cursor-pointer focus-visible:outline-none"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
+                    )}
                   </div>
-                ) : (
-                  <>
-                    <div className="min-h-[64px] p-2.5 bg-[#F5F1EB]/70 border border-[#EDE8DF] rounded-xl flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="w-9 h-9 rounded-xl bg-white border border-[#EDE8DF] flex items-center justify-center text-[#E8352D] shrink-0">
-                          <Droplets className="w-4 h-4" />
-                        </div>
-                        <div className="min-w-0">
-                          <span id="label-saosmika" className="text-xs font-bold text-[#2C3E50] block truncate">
-                            Bal Saos Mika
-                          </span>
-                          <span className="text-[11px] text-[#556575] block truncate">
-                            50 pouch per bal
-                          </span>
-                        </div>
-                      </div>
-
-                      <div
-                        role="group"
-                        aria-labelledby="label-saosmika"
-                        className="flex items-center gap-1.5 shrink-0"
-                      >
-                        {!isPublished && (
-                          <button
-                            type="button"
-                            aria-label="Kurangi Bal Saos Mika"
-                            disabled={isInputDisabled}
-                            onClick={() => handleStep('saosMika', -1)}
-                            className="w-10 h-10 bg-white hover:bg-[#F5F1EB] active:scale-95 border border-[#EDE8DF] rounded-lg flex items-center justify-center text-[#2C3E50] disabled:opacity-40 transition cursor-pointer focus-visible:outline-none"
-                          >
-                            <Minus className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                        <div className="relative w-16">
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            pattern="[0-9]*"
-                            aria-label="Jumlah Bal Saos Mika"
-                            disabled={isInputDisabled}
-                            value={form.saosMika}
-                            placeholder="0"
-                            onChange={(e) => handleChange('saosMika', e.target.value)}
-                            className={`w-full h-10 pl-2 pr-6 border rounded-lg text-xs tabular-nums font-bold text-[#2C3E50] text-center focus-visible:outline-none transition shadow-2xs ${
-                              isInputDisabled ? 'bg-[#F5F1EB]/50 border-[#EDE8DF] cursor-not-allowed' : 'bg-white border-[#EDE8DF] focus-visible:border-[#3A6B80]'
-                            }`}
-                          />
-                          <span className="absolute right-1.5 top-2.5 text-[10px] font-semibold text-[#556575] pointer-events-none select-none">
-                            bal
-                          </span>
-                        </div>
-                        {!isPublished && (
-                          <button
-                            type="button"
-                            aria-label="Tambah Bal Saos Mika"
-                            disabled={isInputDisabled}
-                            onClick={() => handleStep('saosMika', 1)}
-                            className="w-10 h-10 bg-white hover:bg-[#F5F1EB] active:scale-95 border border-[#EDE8DF] rounded-lg flex items-center justify-center text-[#2C3E50] disabled:opacity-40 transition cursor-pointer focus-visible:outline-none"
-                          >
-                            <Plus className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="min-h-[64px] p-2.5 bg-[#F5F1EB]/70 border border-[#EDE8DF] rounded-xl flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="w-9 h-9 rounded-xl bg-white border border-[#EDE8DF] flex items-center justify-center text-[#E8352D] shrink-0">
-                          <Droplets className="w-4 h-4" />
-                        </div>
-                        <div className="min-w-0">
-                          <span id="label-saosvakum" className="text-xs font-bold text-[#2C3E50] block truncate">
-                            Bal Saos Vakum
-                          </span>
-                          <span className="text-[11px] text-[#556575] block truncate">
-                            200 sachet per bal
-                          </span>
-                        </div>
-                      </div>
-
-                      <div
-                        role="group"
-                        aria-labelledby="label-saosvakum"
-                        className="flex items-center gap-1.5 shrink-0"
-                      >
-                        {!isPublished && (
-                          <button
-                            type="button"
-                            aria-label="Kurangi Bal Saos Vakum"
-                            disabled={isInputDisabled}
-                            onClick={() => handleStep('saosVakum', -1)}
-                            className="w-10 h-10 bg-white hover:bg-[#F5F1EB] active:scale-95 border border-[#EDE8DF] rounded-lg flex items-center justify-center text-[#2C3E50] disabled:opacity-40 transition cursor-pointer focus-visible:outline-none"
-                          >
-                            <Minus className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                        <div className="relative w-16">
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            pattern="[0-9]*"
-                            aria-label="Jumlah Bal Saos Vakum"
-                            disabled={isInputDisabled}
-                            value={form.saosVakum}
-                            placeholder="0"
-                            onChange={(e) => handleChange('saosVakum', e.target.value)}
-                            className={`w-full h-10 pl-2 pr-6 border rounded-lg text-xs tabular-nums font-bold text-[#2C3E50] text-center focus-visible:outline-none transition shadow-2xs ${
-                              isInputDisabled ? 'bg-[#F5F1EB]/50 border-[#EDE8DF] cursor-not-allowed' : 'bg-white border-[#EDE8DF] focus-visible:border-[#3A6B80]'
-                            }`}
-                          />
-                          <span className="absolute right-1.5 top-2.5 text-[10px] font-semibold text-[#556575] pointer-events-none select-none">
-                            bal
-                          </span>
-                        </div>
-                        {!isPublished && (
-                          <button
-                            type="button"
-                            aria-label="Tambah Bal Saos Vakum"
-                            disabled={isInputDisabled}
-                            onClick={() => handleStep('saosVakum', 1)}
-                            className="w-10 h-10 bg-white hover:bg-[#F5F1EB] active:scale-95 border border-[#EDE8DF] rounded-lg flex items-center justify-center text-[#2C3E50] disabled:opacity-40 transition cursor-pointer focus-visible:outline-none"
-                          >
-                            <Plus className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </>
-                )}
+                ))}
               </div>
             </div>
 
@@ -1363,9 +1009,6 @@ export default function ProductionPlanView() {
                 <div>
                   <span className="text-xs font-bold text-[#2C3E50] block">
                     Total QR Produksi
-                  </span>
-                  <span className="text-[11px] text-[#556575]">
-                    {isPublished ? 'Rencana terkunci (Batch 1 terbit)' : 'Siap diterbitkan ke stasiun kerja'}
                   </span>
                 </div>
                 <div className="text-right">
@@ -1419,32 +1062,20 @@ export default function ProductionPlanView() {
                             </div>
                             <p className="text-[11px] text-[#556575] mt-0.5">
                               Pukul {formatTime(batch.created_at)} · {batch.created_by || 'PPIC'}
-                              {batch.reason ? ` · ${batch.reason}` : ''}
                             </p>
                           </div>
 
                           {/* Aksi Batalkan Batch */}
-                          {!isVoid && isAuthorized && (
+                          {!isVoid && isAuthorized && batch.is_voidable && (
                             <div>
-                              {batch.is_voidable ? (
-                                <button
-                                  type="button"
-                                  onClick={() => setBatchToVoid(batch)}
-                                  className="min-h-[44px] px-3 py-1 text-xs font-semibold text-[#E8352D] hover:bg-[#FDEDEC] rounded-lg transition cursor-pointer flex items-center gap-1"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                  <span>Batalkan</span>
-                                </button>
-                              ) : (
-                                <div className="text-right">
-                                  <span
-                                    title={batch.non_voidable_reason || 'Sudah di-scan'}
-                                    className="text-[10px] font-medium text-[#556575] bg-[#F5F1EB] px-2 py-1 rounded border border-[#EDE8DF]"
-                                  >
-                                    Sudah di-scan
-                                  </span>
-                                </div>
-                              )}
+                              <button
+                                type="button"
+                                onClick={() => setBatchToVoid(batch)}
+                                className="min-h-[44px] px-3 py-1 text-xs font-semibold text-[#E8352D] hover:bg-[#FDEDEC] rounded-lg transition cursor-pointer flex items-center gap-1"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span>Batalkan</span>
+                              </button>
                             </div>
                           )}
                         </div>
@@ -1508,7 +1139,165 @@ export default function ProductionPlanView() {
             )}
           </CardContent>
         </Card>
-      )}
+
+        {/* KARTU CETAK QR KEMASAN (STIKER 2-LINE) PER BATCH */}
+        <Card className="border-[#EDE8DF] bg-white shadow-2xs">
+          <CardContent className="p-4 space-y-3.5">
+            <div className="border-b border-[#EDE8DF] pb-2">
+              <h2 className="text-xs font-bold text-[#2C3E50] uppercase tracking-wide">
+                Cetak QR Kemasan Produk Jadi
+              </h2>
+            </div>
+
+            {/* Progres Kemasan (2 Kolom) */}
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedPkgType('FG_MIKA')
+                  setPkgError('')
+                }}
+                className={`p-3 rounded-xl border text-left transition cursor-pointer ${
+                  selectedPkgType === 'FG_MIKA'
+                    ? 'bg-[#EEF5F9] border-[#4685ac] ring-1 ring-[#4685ac]'
+                    : 'bg-[#F5F1EB]/60 border-[#EDE8DF] hover:bg-[#F5F1EB]'
+                }`}
+              >
+                <span className="text-[11px] font-bold text-[#556575] block">Dimsum Mika</span>
+                <div className="mt-1">
+                  <span className="text-base font-bold tabular-nums text-[#2C3E50]">
+                    {printedMikaLots.length}
+                    <span className="text-xs font-normal text-[#556575]"> / {targetMikaPacks} pack</span>
+                  </span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedPkgType('FG_VAKUM')
+                  setPkgError('')
+                }}
+                className={`p-3 rounded-xl border text-left transition cursor-pointer ${
+                  selectedPkgType === 'FG_VAKUM'
+                    ? 'bg-[#EEF5F9] border-[#4685ac] ring-1 ring-[#4685ac]'
+                    : 'bg-[#F5F1EB]/60 border-[#EDE8DF] hover:bg-[#F5F1EB]'
+                }`}
+              >
+                <span className="text-[11px] font-bold text-[#556575] block">Dimsum Vakum</span>
+                <div className="mt-1">
+                  <span className="text-base font-bold tabular-nums text-[#2C3E50]">
+                    {printedVakumLots.length}
+                    <span className="text-xs font-normal text-[#556575]"> / {targetVakumPacks} pack</span>
+                  </span>
+                </div>
+              </button>
+            </div>
+
+            {/* Kontrol Jumlah Batch Cetak */}
+            <div className="space-y-2 p-3 bg-[#F5F1EB]/60 rounded-xl border border-[#EDE8DF]">
+              <span className="text-[11px] font-bold text-[#556575] block">
+                Jumlah cetak batch ({selectedPkgType === 'FG_MIKA' ? 'Mika' : 'Vakum'})
+              </span>
+
+              <div className="grid grid-cols-3 gap-2">
+                {[50, 100].map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => setPkgBatchQty(preset)}
+                    className={`min-h-[44px] text-xs font-bold rounded-xl border transition cursor-pointer ${
+                      pkgBatchQty === preset
+                        ? 'bg-[#2C3E50] text-white border-[#2C3E50]'
+                        : 'bg-white text-[#2C3E50] border-[#EDE8DF] hover:bg-[#EDE8DF]'
+                    }`}
+                  >
+                    {preset} Pack
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const rem = selectedPkgType === 'FG_MIKA' ? remainingMikaPacks : remainingVakumPacks
+                    if (rem > 0) setPkgBatchQty(rem)
+                  }}
+                  disabled={(selectedPkgType === 'FG_MIKA' ? remainingMikaPacks : remainingVakumPacks) <= 0}
+                  className="min-h-[44px] text-xs font-bold rounded-xl bg-white text-[#2C3E50] border border-[#EDE8DF] hover:bg-[#EDE8DF] disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer truncate px-1"
+                >
+                  Sisa ({selectedPkgType === 'FG_MIKA' ? remainingMikaPacks : remainingVakumPacks})
+                </button>
+              </div>
+
+              {/* Stepper Manual */}
+              <div className="flex items-center justify-between pt-1">
+                <span className="text-xs font-medium text-[#2C3E50]">Atur manual:</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={pkgBatchQty <= 2}
+                    onClick={() => setPkgBatchQty((q) => Math.max(2, q - 2))}
+                    className="w-10 h-10 rounded-xl bg-white border border-[#EDE8DF] flex items-center justify-center font-bold text-[#2C3E50] hover:bg-[#EDE8DF] disabled:opacity-40 cursor-pointer"
+                  >
+                    -2
+                  </button>
+                  <input
+                    type="number"
+                    min="2"
+                    step="2"
+                    value={pkgBatchQty}
+                    onChange={(e) => {
+                      const val = Math.max(0, parseInt(e.target.value, 10) || 0)
+                      setPkgBatchQty(val)
+                    }}
+                    className="w-20 h-10 text-center font-bold tabular-nums text-sm bg-white border border-[#EDE8DF] rounded-xl text-[#2C3E50] focus:outline-none focus:border-[#4685ac]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setPkgBatchQty((q) => q + 2)}
+                    className="w-10 h-10 rounded-xl bg-white border border-[#EDE8DF] flex items-center justify-center font-bold text-[#2C3E50] hover:bg-[#EDE8DF] cursor-pointer"
+                  >
+                    +2
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Pesan Feedback */}
+            {pkgError && (
+              <div role="alert" className="p-2.5 bg-[#FDEDEC] border border-[#FADBD8] rounded-xl text-[#9F2F2D] text-xs font-semibold">
+                {pkgError}
+              </div>
+            )}
+            {pkgSuccessMsg && (
+              <div role="status" className="p-2.5 bg-[#EAF5EE] border border-[#CBEAD6] rounded-xl text-[#2F7D5B] text-xs font-semibold">
+                {pkgSuccessMsg}
+              </div>
+            )}
+
+            {/* Tombol Cetak Batch */}
+            {isAuthorized ? (
+              <button
+                type="button"
+                disabled={isGeneratingPkg || pkgBatchQty <= 0}
+                onClick={handlePrintPackagingBatch}
+                className="w-full min-h-[48px] h-12 rounded-xl bg-[#4685ac] hover:bg-[#3A6B80] active:scale-[0.99] text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none"
+              >
+                <Printer className="w-4 h-4 text-white" />
+                <span>
+                  {isGeneratingPkg
+                    ? 'Menerbitkan...'
+                    : `Cetak ${pkgBatchQty} Label ${selectedPkgType === 'FG_MIKA' ? 'Mika' : 'Vakum'}`}
+                </span>
+              </button>
+            ) : (
+              <div className="bg-[#F5F1EB] border border-[#EDE8DF] rounded-xl p-3 text-center text-xs text-[#556575] font-medium">
+                Mode baca. Hanya PPIC yang berwenang mencetak QR kemasan.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </>
+    )}
 
       {/* ========================================================================= */}
       {/* SEGMEN 2: CETAK ULANG QR (Satu Daftar Tunggal & Chip Filter)               */}

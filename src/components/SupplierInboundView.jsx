@@ -23,7 +23,16 @@ const INBOUND_CATEGORIES = [
   { id: 'LAINNYA', label: 'Lainnya' }
 ]
 
-const UNIT_OPTIONS = ['BAL', 'KG', 'KARUNG', 'DUS', 'PACK', 'PCS']
+const UNIT_OPTIONS = [
+  { value: 'BAL', label: 'BAL' },
+  { value: 'KG', label: 'KG' },
+  { value: 'KARUNG', label: 'KARUNG', selectedLabel: 'KRG' },
+  { value: 'DUS', label: 'DUS' },
+  { value: 'PACK', label: 'PACK' },
+  { value: 'PCS', label: 'PCS' }
+]
+const VALID_UNITS = UNIT_OPTIONS.map((u) => u.value)
+const formatUnitDisplay = (u) => (u === 'KARUNG' ? 'KRG' : (u || ''))
 const EMPTY_INBOUND_LIST = []
 
 const getTodayStr = () => {
@@ -300,7 +309,7 @@ export default function SupplierInboundView() {
     }
 
     // 5. Validasi Satuan
-    if (!unit || !UNIT_OPTIONS.includes(unit)) {
+    if (!unit || !VALID_UNITS.includes(unit)) {
       setFormError('Pilih satuan barang terlebih dahulu.')
       return
     }
@@ -327,7 +336,7 @@ export default function SupplierInboundView() {
 
       // Tutup modal & tampilkan feedback
       setIsModalOpen(false)
-      setToastSuccess(`Barang masuk "${cleanName}" (${numQty} ${unit}) berhasil dicatat.`)
+      setToastSuccess(`Barang masuk "${cleanName}" (${numQty} ${formatUnitDisplay(unit)}) berhasil dicatat.`)
       setTimeout(() => setToastSuccess(''), 4000)
 
       // Muat ulang data
@@ -602,7 +611,7 @@ export default function SupplierInboundView() {
 
                       <div className="text-right shrink-0">
                         <span className="font-bold text-xs text-[#2C3E50] tabular-nums block">
-                          {item.quantity} <span className="text-[11px] font-semibold text-[#6B7B8D]">{item.unit}</span>
+                          {item.quantity} <span className="text-[11px] font-semibold text-[#6B7B8D]">{formatUnitDisplay(item.unit)}</span>
                         </span>
                         <span className="text-[10px] text-[#6B7B8D] block mt-0.5">
                           {item.received_by || 'PPIC'}
@@ -662,7 +671,7 @@ export default function SupplierInboundView() {
 
                     <div className="text-right shrink-0">
                       <span className="font-bold text-xs text-[#2C3E50] tabular-nums block">
-                        {inv.totalQty} <span className="text-[11px] font-semibold text-[#6B7B8D]">{inv.unit}</span>
+                        {inv.totalQty} <span className="text-[11px] font-semibold text-[#6B7B8D]">{formatUnitDisplay(inv.unit)}</span>
                       </span>
                     </div>
                   </div>
@@ -825,15 +834,15 @@ export default function SupplierInboundView() {
                 />
               </div>
 
-              {/* 4. Baris Jumlah & Dropdown Satuan (Rasio 80:20 - Custom Select) */}
+              {/* 4. Baris Jumlah & Dropdown Satuan (Lebar proporsional agar Satuan tidak terpotong) */}
               <div className="space-y-1.5">
-                <div className="flex items-center justify-between text-xs font-bold text-[#2C3E50] uppercase tracking-wide">
-                  <span className="w-4/5">Jumlah</span>
-                  <span className="w-1/5 text-right sm:text-left sm:pl-2">Satuan</span>
+                <div className="flex items-center gap-2 text-xs font-bold text-[#2C3E50] uppercase tracking-wide">
+                  <span className="flex-1">Jumlah</span>
+                  <span className="w-28 sm:w-32 shrink-0">Satuan</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  {/* Input Jumlah (80%) */}
-                  <div className="w-[78%] sm:w-[80%] relative">
+                  {/* Input Jumlah */}
+                  <div className="flex-1 min-w-0 relative">
                     <input
                       type="text"
                       inputMode="decimal"
@@ -846,8 +855,8 @@ export default function SupplierInboundView() {
                     />
                   </div>
 
-                  {/* Dropdown Satuan (20% - Custom Select Sesuai Desain Sistem) */}
-                  <div className="w-[22%] sm:w-[20%] relative">
+                  {/* Dropdown Satuan */}
+                  <div className="w-28 sm:w-32 shrink-0 relative">
                     <CustomSelect
                       id="inbound-unit"
                       ariaLabel="Satuan Barang"
@@ -859,7 +868,8 @@ export default function SupplierInboundView() {
                       }}
                       options={UNIT_OPTIONS}
                       placeholder="Satuan"
-                      menuClassName="min-w-[130px] right-0 left-auto"
+                      buttonClassName="px-3"
+                      menuClassName="min-w-[140px] right-0 left-auto"
                     />
                   </div>
                 </div>

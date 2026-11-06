@@ -15,6 +15,7 @@ export function CustomSelect({
   placeholder = 'Pilih...',
   disabled = false,
   className = '',
+  buttonClassName = '',
   menuClassName = '',
   id,
   ariaLabel
@@ -22,12 +23,13 @@ export function CustomSelect({
   const [isOpen, setIsOpen] = useState(false)
   const containerRef = useRef(null)
 
-  // Normalisasi opsi ke struktur { value, label }
+  // Normalisasi opsi ke struktur { value, label, selectedLabel }
   const normalizedOptions = options.map((opt) => {
     if (typeof opt === 'object' && opt !== null) {
       return {
         value: opt.value !== undefined ? opt.value : opt.id,
-        label: opt.label !== undefined ? opt.label : opt.name || String(opt.value || opt.id)
+        label: opt.label !== undefined ? opt.label : opt.name || String(opt.value || opt.id),
+        selectedLabel: opt.selectedLabel || opt.shortLabel
       }
     }
     return { value: String(opt), label: String(opt) }
@@ -83,10 +85,10 @@ export function CustomSelect({
           isOpen
             ? 'border-[#4685ac] ring-2 ring-[#4685ac]/15'
             : 'border-[#EDE8DF]'
-        }`}
+        } ${buttonClassName}`}
       >
         <span className={`truncate text-left ${selectedOption ? 'text-[#1E293B]' : 'text-[#94A3B8] font-normal'}`}>
-          {selectedOption ? selectedOption.label : placeholder}
+          {selectedOption ? (selectedOption.selectedLabel || selectedOption.label) : placeholder}
         </span>
         <ChevronDown
           className={`w-4 h-4 text-[#64748B] shrink-0 transition-transform duration-150 ml-1.5 ${

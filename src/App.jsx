@@ -1,7 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import './App.css'
 import { useProduction1Store } from './store/production1Store'
-import ScanFeedbackBanner from './components/ScanFeedbackBanner'
 import MeatStation from './components/MeatStation'
 import SeasoningStation from './components/SeasoningStation'
 import WrapperStation from './components/WrapperStation'
@@ -149,7 +148,7 @@ export default function App() {
       >
         {/* Header Ramping & Bersih Dapur Dimsum */}
         <header className="px-3.5 pb-2.5 pt-[max(0.625rem,env(safe-area-inset-top))] flex items-center justify-between shrink-0">
-          {/* Kiri: Logo Perusahaan (di atas permukaan kontras agar teks SYSTEM terbaca) + Chip Stage (P1 / P2) */}
+          {/* Kiri: Logo Perusahaan (tanpa background) + Chip Stage (P1 / P2) */}
           <div className="flex items-center gap-2 min-w-0">
             <div
               onTouchStart={handleLogoPressStart}
@@ -157,7 +156,7 @@ export default function App() {
               onMouseDown={handleLogoPressStart}
               onMouseUp={handleLogoPressEnd}
               onMouseLeave={handleLogoPressEnd}
-              className="shrink-0 cursor-default select-none bg-[#2C3E50] px-2 py-1 rounded-lg border border-[#1E293B] shadow-2xs"
+              className="shrink-0 cursor-default select-none py-0.5"
               title={import.meta.env.DEV ? 'Tekan lama untuk toggle Dev Mode' : undefined}
             >
               <img
@@ -165,12 +164,12 @@ export default function App() {
                 alt="MDI Dimsum MES"
                 width={145}
                 height={28}
-                className="h-6 w-auto object-contain select-none pointer-events-none"
+                className="h-7 w-auto object-contain select-none pointer-events-none drop-shadow-md"
               />
             </div>
 
-            {/* Chip Nama Area Aktif (P1 / P2) dengan Touch Target min 44x44px */}
-            {canSwitchAll ? (
+            {/* Chip Ganti Tahap Produksi (P1 / P2) - Hanya untuk PIC/Stakeholder */}
+            {canSwitchAll && (
               <button
                 type="button"
                 onClick={toggleProductionStage}
@@ -181,10 +180,6 @@ export default function App() {
                 <ArrowLeftRight className="w-3 h-3 stroke-[2.5]" />
                 <span>{activeProductionStage === 'PROD_1' ? 'P1' : 'P2'}</span>
               </button>
-            ) : (
-              <span className="min-h-[44px] min-w-[44px] text-xs font-bold font-heading text-[#556575] bg-[#EDE8DF]/70 border border-[#EDE8DF] px-2.5 py-1.5 rounded-lg flex items-center justify-center shrink-0">
-                {activeProductionStage === 'PROD_1' ? 'P1' : 'P2'}
-              </span>
             )}
           </div>
 
@@ -206,10 +201,10 @@ export default function App() {
                 </span>
               </div>
 
-              <div className="relative shrink-0 w-8 h-8 flex items-center justify-center">
-                <Avatar size="sm" />
+              <div className="relative shrink-0 w-10 h-10 flex items-center justify-center">
+                <Avatar size="md" />
                 <span
-                  className={`w-2.5 h-2.5 rounded-full absolute -bottom-0.5 -right-0.5 border-2 border-white transition-colors ${
+                  className={`w-3 h-3 rounded-full absolute -bottom-0.5 -right-0.5 border-2 border-white transition-colors ${
                     syncStatus === 'ONLINE' ? 'bg-[#2F7D5B]' : 'bg-[#556575]'
                   }`}
                   title={`Status Backend: ${syncStatus}`}
@@ -236,9 +231,6 @@ export default function App() {
             />
           </div>
         )}
-
-        {/* Banner Hasil Scan Semantik dengan Tombol Undo 15s (Hanya aktif jika ada event scan) */}
-        <ScanFeedbackBanner />
       </div>
 
       {/* Konten Halaman Aktif (Profile vs Produksi 1 vs Produksi 2) */}

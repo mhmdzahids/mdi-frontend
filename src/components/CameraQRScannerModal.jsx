@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Html5Qrcode } from 'html5-qrcode'
 import { useProduction1Store } from '../store/production1Store'
-import { XIcon, FlashIcon, SwitchCameraIcon, CheckIcon, AlertIcon, ScanIcon, ClockIcon } from './Icons'
+import { XIcon, FlashIcon, SwitchCameraIcon, CheckIcon, AlertIcon, ScanIcon } from './Icons'
 import { useLockBodyScroll } from '../utils/useLockBodyScroll'
 
 function CameraScannerInner() {
@@ -298,19 +298,6 @@ function CameraScannerInner() {
         <div className="relative w-full bg-black aspect-square max-h-[300px] flex items-center justify-center overflow-hidden">
           {/* Elemen mount target html5-qrcode (sembunyikan shaded-region bawaan) */}
           <div id={html5QrCodeId} className="w-full h-full [&_#qr-shaded-region]:!hidden" />
-
-          {/* Indikator Status Floating di Atas Viewport */}
-          {cooldownRemaining > 0 ? (
-            <div className="absolute top-3 px-3.5 py-1 bg-amber-500/95 text-neutral-950 text-xs font-extrabold rounded-full flex items-center gap-1.5 shadow-lg backdrop-blur-xs animate-in fade-in zoom-in-95 duration-150 z-20">
-              <ClockIcon className="w-3.5 h-3.5 text-neutral-950 animate-spin" />
-              <span>Jeda {cooldownRemaining}s (Kamera istirahat)</span>
-            </div>
-          ) : isCameraActive ? (
-            <div className="absolute top-3 px-3 py-1 bg-emerald-500/85 text-neutral-950 text-xs font-bold rounded-full flex items-center gap-1.5 shadow-lg backdrop-blur-xs z-20">
-              <ScanIcon className="w-3.5 h-3.5 text-neutral-950" />
-              <span>Kamera aktif · Siap scan</span>
-            </div>
-          ) : null}
 
           {/* 1 BINGKAI SCANNER TUNGGAL SIMETRIS (Transisi warna saat jeda) */}
           <div className="absolute inset-0 pointer-events-none flex items-center justify-center">

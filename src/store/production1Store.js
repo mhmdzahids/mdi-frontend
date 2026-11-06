@@ -275,22 +275,47 @@ export const useProduction1Store = create(
 
       isSupervisorUser: () => {
         const s = get()
-        if (s.isDevMode) return true
         const user = s.currentUser
+        const role = (user?.role || s.userRole || '').toUpperCase()
+        if (role === 'OPERATOR') return false
+
         const username = (user?.username || '').toLowerCase()
-        const opId = (user?.operator_id || '').toUpperCase()
+        const opId = (user?.operator_id || s.operatorId || '').toUpperCase()
         const div = (user?.division || '').toUpperCase()
+
+        // PIC stasiun tetap terkunci ke divisinya kecuali akun supervisor PPIC
+        if (opId.includes('DAGING') || opId.includes('BUMBU') || opId.includes('KULIT') || opId.includes('SAOS') || opId.includes('CETAK') || opId.includes('PACKING') || opId.includes('GUDANG')) {
+          if (!div.includes('PPIC') && !div.includes('SUPERVISOR') && username !== 'supervisor') {
+            return false
+          }
+        }
+
+        if (s.isDevMode) return true
         return username === 'supervisor' || opId.includes('YOSI') || div.includes('PPIC') || div.includes('SUPERVISOR')
       },
 
       isPpicUser: () => {
         const s = get()
         const user = s.currentUser
-        if (!user) return false
+        const role = (user?.role || s.userRole || '').toUpperCase()
+        if (role === 'OPERATOR') return false
+
         const username = (user?.username || user?.sub || '').toLowerCase()
-        const opId = (user?.operator_id || '').toUpperCase()
+        const opId = (user?.operator_id || s.operatorId || '').toUpperCase()
         const div = (user?.division || '').toUpperCase()
-        return username === 'supervisor' || opId.includes('YOSI') || div.includes('PPIC') || div.includes('SUPERVISOR')
+        const defaultStation = (user?.default_station || '').toUpperCase()
+
+        return (
+          username === 'supervisor' ||
+          username === 'ppic_ayu' ||
+          username === 'ayu' ||
+          opId.includes('YOSI') ||
+          opId.includes('AYU') ||
+          opId.includes('PPIC') ||
+          div.includes('PPIC') ||
+          div.includes('SUPERVISOR') ||
+          defaultStation === 'PLAN'
+        )
       },
 
       // Setters dengan proteksi wewenang divisi
@@ -389,10 +414,6 @@ export const useProduction1Store = create(
       // 7. Pengaturan Batas Tanggal Data Pegawai ('TODAY' | 'YESTERDAY' | 'TWO_DAYS' | 'ALL')
       employeeDateScope: 'TODAY',
       setEmployeeDateScope: (scope) => set({ employeeDateScope: scope }),
-
-      // 8. Mode Penerimaan Kulit Supplier Luar PPIC ('DIRECT' | 'REDIRECT')
-      ppicExternalWrapperMode: 'DIRECT',
-      setPpicExternalWrapperMode: (mode) => set({ ppicExternalWrapperMode: mode }),
 
       planDetailMode: 'GENERAL', // 'GENERAL' (Ringkas) | 'DETAILED' (Spesifik per Mika & Vakum)
       setPlanDetailMode: (mode) => set({ planDetailMode: mode }),
@@ -3386,6 +3407,11 @@ export const useProduction1Store = create(
             activePrintModal: null,
             lastBatchPrintModal: null,
             activePlanId: newPlanId,
+            planStatus: 'DRAFT',
+            planVersion: 1,
+            planBatches: [],
+            publishedAt: null,
+            publishedBy: null,
             targetGilingan: 0,
             dailyPlan: {
               planDate: todayStr,
@@ -3397,6 +3423,14 @@ export const useProduction1Store = create(
               offlineVakum: 0,
               bumperMika: 0,
               bumperVakum: 0,
+              manualGilingan: null,
+              manualBumbuKarung: null,
+              targetKulitBal: 0,
+              targetKulit9cmBal: 0,
+              targetKulit7cmBal: 0,
+              targetSaosBal: 0,
+              targetSaosMikaBal: 0,
+              targetSaosVakumBal: 0,
               totalMika: 0,
               totalVakum: 0,
               totalPcs: 0,
@@ -3408,12 +3442,6 @@ export const useProduction1Store = create(
               message: resData.message || 'Database berhasil di-wipe dan data operasional telah direset.'
             }
           })
-
-          try {
-            localStorage.removeItem('mdi_production1_storage')
-          } catch {
-            // Abaikan jika localStorage tidak dapat diakses
-          }
 
           if (get().fetchInitialData) {
             await get().fetchInitialData(true)
@@ -3448,6 +3476,24 @@ export const useProduction1Store = create(
             : null,
           manual_bumbu: draftData.manualBumbuKarung !== undefined && draftData.manualBumbuKarung !== '' && draftData.manualBumbuKarung !== null
             ? Number(draftData.manualBumbuKarung)
+            : null,
+          target_kulit: draftData.kulit !== undefined && draftData.kulit !== '' && draftData.kulit !== null
+            ? Number(draftData.kulit)
+            : null,
+          target_kulit_9cm: draftData.kulit9cm !== undefined && draftData.kulit9cm !== '' && draftData.kulit9cm !== null
+            ? Number(draftData.kulit9cm)
+            : null,
+          target_kulit_7cm: draftData.kulit7cm !== undefined && draftData.kulit7cm !== '' && draftData.kulit7cm !== null
+            ? Number(draftData.kulit7cm)
+            : null,
+          target_saos: draftData.saos !== undefined && draftData.saos !== '' && draftData.saos !== null
+            ? Number(draftData.saos)
+            : null,
+          target_saos_mika: draftData.saosMika !== undefined && draftData.saosMika !== '' && draftData.saosMika !== null
+            ? Number(draftData.saosMika)
+            : null,
+          target_saos_vakum: draftData.saosVakum !== undefined && draftData.saosVakum !== '' && draftData.saosVakum !== null
+            ? Number(draftData.saosVakum)
             : null
         }
 
@@ -3476,7 +3522,13 @@ export const useProduction1Store = create(
               bumperMika: savedPlan.bumper_mika,
               bumperVakum: savedPlan.bumper_vakum,
               manualGilingan: savedPlan.manual_gilingan,
-              manualBumbuKarung: savedPlan.manual_bumbu
+              manualBumbuKarung: savedPlan.manual_bumbu,
+              targetKulitBal: savedPlan.target_kulit_bal,
+              targetKulit9cmBal: savedPlan.target_kulit_9cm,
+              targetKulit7cmBal: savedPlan.target_kulit_7cm,
+              targetSaosBal: savedPlan.target_saos_bal,
+              targetSaosMikaBal: savedPlan.target_saos_mika,
+              targetSaosVakumBal: savedPlan.target_saos_vakum
             }
           }))
           return savedPlan
@@ -3542,6 +3594,35 @@ export const useProduction1Store = create(
               message: errMsg
             }
           })
+          throw err
+        }
+      },
+
+      generatePackagingLotsBatch: async ({ plan_id, product_type, batch_qty }) => {
+        try {
+          const res = await apiFetch('/api/v1/production1/generate-packaging-lots-batch', {
+            method: 'POST',
+            body: JSON.stringify({
+              plan_id: plan_id || get().activePlanId,
+              product_type,
+              batch_qty: Number(batch_qty),
+              operator_id: get().operatorId || 'PPIC-AYU'
+            })
+          })
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}))
+            throw new Error(errData.detail || `Gagal menerbitkan batch kemasan (${res.status})`)
+          }
+          const createdLots = await res.json()
+          playSuccessBeep()
+
+          if (get().fetchInitialData) {
+            await get().fetchInitialData(true)
+          }
+
+          return createdLots
+        } catch (err) {
+          playErrorBeep()
           throw err
         }
       },
@@ -3820,7 +3901,6 @@ export const useProduction1Store = create(
         activeProductionStage: state.activeProductionStage,
         activeProd2Tab: state.activeProd2Tab,
         employeeDateScope: state.employeeDateScope,
-        ppicExternalWrapperMode: state.ppicExternalWrapperMode,
         planDetailMode: state.planDetailMode,
         meatLots: state.meatLots,
         seasoningLots: state.seasoningLots,
