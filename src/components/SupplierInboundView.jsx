@@ -735,22 +735,17 @@ export default function SupplierInboundView() {
               )}
             </div>
           ) : (
-            <div className="space-y-4 pt-1">
-              <div className="flex items-center justify-between px-1 text-[11px] text-[#6B7B8D] font-medium">
-                <span>{filteredInboundList.length} total transaksi</span>
-                <span>Periode: {activePeriodLabel}</span>
-              </div>
-
+            <div className="space-y-3 pt-0.5">
               {groupedInboundByDate.map((group) => {
                 if (group.items.length === 0) {
                   return (
                     <div key={group.dateStr} className="space-y-1.5">
                       <div className="flex items-center justify-between px-1 pt-1 pb-0.5">
                         <div className="flex items-center gap-1.5">
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-[#EAF5EE] text-[#2F7D5B] border border-[#CBEAD6]">
+                          <span className="text-xs font-bold text-[#2C3E50]">
                             {group.badgeLabel || 'Hari Ini'}
                           </span>
-                          <span className="text-xs font-bold text-[#2C3E50]">
+                          <span className="text-xs text-[#6B7B8D]">
                             {group.title}
                           </span>
                         </div>
@@ -770,18 +765,10 @@ export default function SupplierInboundView() {
                     {/* Section Divider per Hari */}
                     <div className="flex items-center justify-between px-1 pt-1 pb-0.5">
                       <div className="flex items-center gap-1.5">
-                        <span
-                          className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${
-                            group.isToday
-                              ? 'bg-[#EAF5EE] text-[#2F7D5B] border-[#CBEAD6]'
-                              : group.isYesterday
-                              ? 'bg-[#F5F1EB] text-[#556575] border-[#EDE8DF]'
-                              : 'bg-[#FAF7F2] text-[#6B7B8D] border-[#EDE8DF]'
-                          }`}
-                        >
+                        <span className="text-xs font-bold text-[#2C3E50]">
                           {group.badgeLabel || 'Riwayat'}
                         </span>
-                        <span className="text-xs font-bold text-[#2C3E50]">
+                        <span className="text-xs text-[#6B7B8D]">
                           {group.title}
                         </span>
                       </div>
