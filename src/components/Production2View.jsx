@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useProduction1Store } from '../store/production1Store'
 import { filterAndSortLots, groupLotsByDay } from '../utils/dateFilter'
-import { PlusIcon, MinusIcon, PrinterIcon, ScanIcon } from './Icons'
+import { PlusIcon, MinusIcon, PrinterIcon, ScanIcon, CheckIcon, ScanInIcon } from './Icons'
+import ScanFeedbackBanner from './ScanFeedbackBanner'
 import BatchPrintSelectionBar from './BatchPrintSelectionBar'
 import { useLotMultiSelect } from '../hooks/useLotMultiSelect'
 import { useLongPress } from '../hooks/useLongPress'
@@ -13,6 +14,8 @@ import { Modal } from './ui/Modal'
 import { SegmentedControl } from './ui/SegmentedControl'
 import { Button } from './ui/Button'
 import { canOpenQr, canManualDispatch } from '../utils/permissions'
+import { exportStationLotsExcel } from '../utils/excelExport'
+import { ChevronDown } from 'lucide-react'
 
 function ReceivedLotCard({
   item,
@@ -179,6 +182,22 @@ export default function Production2View() {
   const [packMika, setPackMika] = useState(0)
   const [packVakum, setPackVakum] = useState(0)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [expandedTransitGroups, setExpandedTransitGroups] = useState({})
+  const [expandedReceivedGroups, setExpandedReceivedGroups] = useState({})
+
+  const toggleTransitGroup = (groupId) => {
+    setExpandedTransitGroups((prev) => ({
+      ...prev,
+      [groupId]: !prev[groupId]
+    }))
+  }
+
+  const toggleReceivedGroup = (groupId) => {
+    setExpandedReceivedGroups((prev) => ({
+      ...prev,
+      [groupId]: !prev[groupId]
+    }))
+  }
 
   // State Media Penyesuaian / Pengurangan Stok Bahan Manual
   const [adjustModalLot, setAdjustModalLot] = useState(null)
@@ -211,14 +230,51 @@ export default function Production2View() {
   const lastBatchPrintModal = useProduction1Store((s) => s.lastBatchPrintModal)
   const reopenLastBatchPrintModal = useProduction1Store((s) => s.reopenLastBatchPrintModal)
   const openBatchPrintModal = useProduction1Store((s) => s.openBatchPrintModal)
+  const dailyPlan = useProduction1Store((s) => s.dailyPlan)
 
   // Status Produk Jadi (Meja Packing & Laporan Produksi)
   const pendingPackingLots = finishedGoodsLots.filter(
-    (f) => f.status === 'READY_IN_ASSEMBLY_STATION'
+    (f) =>
+      (f.status === 'READY_IN_ASSEMBLY_STATION' || f.status === 'PRINTED_PENDING_STOCK_IN') &&
+      f.status !== 'VOID' &&
+      f.status !== 'CANCELLED'
   )
   const totalReportedLots = finishedGoodsLots.filter(
-    (f) => f.status !== 'READY_IN_ASSEMBLY_STATION'
+    (f) =>
+      (f.status === 'PACKED_VERIFIED' || f.status === 'IN_FREEZER_STORAGE' || f.status === 'IN_SALES_STOCK') &&
+      f.status !== 'VOID' &&
+      f.status !== 'CANCELLED'
   )
+
+  // Data Target & Progres Produksi Kemasan (Dimsum Mika & Dimsum Vakum)
+  const targetMikaPacks =
+    (dailyPlan?.orderMika || 0) + (dailyPlan?.bumperMika || 0) ||
+    (dailyPlan?.targetMika || 0) ||
+    (dailyPlan?.targetMikaPax || 0) ||
+    (dailyPlan?.totalMika || 0)
+  const targetVakumPacks =
+    (dailyPlan?.orderVakum || 0) + (dailyPlan?.bumperVakum || 0) ||
+    (dailyPlan?.targetVakum || 0) ||
+    (dailyPlan?.targetVakumPax || 0) ||
+    (dailyPlan?.totalVakum || 0)
+
+  const verifiedMikaLots = totalReportedLots.filter(
+    (f) =>
+      f.productType === 'FG_MIKA' ||
+      f.type === 'FG_MIKA' ||
+      f.lot_type === 'FG_MIKA' ||
+      String(f.lotCode || f.lot_qr_code || '').includes('MIKA')
+  )
+  const verifiedVakumLots = totalReportedLots.filter(
+    (f) =>
+      f.productType === 'FG_VAKUM' ||
+      f.type === 'FG_VAKUM' ||
+      f.lot_type === 'FG_VAKUM' ||
+      String(f.lotCode || f.lot_qr_code || '').includes('VAKUM')
+  )
+
+  const remainingMikaPacks = Math.max(0, targetMikaPacks - verifiedMikaLots.length)
+  const remainingVakumPacks = Math.max(0, targetVakumPacks - verifiedVakumLots.length)
   const fgSelect = useLotMultiSelect(pendingPackingLots)
   const isPIC = canManualDispatch(userRole)
 
@@ -256,6 +312,16 @@ export default function Production2View() {
     (s) => s.status === 'IN_FINISHING_STATION' || s.status === 'READY_IN_FINISHING_STATION'
   )
 
+  const handleExportExcel = () => {
+    exportStationLotsExcel({
+      stationName: 'Produksi 2: Meja Packing & Produk Jadi',
+      divisionCode: 'PACKING',
+      dateStr: new Date().toISOString().slice(0, 10),
+      lots: finishedGoodsLots,
+      operatorName: operatorName || operatorId || 'Operator Packing'
+    })
+  }
+
   const allReceivedLots = [
     ...readyDough.map((d) => ({
       lotCode: d.lotCode,
@@ -283,9 +349,82 @@ export default function Production2View() {
   const filteredTransit = allTransitLots.filter(
     (item) => filterType === 'ALL' || item.category === filterType
   )
+
+  const groupedTransitLots = useMemo(() => {
+    const groups = {}
+    filteredTransit.forEach((item) => {
+      const groupKey = item.category === 'DOUGH' ? 'DOUGH' : `WRAPPER_${item.label}`
+      if (!groups[groupKey]) {
+        groups[groupKey] = {
+          id: groupKey,
+          category: item.category,
+          label: item.category === 'DOUGH' ? 'Adonan' : item.label,
+          unit: item.category === 'DOUGH' ? 'gilingan' : 'bal',
+          items: []
+        }
+      }
+      groups[groupKey].items.push(item)
+    })
+
+    return Object.values(groups).map((group) => {
+      const sortedCodes = group.items
+        .map((i) => i.lotCode)
+        .filter(Boolean)
+        .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }))
+
+      let lotRange = '-'
+      if (sortedCodes.length === 1) {
+        lotRange = sortedCodes[0]
+      } else if (sortedCodes.length > 1) {
+        lotRange = `${sortedCodes[0]} s/d ${sortedCodes[sortedCodes.length - 1]}`
+      }
+
+      return {
+        ...group,
+        lotRange
+      }
+    })
+  }, [filteredTransit])
   const filteredReceived = allReceivedLots.filter(
     (item) => filterType === 'ALL' || item.category === filterType
   )
+
+  const groupedReceivedLots = useMemo(() => {
+    const groups = {}
+    filteredReceived.forEach((item) => {
+      const groupKey = item.category === 'DOUGH' ? 'DOUGH' : `WRAPPER_${item.label}`
+      if (!groups[groupKey]) {
+        groups[groupKey] = {
+          id: groupKey,
+          category: item.category,
+          label: item.category === 'DOUGH' ? 'Adonan' : item.label,
+          unit: item.unit || (item.category === 'DOUGH' ? 'gilingan' : 'bal'),
+          items: []
+        }
+      }
+      groups[groupKey].items.push(item)
+    })
+
+    return Object.values(groups).map((group) => {
+      const sortedCodes = group.items
+        .map((i) => i.lotCode)
+        .filter(Boolean)
+        .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }))
+
+      let lotRange = '-'
+      if (sortedCodes.length === 1) {
+        lotRange = sortedCodes[0]
+      } else if (sortedCodes.length > 1) {
+        lotRange = `${sortedCodes[0]} s/d ${sortedCodes[sortedCodes.length - 1]}`
+      }
+
+      return {
+        ...group,
+        lotRange
+      }
+    })
+  }, [filteredReceived])
+
   const receivedSelect = useLotMultiSelect(filteredReceived)
 
   // Sub-Line Isolasi: MIKA vs VAKUM
@@ -484,34 +623,41 @@ export default function Production2View() {
             </Card>
           </div>
 
-          {/* Tombol Utama Scan In Bahan Masuk (Adonan & Kulit) */}
-          <Button
+          {/* Tombol Utama Scan In Bahan Masuk Bergaya Halaman Giling */}
+          <button
             type="button"
-            variant="primary"
-            size="lg"
-            fullWidth
-            className="min-h-[48px]"
-            icon={ScanIcon}
             onClick={() =>
               openCameraScanner({
                 mode: 'UNIVERSAL',
                 title: 'Scan In Bahan ke Meja Cetak'
               })
             }
+            className="w-full min-h-[104px] sm:min-h-[114px] rounded-3xl p-3 flex flex-col items-center justify-center text-center transition-all duration-150 cursor-pointer active:scale-[0.98] select-none shadow-xs hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2C3E50] focus-visible:ring-offset-2 relative overflow-hidden bg-[#4685ac] hover:bg-[#3d7597] text-white"
+            title="Scan in bahan masuk (Adonan & Kulit)"
           >
-            <div className="flex items-center justify-center gap-2">
-              <span>Scan in bahan masuk</span>
-              {allTransitLots.length > 0 && (
-                <Badge
-                  variant="neutral"
-                  size="sm"
-                  className="bg-white/20 text-white border-transparent"
-                >
-                  {allTransitLots.length} kiriman
-                </Badge>
-              )}
+            {/* Bulat-bulat dekorasi di background */}
+            <div className="absolute -top-7 -right-7 w-28 h-28 rounded-full bg-white/10 pointer-events-none" />
+            <div className="absolute top-1 right-3 w-14 h-14 rounded-full bg-white/5 pointer-events-none" />
+            <div className="absolute -bottom-8 -left-8 w-24 h-24 rounded-full bg-white/5 pointer-events-none" />
+
+            {/* Kotak Transparan Ikon */}
+            <div className="w-12 h-12 sm:w-13 sm:h-13 rounded-2xl bg-white/20 flex items-center justify-center mb-1.5 border border-white/20 shadow-2xs backdrop-blur-[1px] relative z-10 shrink-0">
+              <ScanInIcon size={26} strokeWidth={2.2} className="text-white" />
             </div>
-          </Button>
+
+            {/* Label Tebal */}
+            <span className="text-base sm:text-[17px] font-bold text-white tracking-tight leading-tight block relative z-10">
+              Scan in bahan masuk
+            </span>
+
+            {/* Pill Keterangan */}
+            <span className="mt-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-white text-[#2C3E50] shadow-2xs tabular-nums block max-w-full truncate leading-tight relative z-10">
+              {allTransitLots.length > 0 ? `${allTransitLots.length} kiriman menunggu` : 'Siap scan'}
+            </span>
+          </button>
+
+          {/* Notifikasi Hasil Scan In */}
+          <ScanFeedbackBanner />
 
           {/* Filter Jenis Bahan */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
@@ -558,7 +704,110 @@ export default function Production2View() {
                 <div className="bg-[#F5F1EB] border border-[#EDE8DF] rounded-xl p-4 text-center text-xs text-[#6B7B8D]">
                   Belum ada bahan kiriman masuk.
                 </div>
+              ) : filterType === 'ALL' ? (
+                /* Mode "Semua": Sistem pengelompokan card utama dengan dropdown detail */
+                <div className="space-y-2.5">
+                  {groupedTransitLots.map((group) => {
+                    const isExpanded = !!expandedTransitGroups[group.id]
+                    return (
+                      <div
+                        key={group.id}
+                        className="bg-[#F5F1EB] border border-[#EDE8DF] rounded-2xl overflow-hidden transition-all shadow-2xs"
+                      >
+                        {/* Main Card: Display nama bahan, jumlah, rentang no resi, badge, dan icon dropdown */}
+                        <button
+                          type="button"
+                          onClick={() => toggleTransitGroup(group.id)}
+                          className="w-full p-3.5 flex items-center justify-between text-left cursor-pointer hover:bg-[#EDE8DF]/60 active:bg-[#EDE8DF] transition-colors select-none"
+                          aria-expanded={isExpanded}
+                        >
+                          <div className="min-w-0 flex-1 pr-2">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-bold text-xs sm:text-sm text-[#2C3E50]">
+                                {group.label}
+                              </span>
+                              <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-white text-[#4685ac] border border-[#EDE8DF] shadow-2xs tabular-nums">
+                                {group.items.length} {group.unit}
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-[#6B7B8D] tabular-nums mt-1 font-medium truncate">
+                              <span className="text-[#2C3E50] font-bold">No. Resi:</span>{' '}
+                              <span className="font-semibold text-[#2C3E50]">{group.lotRange}</span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Badge variant="warning" size="sm">
+                              Belum di-scan
+                            </Badge>
+                            <div className="w-6 h-6 rounded-lg bg-white/80 border border-[#EDE8DF] flex items-center justify-center">
+                              <ChevronDown
+                                className={`w-4 h-4 text-[#6B7B8D] transition-transform duration-200 ${
+                                  isExpanded ? 'rotate-180 text-[#4685ac]' : ''
+                                }`}
+                              />
+                            </div>
+                          </div>
+                        </button>
+
+                        {/* Dropdown list item saat card diklik */}
+                        {isExpanded && (
+                          <div className="border-t border-[#EDE8DF] p-2.5 bg-white space-y-2 animate-in fade-in duration-150">
+                            {group.items.map((item) => (
+                              <div
+                                key={item.lotCode}
+                                className="bg-[#F5F1EB] border border-[#EDE8DF] rounded-xl p-3 flex items-center justify-between text-xs gap-2"
+                              >
+                                <div>
+                                  <span className="tabular-nums font-bold text-[#2C3E50] block text-xs">
+                                    {item.lotCode}
+                                  </span>
+                                  <span className="text-[11px] text-[#6B7B8D] tabular-nums">
+                                    {item.label} · {item.detail}
+                                  </span>
+                                </div>
+
+                                <div className="flex items-center gap-1.5">
+                                  <Badge variant="warning" size="sm">
+                                    Belum di-scan
+                                  </Badge>
+                                  {canOpenQr(userRole) && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        handleShowQrTest(item)
+                                      }}
+                                      className="h-8 px-2.5 text-xs text-[#2C3E50] hover:text-[#2C3E50] bg-white hover:bg-[#EDE8DF] border border-[#EDE8DF] rounded-lg font-semibold cursor-pointer active:scale-95 transition-all shadow-2xs"
+                                      title="Tampilkan QR untuk testing scan"
+                                    >
+                                      QR
+                                    </button>
+                                  )}
+                                  {isPIC && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        receiveMaterialLot(item.lotCode)
+                                      }}
+                                      className="h-8 px-2.5 text-xs text-[#4685ac] hover:text-[#3A6B80] underline cursor-pointer font-semibold"
+                                      title="Override manual PIC"
+                                    >
+                                      Terima
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
               ) : (
+                /* Mode filter spesifik (Adonan / Kulit): Tampilan daftar langsung */
                 <div className="space-y-2">
                   {filteredTransit.map((item) => (
                     <div
@@ -648,9 +897,86 @@ export default function Production2View() {
                 <div className="bg-[#F5F1EB] border border-[#EDE8DF] rounded-xl p-4 text-center text-xs text-[#6B7B8D]">
                   Belum ada bahan diterima hari ini.
                 </div>
+              ) : filterType === 'ALL' ? (
+                /* Mode "Semua": Sistem pengelompokan card utama dengan dropdown detail */
+                <div className="space-y-2.5">
+                  {groupedReceivedLots.map((group) => {
+                    const isExpanded = !!expandedReceivedGroups[group.id]
+                    const selectedInGroup = group.items.filter((item) =>
+                      receivedSelect.selectedCodes.has(item.lotCode)
+                    ).length
+
+                    return (
+                      <div
+                        key={group.id}
+                        className="bg-[#F5F1EB] border border-[#EDE8DF] rounded-2xl overflow-hidden transition-all shadow-2xs"
+                      >
+                        {/* Main Card: Display nama bahan, jumlah, rentang no resi, badge, dan icon dropdown */}
+                        <button
+                          type="button"
+                          onClick={() => toggleReceivedGroup(group.id)}
+                          className="w-full p-3.5 flex items-center justify-between text-left cursor-pointer hover:bg-[#EDE8DF]/60 active:bg-[#EDE8DF] transition-colors select-none"
+                          aria-expanded={isExpanded}
+                        >
+                          <div className="min-w-0 flex-1 pr-2">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-bold text-xs sm:text-sm text-[#2C3E50]">
+                                {group.label}
+                              </span>
+                              <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-white text-[#4685ac] border border-[#EDE8DF] shadow-2xs tabular-nums">
+                                {group.items.length} {group.unit}
+                              </span>
+                              {receivedSelect.isSelecting && selectedInGroup > 0 && (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#4685ac] text-white tabular-nums">
+                                  {selectedInGroup} dipilih
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[11px] text-[#6B7B8D] tabular-nums mt-1 font-medium truncate">
+                              <span className="text-[#2C3E50] font-bold">No. Resi:</span>{' '}
+                              <span className="font-semibold text-[#2C3E50]">{group.lotRange}</span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Badge variant="success" size="sm">
+                              Diterima
+                            </Badge>
+                            <div className="w-6 h-6 rounded-lg bg-white/80 border border-[#EDE8DF] flex items-center justify-center">
+                              <ChevronDown
+                                className={`w-4 h-4 text-[#6B7B8D] transition-transform duration-200 ${
+                                  isExpanded ? 'rotate-180 text-[#4685ac]' : ''
+                                }`}
+                              />
+                            </div>
+                          </div>
+                        </button>
+
+                        {/* Dropdown list item saat card diklik */}
+                        {isExpanded && (
+                          <div className="border-t border-[#EDE8DF] p-2.5 bg-white space-y-2 animate-in fade-in duration-150">
+                            {group.items.map((item) => (
+                              <ReceivedLotCard
+                                key={item.lotCode}
+                                item={item}
+                                isSelected={receivedSelect.selectedCodes.has(item.lotCode)}
+                                isSelecting={receivedSelect.isSelecting}
+                                onToggle={() => receivedSelect.toggleSelect(item.lotCode)}
+                                onStartSelecting={() => receivedSelect.startSelecting()}
+                                canOpenQr={canOpenQr(userRole)}
+                                onShowQr={() => handleShowQrTest(item)}
+                                onOpenAdjust={() => handleOpenAdjustModal(item)}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
               ) : (
                 <div className="space-y-2">
-                  {filteredReceived.slice(0, 25).map((item) => (
+                  {filteredReceived.map((item) => (
                     <ReceivedLotCard
                       key={item.lotCode}
                       item={item}
@@ -679,6 +1005,37 @@ export default function Production2View() {
             <>
               {/* Target Harian Finished Goods (1 Baris Ringkas) */}
               <StationTargetBanner type="PROD_2" />
+
+              {/* Tombol Utama Scan Barcode Kemasan Bergaya Halaman Giling */}
+              <button
+                type="button"
+                onClick={() =>
+                  openCameraScanner({
+                    mode: 'UNIVERSAL',
+                    title: 'Scan Barcode Kemasan'
+                  })
+                }
+                className="w-full min-h-[104px] sm:min-h-[114px] rounded-3xl p-3 flex flex-col items-center justify-center text-center transition-all duration-150 cursor-pointer active:scale-[0.98] select-none shadow-xs hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2C3E50] focus-visible:ring-offset-2 relative overflow-hidden bg-[#4685ac] hover:bg-[#3d7597] text-white"
+                title="Scan barcode kemasan"
+              >
+                {/* Bulat-bulat dekorasi di background */}
+                <div className="absolute -top-7 -right-7 w-28 h-28 rounded-full bg-white/10 pointer-events-none" />
+                <div className="absolute top-1 right-3 w-14 h-14 rounded-full bg-white/5 pointer-events-none" />
+                <div className="absolute -bottom-8 -left-8 w-24 h-24 rounded-full bg-white/5 pointer-events-none" />
+
+                {/* Kotak Transparan Ikon */}
+                <div className="w-12 h-12 sm:w-13 sm:h-13 rounded-2xl bg-white/20 flex items-center justify-center mb-1.5 border border-white/20 shadow-2xs backdrop-blur-[1px] relative z-10 shrink-0">
+                  <ScanInIcon size={26} strokeWidth={2.2} className="text-white" />
+                </div>
+
+                {/* Label Tebal */}
+                <span className="text-base sm:text-[17px] font-bold text-white tracking-tight leading-tight block relative z-10">
+                  Scan in kemasan
+                </span>
+              </button>
+
+              {/* Banner Feedback Scan */}
+              <ScanFeedbackBanner />
 
               {/* Card Penerimaan Saos dari Dapur ke Meja Packing */}
               <Card className="border-[#EDE8DF] bg-white shadow-2xs">
@@ -732,139 +1089,7 @@ export default function Production2View() {
                 </CardContent>
               </Card>
 
-              {/* Form Bungkus Dimsum */}
-              <Card variant="action" className="border-[#D1E4EF] bg-white">
-                <CardContent className="p-4 space-y-3.5">
-                  <div className="flex items-center justify-between border-b border-[#EDE8DF] pb-2.5">
-                    <span className="text-xs font-bold text-[#2C3E50] block">
-                      Bungkus dimsum
-                    </span>
-                  </div>
 
-                  {/* Selector Sub-Line Packing: Dimsum Mika vs Dimsum Vakum */}
-                  <SegmentedControl
-                    options={subLineOptions}
-                    value={packingSubLine}
-                    onChange={(val) => {
-                      setPackingSubLine(val)
-                      setPackMika(0)
-                      setPackVakum(0)
-                    }}
-                  />
-
-                  {/* Stepper Jumlah Pack General */}
-                  <div className="flex items-center justify-between rounded-xl p-3 border bg-[#F5F1EB] border-[#EDE8DF]">
-                    <div>
-                      <span className="text-xs font-bold text-[#2C3E50] block">
-                        {isLineMika ? 'Jumlah pack mika' : 'Jumlah pack vakum'}
-                      </span>
-                      <span className="text-[11px] text-[#6B7B8D] tabular-nums block mt-0.5">
-                        {isLineMika ? '50 butir per pack' : '25 butir per pack'}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        disabled={(isLineMika ? packMika : packVakum) <= 0}
-                        onClick={() => {
-                          if (isLineMika) setPackMika((c) => Math.max(0, c - 1))
-                          else setPackVakum((c) => Math.max(0, c - 1))
-                        }}
-                        className="w-12 h-12 rounded-xl bg-[#EDE8DF] border border-[#EDE8DF] flex items-center justify-center font-bold text-[#2C3E50] hover:bg-[#EFE6D9] active:bg-[#E5DACB] active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all"
-                      >
-                        <MinusIcon className="w-5 h-5" />
-                      </button>
-                      <input
-                        type="number"
-                        min="0"
-                        value={isLineMika ? packMika : packVakum}
-                        onChange={(e) => {
-                          const val = Math.max(0, parseInt(e.target.value, 10) || 0)
-                          if (isLineMika) setPackMika(val)
-                          else setPackVakum(val)
-                        }}
-                        className="w-20 h-12 text-center text-lg font-bold tabular-nums bg-white border border-[#EDE8DF] rounded-xl text-[#2C3E50] focus:outline-none focus:border-[#4685ac] focus:ring-2 focus:ring-[#4685ac]/20 shadow-2xs"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (isLineMika) setPackMika((c) => c + 1)
-                          else setPackVakum((c) => c + 1)
-                        }}
-                        className="w-12 h-12 rounded-xl bg-[#EDE8DF] border border-[#EDE8DF] flex items-center justify-center font-bold text-[#2C3E50] hover:bg-[#EFE6D9] active:bg-[#E5DACB] active:scale-95 cursor-pointer transition-all"
-                      >
-                        <PlusIcon className="w-5 h-5" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Preset Cetak Cepat Tanpa Repetisi Satuan */}
-                  <div className="space-y-1.5 p-3 bg-[#F5F1EB] rounded-xl border border-[#EDE8DF]">
-                    <span className="text-[11px] font-bold text-[#6B7B8D] block">
-                      Preset cepat
-                    </span>
-                    <div className="grid grid-cols-3 gap-2">
-                      {[25, 50, 100].map((preset) => (
-                        <button
-                          key={preset}
-                          type="button"
-                          onClick={() => {
-                            if (isLineMika) setPackMika((c) => c + preset)
-                            else setPackVakum((c) => c + preset)
-                          }}
-                          className="h-10 text-xs tabular-nums font-bold rounded-xl bg-white hover:bg-[#EDE8DF] active:bg-[#EFE6D9] text-[#2C3E50] border border-[#EDE8DF] transition-all cursor-pointer text-center active:scale-95 shadow-2xs"
-                        >
-                          +{preset} pack
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Ringkasan Total Pack */}
-                  {currentPackCount > 0 && (
-                    <div className="flex items-center justify-between px-3.5 py-2.5 text-xs text-[#2C3E50] bg-[#EDE8DF] rounded-xl border border-[#EDE8DF]">
-                      <span className="font-semibold">Total bungkus</span>
-                      <span className="font-bold tabular-nums text-sm text-[#2C3E50]">
-                        {currentPackCount} pack
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Tombol Simpan & Cetak Label 56px */}
-                  <Button
-                    type="button"
-                    variant="primary"
-                    size="lg"
-                    fullWidth
-                    disabled={isSubmitting || currentPackCount === 0}
-                    loading={isSubmitting}
-                    onClick={handleCompletePacking}
-                    icon={PrinterIcon}
-                  >
-                    {currentPackCount > 0
-                      ? `Simpan & cetak ${currentPackCount} label`
-                      : 'Simpan & cetak label'}
-                  </Button>
-                </CardContent>
-              </Card>
-
-              {/* Tombol Scanner Barcode */}
-              <Button
-                type="button"
-                variant="secondary"
-                size="md"
-                fullWidth
-                onClick={() =>
-                  openCameraScanner({
-                    mode: 'UNIVERSAL',
-                    title: `Scan barcode (${isLineMika ? 'Dimsum Mika' : 'Dimsum Vakum'})`
-                  })
-                }
-                icon={ScanIcon}
-              >
-                Scan barcode kemasan
-              </Button>
 
               {/* Header Kontrol Seleksi & Cetak Hasil Bungkus */}
               <Card className="border-[#EDE8DF] bg-white shadow-2xs">
@@ -875,6 +1100,18 @@ export default function Production2View() {
                     </span>
 
                     <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={handleExportExcel}
+                        className="text-[11px] font-bold rounded-lg px-2.5 py-1 border border-[#3A6B80] text-[#3A6B80] bg-white hover:bg-[#F5F1EB] transition-colors cursor-pointer flex items-center gap-1"
+                        title="Unduh laporan Excel produk jadi"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <span>Excel</span>
+                      </button>
+
                       {lastBatchPrintModal?.lotList?.length > 1 && (
                         <button
                           type="button"
@@ -1041,70 +1278,65 @@ export default function Production2View() {
               </Card>
             </>
           ) : (
-            /* TAMPILAN KHUSUS KARYAWAN PACKING: HANYA TOMBOL SCAN QR KEMASAN */
+            /* TAMPILAN KHUSUS KARYAWAN PACKING */
             <div className="space-y-3.5">
-              <Card variant="action" className="border-[#D1E4EF] bg-white">
-                <CardContent className="p-4 space-y-3.5">
-                  <div className="flex items-center justify-between border-b border-[#EDE8DF] pb-2.5">
-                    <div>
-                      <span className="text-xs font-bold text-[#2C3E50] block">
-                        Meja packing
-                      </span>
-                      <span className="text-[11px] text-[#6B7B8D] block mt-0.5">
-                        Tempel stiker QR dari PIC ke kemasan, lalu scan untuk verifikasi
+              {/* 2 Card Target Produksi Kemasan (Sama seperti di Halaman Cetak/Rencana) */}
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <Card className="border-[#EDE8DF] bg-white shadow-2xs">
+                  <CardContent className="p-3 space-y-1">
+                    <span className="text-[11px] font-bold text-[#556575] block">Dimsum Mika</span>
+                    <div className="mt-0.5">
+                      <span className="text-base font-bold tabular-nums text-[#2C3E50]">
+                        {verifiedMikaLots.length}
+                        <span className="text-xs font-normal text-[#556575]"> / {targetMikaPacks} pack</span>
                       </span>
                     </div>
-                  </div>
+                  </CardContent>
+                </Card>
 
-                  {/* 1 Tombol Utama Tunggal Ramah Sarung Tangan: SCAN QR KEMASAN */}
-                  <div>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        openCameraScanner({
-                          mode: 'UNIVERSAL',
-                          title: 'Scan QR Kemasan (Verifikasi Masuk)'
-                        })
-                      }
-                      className="w-full min-h-[76px] p-4 rounded-2xl bg-[#4685ac] border border-[#4685ac] text-white hover:bg-[#3A6B80] active:bg-[#2E5466] transition-all flex items-center justify-between gap-3 shadow-xs cursor-pointer active:scale-[0.99] group"
-                    >
-                      <div className="flex items-center gap-3 text-left">
-                        <div className="w-12 h-12 rounded-xl bg-white text-[#4685ac] flex items-center justify-center shrink-0 shadow-2xs">
-                          <ScanIcon className="w-6 h-6" />
-                        </div>
-                        <div>
-                          <span className="text-sm font-bold block text-white group-hover:underline">
-                            Scan QR kemasan
-                          </span>
-                          <span className="text-[11px] text-[#D1E4EF] block mt-0.5">
-                            Verifikasi kemasan setelah ditempel stiker QR
-                          </span>
-                        </div>
-                      </div>
-                    </button>
-                  </div>
+                <Card className="border-[#EDE8DF] bg-white shadow-2xs">
+                  <CardContent className="p-3 space-y-1">
+                    <span className="text-[11px] font-bold text-[#556575] block">Dimsum Vakum</span>
+                    <div className="mt-0.5">
+                      <span className="text-base font-bold tabular-nums text-[#2C3E50]">
+                        {verifiedVakumLots.length}
+                        <span className="text-xs font-normal text-[#556575]"> / {targetVakumPacks} pack</span>
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
 
-                  {/* Status Ringkas Lapangan */}
-                  <div className="grid grid-cols-2 gap-2.5 pt-1">
-                    <div className="bg-[#F5F1EB] border border-[#EDE8DF] rounded-xl p-3 text-center">
-                      <span className="text-[11px] text-[#6B7B8D] font-medium block">
-                        Menunggu scan QR
-                      </span>
-                      <span className="text-2xl font-bold tabular-nums text-[#2C3E50] block mt-0.5">
-                        {pendingPackingLots.length}
-                      </span>
-                    </div>
-                    <div className="bg-[#F5F1EB] border border-[#EDE8DF] rounded-xl p-3 text-center">
-                      <span className="text-[11px] text-[#6B7B8D] font-medium block">
-                        Selesai hari ini
-                      </span>
-                      <span className="text-2xl font-bold tabular-nums text-[#2C3E50] block mt-0.5">
-                        {totalReportedLots.length}
-                      </span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+              {/* Tombol Utama Scan In Kemasan Bergaya Halaman Giling */}
+              <button
+                type="button"
+                onClick={() =>
+                  openCameraScanner({
+                    mode: 'UNIVERSAL',
+                    title: 'Scan QR Kemasan (Verifikasi Masuk)'
+                  })
+                }
+                className="w-full min-h-[104px] sm:min-h-[114px] rounded-3xl p-3 flex flex-col items-center justify-center text-center transition-all duration-150 cursor-pointer active:scale-[0.98] select-none shadow-xs hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2C3E50] focus-visible:ring-offset-2 relative overflow-hidden bg-[#4685ac] hover:bg-[#3d7597] text-white"
+                title="Scan in QR kemasan untuk verifikasi"
+              >
+                {/* Bulat-bulat dekorasi di background */}
+                <div className="absolute -top-7 -right-7 w-28 h-28 rounded-full bg-white/10 pointer-events-none" />
+                <div className="absolute top-1 right-3 w-14 h-14 rounded-full bg-white/5 pointer-events-none" />
+                <div className="absolute -bottom-8 -left-8 w-24 h-24 rounded-full bg-white/5 pointer-events-none" />
+
+                {/* Kotak Transparan Ikon */}
+                <div className="w-12 h-12 sm:w-13 sm:h-13 rounded-2xl bg-white/20 flex items-center justify-center mb-1.5 border border-white/20 shadow-2xs backdrop-blur-[1px] relative z-10 shrink-0">
+                  <ScanInIcon size={26} strokeWidth={2.2} className="text-white" />
+                </div>
+
+                {/* Label Tebal */}
+                <span className="text-base sm:text-[17px] font-bold text-white tracking-tight leading-tight block relative z-10">
+                  Scan in kemasan
+                </span>
+              </button>
+
+              {/* Notifikasi Hasil Scan In */}
+              <ScanFeedbackBanner />
 
               {/* Daftar Kemasan Belum Di-Scan */}
               <Card className="border-[#EDE8DF] bg-white shadow-2xs">
@@ -1113,11 +1345,6 @@ export default function Production2View() {
                     <span className="text-xs font-bold text-[#2C3E50] block">
                       Kemasan belum di-scan ({pendingPackingLots.length})
                     </span>
-                    {pendingPackingLots.length > 0 && (
-                      <span className="text-[11px] text-[#6B7B8D]">
-                        Scan kemasan atau klik verifikasi
-                      </span>
-                    )}
                   </div>
 
                   {pendingPackingLots.length === 0 ? (
@@ -1139,19 +1366,52 @@ export default function Production2View() {
                               {item.typeName} · {item.createdAt}
                             </span>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => verifyPackingFg([item.lotCode])}
-                            className="h-9 px-3 text-xs font-bold bg-[#2C3E50] text-white rounded-xl hover:bg-[#151E27] active:scale-95 cursor-pointer transition-all shadow-2xs"
-                          >
-                            Verifikasi
-                          </button>
+                          <Badge variant="warning" size="sm">
+                            Belum di-scan
+                          </Badge>
                         </div>
                       ))}
                     </div>
                   )}
                 </CardContent>
               </Card>
+
+              {/* Daftar Kemasan Sudah Di-Scan / Diverifikasi Hari Ini */}
+              {totalReportedLots.length > 0 && (
+                <Card className="border-[#EDE8DF] bg-white shadow-2xs">
+                  <CardContent className="p-4 space-y-3">
+                    <div className="flex items-center justify-between border-b border-[#EDE8DF] pb-2">
+                      <span className="text-xs font-bold text-[#2C3E50] block">
+                        Sudah diverifikasi ({totalReportedLots.length})
+                      </span>
+                      <Badge variant="success" size="sm">
+                        Selesai
+                      </Badge>
+                    </div>
+
+                    <div className="space-y-2">
+                      {totalReportedLots.map((item) => (
+                        <div
+                          key={item.lotCode}
+                          className="bg-[#F5F1EB] border border-[#EDE8DF] rounded-xl p-3 flex items-center justify-between text-xs gap-2"
+                        >
+                          <div>
+                            <span className="tabular-nums font-bold text-[#2C3E50] block text-xs">
+                              {item.lotCode}
+                            </span>
+                            <span className="text-[11px] text-[#6B7B8D] tabular-nums">
+                              {item.typeName} · {item.createdAt}
+                            </span>
+                          </div>
+                          <Badge variant="success" size="sm">
+                            Diverifikasi
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </div>
           )}
         </div>

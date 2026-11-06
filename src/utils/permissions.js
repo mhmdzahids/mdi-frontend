@@ -3,7 +3,45 @@
  */
 
 /**
- * Memeriksa apakah role saat ini memiliki izin untuk membuka/mencetak ulang label QR.
+ * Memeriksa apakah user saat ini adalah PPIC (Ayu) atau Supervisor Global.
+ * Hanya PPIC/Supervisor yang berhak:
+ * 1. Mengubah target Rencana Produksi (Target Gilingan & Kemasan)
+ * 2. Menerbitkan/Generate seluruh barcode produksi awal (Daging, Bumbu, Kulit, Saos)
+ * 3. Merekap catatan reject & operasional divisi
+ * 4. Mencatat penerimaan barang dari supplier luar
+ *
+ * @param {object|null} currentUser
+ * @returns {boolean}
+ */
+export function isPpicAyu(currentUser = null) {
+  if (!currentUser) return false
+  const div = String(currentUser.division || '').toUpperCase()
+  const opId = String(currentUser.operator_id || '').toUpperCase()
+  const username = String(currentUser.username || currentUser.sub || '').toLowerCase()
+  return (
+    div.includes('PPIC') ||
+    div.includes('SUPERVISOR') ||
+    opId.includes('AYU') ||
+    opId.includes('YOSI') ||
+    username === 'ppic_ayu' ||
+    username === 'supervisor' ||
+    username === 'ayu'
+  )
+}
+
+/**
+ * Memeriksa apakah user saat ini berhak menerbitkan barcode batch produksi baru.
+ * PIC divisi lapangan TIDAK BERHAK menerbitkan QR. Hanya PPIC (Ayu) / Supervisor yang berhak.
+ *
+ * @param {object|null} currentUser
+ * @returns {boolean}
+ */
+export function canGenerateNewLots(currentUser = null) {
+  return isPpicAyu(currentUser)
+}
+
+/**
+ * Memeriksa apakah role saat ini memiliki izin untuk membuka/mencetak ulang label QR yang sudah ada.
  * Hanya role supervisor/PIC/PPIC (STAKEHOLDER, PIC, SUPERVISOR, ADMIN, PPIC) yang berhak.
  * Role Karyawan/Operator lapangan (OPERATOR) TIDAK BERHAK membuka QR.
  *
@@ -12,13 +50,8 @@
  * @returns {boolean}
  */
 export function canOpenQr(userRole, currentUser = null) {
-  if (currentUser) {
-    const div = String(currentUser.division || '').toUpperCase()
-    const opId = String(currentUser.operator_id || '').toUpperCase()
-    const username = String(currentUser.username || currentUser.sub || '').toLowerCase()
-    if (div.includes('PPIC') || div.includes('SUPERVISOR') || opId.includes('YOSI') || username === 'supervisor') {
-      return true
-    }
+  if (currentUser && isPpicAyu(currentUser)) {
+    return true
   }
   if (!userRole) return false
   const r = String(userRole).toUpperCase()

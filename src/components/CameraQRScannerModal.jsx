@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Html5Qrcode } from 'html5-qrcode'
 import { useProduction1Store } from '../store/production1Store'
-import { XIcon, FlashIcon, SwitchCameraIcon, CheckIcon, AlertIcon, ScanIcon, ClockIcon } from './Icons'
+import { XIcon, FlashIcon, SwitchCameraIcon, CheckIcon, AlertIcon, ScanIcon } from './Icons'
 import { useLockBodyScroll } from '../utils/useLockBodyScroll'
 
 function CameraScannerInner() {
@@ -13,7 +13,10 @@ function CameraScannerInner() {
 
   // Dynamic Scan Cooldown Interval State
   const scanCooldownSeconds = useProduction1Store((s) => s.scanCooldownSeconds)
-  const setScanCooldownSeconds = useProduction1Store((s) => s.setScanCooldownSeconds)
+
+  // Manual input state (seandainya tidak bisa scan dengan kamera)
+  const [manualCode, setManualCode] = useState('')
+  const [isSubmittingManual, setIsSubmittingManual] = useState(false)
 
   // Mixing selection state
   const selectedMeatCodes = useProduction1Store((s) => s.selectedMeatCodes)
@@ -196,6 +199,25 @@ function CameraScannerInner() {
     setFacingMode((prev) => (prev === 'environment' ? 'user' : 'environment'))
   }
 
+  // Handle Input Barcode Manual (jika kamera tidak dapat memindai)
+  const handleManualSubmit = async (e) => {
+    e?.preventDefault()
+    const clean = (manualCode || '').trim().toUpperCase()
+    if (!clean || isSubmittingManual) return
+
+    setIsSubmittingManual(true)
+    try {
+      const res = await processUniversalBarcode(clean)
+      setLastScannedResult(res)
+      setManualCode('')
+      setTimeout(() => {
+        setLastScannedResult((prev) => (prev?.code === clean ? null : prev))
+      }, 4000)
+    } finally {
+      setIsSubmittingManual(false)
+    }
+  }
+
   return (
     <div
       className="fixed inset-0 z-50 bg-black/85 backdrop-blur-xs flex flex-col justify-end sm:justify-center items-center p-0 sm:p-4 overscroll-contain select-none"
@@ -251,32 +273,6 @@ function CameraScannerInner() {
           </div>
         </div>
 
-        {/* Bar Pengaturan Interval Jeda Dinamis */}
-        <div className="px-4 py-2 bg-neutral-950 border-b border-neutral-800 flex items-center justify-between text-xs">
-          <div className="flex items-center gap-1.5 text-neutral-400">
-            <ClockIcon className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-            <span className="text-[11px] font-semibold text-neutral-300">Jeda scan:</span>
-          </div>
-
-          <div className="flex items-center gap-1">
-            {[1, 2, 3, 4, 5].map((sec) => (
-              <button
-                key={sec}
-                type="button"
-                onClick={() => setScanCooldownSeconds(sec)}
-                className={`h-7 px-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                  scanCooldownSeconds === sec
-                    ? 'bg-[#4685ac] text-white shadow-xs ring-1 ring-white/30'
-                    : 'bg-neutral-800 text-neutral-300 hover:bg-neutral-700'
-                }`}
-                title={`Atur jeda ${sec} detik setelah scan berhasil`}
-              >
-                {sec}s
-              </button>
-            ))}
-          </div>
-        </div>
-
         {/* Status Bar Mixing Khusus */}
         {isMixingMode && (
           <div className="px-4 py-2.5 bg-neutral-950 border-b border-neutral-800 flex items-center justify-between text-xs">
@@ -302,19 +298,6 @@ function CameraScannerInner() {
         <div className="relative w-full bg-black aspect-square max-h-[300px] flex items-center justify-center overflow-hidden">
           {/* Elemen mount target html5-qrcode (sembunyikan shaded-region bawaan) */}
           <div id={html5QrCodeId} className="w-full h-full [&_#qr-shaded-region]:!hidden" />
-
-          {/* Indikator Status Floating di Atas Viewport */}
-          {cooldownRemaining > 0 ? (
-            <div className="absolute top-3 px-3.5 py-1 bg-amber-500/95 text-neutral-950 text-xs font-extrabold rounded-full flex items-center gap-1.5 shadow-lg backdrop-blur-xs animate-in fade-in zoom-in-95 duration-150 z-20">
-              <ClockIcon className="w-3.5 h-3.5 text-neutral-950 animate-spin" />
-              <span>Jeda {cooldownRemaining}s (Kamera istirahat)</span>
-            </div>
-          ) : isCameraActive ? (
-            <div className="absolute top-3 px-3 py-1 bg-emerald-500/85 text-neutral-950 text-xs font-bold rounded-full flex items-center gap-1.5 shadow-lg backdrop-blur-xs z-20">
-              <ScanIcon className="w-3.5 h-3.5 text-neutral-950" />
-              <span>Kamera aktif · Siap scan</span>
-            </div>
-          ) : null}
 
           {/* 1 BINGKAI SCANNER TUNGGAL SIMETRIS (Transisi warna saat jeda) */}
           <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
@@ -394,12 +377,31 @@ function CameraScannerInner() {
           )}
         </div>
 
-        {/* Kontrol Bawah Bersih: Hanya Tombol Selesai */}
-        <div className="p-3 bg-neutral-900 border-t border-neutral-800">
+        {/* Kontrol Bawah: Input Manual & Tombol Selesai */}
+        <div className="p-3 bg-neutral-900 border-t border-neutral-800 space-y-2.5">
+          {/* Form Input Manual jika kamera buram / barcode rusak */}
+          <form onSubmit={handleManualSubmit} className="flex items-center gap-2">
+            <input
+              type="text"
+              value={manualCode}
+              onChange={(e) => setManualCode(e.target.value)}
+              placeholder="Tidak bisa scan? Ketik barcode..."
+              className="flex-1 h-10 text-xs font-mono uppercase px-3 rounded-xl border border-neutral-700 bg-neutral-950 text-neutral-100 placeholder-neutral-500 transition-colors focus:border-[#4685ac] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#4685ac]"
+            />
+            <button
+              type="submit"
+              disabled={!manualCode.trim() || isSubmittingManual}
+              className="h-10 px-4 bg-[#4685ac] hover:bg-[#3A6B80] active:bg-[#346073] text-white rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer shrink-0 disabled:opacity-40 disabled:cursor-not-allowed shadow-xs"
+            >
+              {isSubmittingManual ? '...' : 'Scan'}
+            </button>
+          </form>
+
+          {/* Tombol Selesai */}
           <button
             type="button"
             onClick={closeCameraScanner}
-            className="w-full min-h-[48px] bg-[#4685ac] hover:bg-[#3A6B80] text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer active:scale-[0.98]"
+            className="w-full min-h-[44px] bg-neutral-800 hover:bg-neutral-700 text-neutral-200 hover:text-white border border-neutral-700 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer active:scale-[0.98]"
           >
             Selesai
           </button>

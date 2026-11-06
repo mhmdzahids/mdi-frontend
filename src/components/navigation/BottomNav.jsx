@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { LayoutGrid } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { LayoutGrid, FileText } from 'lucide-react'
 import { useProduction1Store } from '../../store/production1Store'
 import { Avatar } from '../ui/Avatar'
 import StationSheet from './StationSheet'
@@ -9,9 +9,9 @@ import {
   WrapperIcon,
   SauceIcon,
   LogIcon,
-  CalibrateIcon,
   CetakIcon,
   SendIcon,
+  ReceiveIcon,
   ProductIcon,
   PlanIcon
 } from '../Icons'
@@ -41,10 +41,28 @@ export default function BottomNav() {
   const [isStationSheetOpen, setIsStationSheetOpen] = useState(false)
   const canSwitchAll = isSupervisorUser()
 
+  // Deteksi akun PPIC (Ayu)
+  const isAyuPpic = Boolean(
+    currentUser && (
+      String(currentUser.division || '').toUpperCase().includes('PPIC') ||
+      String(currentUser.operator_id || '').toUpperCase().includes('AYU') ||
+      String(currentUser.username || '').toLowerCase().includes('ayu') ||
+      currentUser.default_station === 'PLAN'
+    )
+  )
+
+  // Otomatis kembalikan ke tab Rencana jika akun PPIC berada di stasiun teknis mesin
+  useEffect(() => {
+    if (isAyuPpic && ['MEAT', 'SEASONING', 'WRAPPER', 'SAUCE'].includes(activeStation)) {
+      setStation('PLAN')
+    }
+  }, [isAyuPpic, activeStation, setStation])
+
   // 1. Susun Kandidat Item Produksi 1
   const prod1CandidateItems = []
 
-  if (canSwitchAll || currentUser?.default_station === 'PLAN') {
+  if (isAyuPpic) {
+    // Khusus PPIC (Ayu): Tanpa tombol/grup stasiun, menu utama langsung di bottom bar
     prod1CandidateItems.push({
       key: 'PLAN',
       label: 'Rencana',
@@ -52,72 +70,116 @@ export default function BottomNav() {
       isActive: !isProfileActive && activeStation === 'PLAN',
       onClick: () => setStation('PLAN')
     })
-  }
 
-  if (
-    canSwitchAll ||
-    currentUser?.default_station === 'MEAT' ||
-    (!currentUser?.default_station && activeStation === 'MEAT')
-  ) {
     prod1CandidateItems.push({
-      key: 'MEAT',
-      label: 'Giling & Mix',
-      shortLabel: 'Giling',
-      icon: MixerIcon,
-      group: 'stasiun',
-      isActive: !isProfileActive && activeStation === 'MEAT',
-      onClick: () => setStation('MEAT')
+      key: 'SUMMARY',
+      label: 'Rekap PPIC',
+      icon: FileText,
+      isActive: !isProfileActive && activeStation === 'SUMMARY',
+      onClick: () => setStation('SUMMARY')
     })
-  }
 
-  if (canSwitchAll || currentUser?.default_station === 'SEASONING') {
     prod1CandidateItems.push({
-      key: 'SEASONING',
-      label: 'Bumbu',
-      icon: BagIcon,
-      group: 'stasiun',
-      isActive: !isProfileActive && activeStation === 'SEASONING',
-      onClick: () => setStation('SEASONING')
+      key: 'SUPPLIER',
+      label: 'Barang Masuk',
+      icon: ReceiveIcon,
+      isActive: !isProfileActive && activeStation === 'SUPPLIER',
+      onClick: () => setStation('SUPPLIER')
     })
-  }
 
-  if (canSwitchAll || currentUser?.default_station === 'WRAPPER') {
     prod1CandidateItems.push({
-      key: 'WRAPPER',
-      label: 'Kulit',
-      icon: WrapperIcon,
-      group: 'stasiun',
-      isActive: !isProfileActive && activeStation === 'WRAPPER',
-      onClick: () => setStation('WRAPPER')
+      key: 'LOGS',
+      label: 'Riwayat',
+      icon: LogIcon,
+      isActive: !isProfileActive && activeStation === 'LOGS',
+      onClick: () => setStation('LOGS')
     })
-  }
+  } else {
+    // Non-PPIC (Operator lapangan / Supervisor umum)
+    if (canSwitchAll || currentUser?.default_station === 'PLAN') {
+      prod1CandidateItems.push({
+        key: 'PLAN',
+        label: 'Rencana',
+        icon: PlanIcon,
+        isActive: !isProfileActive && activeStation === 'PLAN',
+        onClick: () => setStation('PLAN')
+      })
+    }
 
-  if (canSwitchAll || currentUser?.default_station === 'SAUCE') {
+    if (canSwitchAll) {
+      prod1CandidateItems.push({
+        key: 'SUMMARY',
+        label: 'Rekap PPIC',
+        icon: FileText,
+        group: 'stasiun',
+        isActive: !isProfileActive && activeStation === 'SUMMARY',
+        onClick: () => setStation('SUMMARY')
+      })
+      prod1CandidateItems.push({
+        key: 'SUPPLIER',
+        label: 'Barang Masuk',
+        icon: ReceiveIcon,
+        group: 'stasiun',
+        isActive: !isProfileActive && activeStation === 'SUPPLIER',
+        onClick: () => setStation('SUPPLIER')
+      })
+    }
+
+    if (
+      canSwitchAll ||
+      currentUser?.default_station === 'MEAT' ||
+      (!currentUser?.default_station && activeStation === 'MEAT')
+    ) {
+      prod1CandidateItems.push({
+        key: 'MEAT',
+        label: 'Giling & Mix',
+        shortLabel: 'Giling',
+        icon: MixerIcon,
+        group: 'stasiun',
+        isActive: !isProfileActive && activeStation === 'MEAT',
+        onClick: () => setStation('MEAT')
+      })
+    }
+
+    if (canSwitchAll || currentUser?.default_station === 'SEASONING') {
+      prod1CandidateItems.push({
+        key: 'SEASONING',
+        label: 'Bumbu',
+        icon: BagIcon,
+        group: 'stasiun',
+        isActive: !isProfileActive && activeStation === 'SEASONING',
+        onClick: () => setStation('SEASONING')
+      })
+    }
+
+    if (canSwitchAll || currentUser?.default_station === 'WRAPPER') {
+      prod1CandidateItems.push({
+        key: 'WRAPPER',
+        label: 'Kulit',
+        icon: WrapperIcon,
+        group: 'stasiun',
+        isActive: !isProfileActive && activeStation === 'WRAPPER',
+        onClick: () => setStation('WRAPPER')
+      })
+    }
+
+    if (canSwitchAll || currentUser?.default_station === 'SAUCE') {
+      prod1CandidateItems.push({
+        key: 'SAUCE',
+        label: 'Saos',
+        icon: SauceIcon,
+        group: 'stasiun',
+        isActive: !isProfileActive && activeStation === 'SAUCE',
+        onClick: () => setStation('SAUCE')
+      })
+    }
+
     prod1CandidateItems.push({
-      key: 'SAUCE',
-      label: 'Saos',
-      icon: SauceIcon,
-      group: 'stasiun',
-      isActive: !isProfileActive && activeStation === 'SAUCE',
-      onClick: () => setStation('SAUCE')
-    })
-  }
-
-  prod1CandidateItems.push({
-    key: 'LOGS',
-    label: 'Riwayat',
-    icon: LogIcon,
-    isActive: !isProfileActive && activeStation === 'LOGS',
-    onClick: () => setStation('LOGS')
-  })
-
-  if (canSwitchAll) {
-    prod1CandidateItems.push({
-      key: 'CALIBRATION',
-      label: 'QR Test',
-      icon: CalibrateIcon,
-      isActive: !isProfileActive && activeStation === 'CALIBRATION',
-      onClick: () => setStation('CALIBRATION')
+      key: 'LOGS',
+      label: 'Riwayat',
+      icon: LogIcon,
+      isActive: !isProfileActive && activeStation === 'LOGS',
+      onClick: () => setStation('LOGS')
     })
   }
 
@@ -173,23 +235,13 @@ export default function BottomNav() {
     onClick: () => setProd2Tab('LOGS')
   })
 
-  if (canSwitchAll) {
-    prod2CandidateItems.push({
-      key: 'CALIBRATION',
-      label: 'QR Test',
-      icon: CalibrateIcon,
-      isActive: !isProfileActive && activeProd2Tab === 'CALIBRATION',
-      onClick: () => setProd2Tab('CALIBRATION')
-    })
-  }
-
   // Pilih daftar dasar berdasarkan stage aktif
   const baseCandidates = activeProductionStage === 'PROD_2' ? prod2CandidateItems : prod1CandidateItems
 
   // Tab Profile selalu menjadi tab terakhir
   const profileTab = {
     key: 'PROFILE',
-    label: 'Profile',
+    label: 'Profil',
     isProfile: true,
     isActive: isProfileActive,
     onClick: () => openProfile()
@@ -256,12 +308,17 @@ export default function BottomNav() {
               type="button"
               onClick={tab.onClick}
               aria-current={isActive ? 'page' : undefined}
-              className={`flex-1 min-h-[48px] min-w-[48px] flex flex-col items-center justify-center transition-all cursor-pointer active:scale-95 focus-visible:outline-none py-1 px-0.5 ${
+              className={`relative flex-1 min-h-[48px] min-w-[48px] flex flex-col items-center justify-center transition-all cursor-pointer active:scale-95 focus-visible:outline-none py-1.5 px-0.5 ${
                 isActive
-                  ? 'text-[#4685ac]'
-                  : 'text-[#6B7B8D] hover:text-[#2C3E50]'
+                  ? 'text-[#3A6B80]'
+                  : 'text-[#556575] hover:text-[#2C3E50]'
               }`}
             >
+              {/* Indikator aktif non-warna: garis atas terdefinisi */}
+              {isActive && (
+                <span className="absolute top-0 w-8 h-1 rounded-full bg-[#3A6B80]" />
+              )}
+
               {tab.isProfile ? (
                 <div className="flex items-center justify-center h-[24px]">
                   <Avatar size="sm" active={isActive} />
@@ -274,7 +331,7 @@ export default function BottomNav() {
 
               <span
                 className={`text-[11px] leading-tight mt-0.5 tracking-tight truncate max-w-full px-0.5 ${
-                  isActive ? 'font-semibold text-[#4685ac]' : 'font-medium text-[#6B7B8D]'
+                  isActive ? 'font-bold text-[#3A6B80]' : 'font-medium text-[#556575]'
                 }`}
               >
                 {tab.label}

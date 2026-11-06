@@ -15,7 +15,7 @@
   --color-border-strong: #B7C3CE;
 
   --color-text-primary: #2C3E50;
-  --color-text-secondary: #6B7B8D;
+  --color-text-secondary: #556575;
 
   --font-display: 'Poppins', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
   --font-heading: 'Fredoka', sans-serif;
@@ -32,6 +32,11 @@
     outline: none;
   }
 
+  *:focus-visible {
+    outline: 2px solid #3A6B80;
+    outline-offset: 2px;
+  }
+
   :root {
     /* Canvas & Permukaan (Palet Dapur Brand Dimsum) */
     --canvas: #F5F1EB;
@@ -46,12 +51,15 @@
     /* Tipografi */
     --text-main: #2C3E50;
     --text-body: #2C3E50;
-    --text-muted: #6B7B8D;
+    --text-muted: #556575;
 
     /* Aksi Utama (Brand Blue) */
     --primary-accent: #4685ac;
     --primary-accent-hover: #3A6B80;
     --primary-accent-subtle: #EAF2F7;
+
+    /* Hero Card & Action Button Shared Height Token */
+    --size-hero-card: 96px;
 
     /* Status Semantik */
     --status-success-text: #2F7D5B;

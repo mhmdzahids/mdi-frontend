@@ -20,8 +20,6 @@ export function getHashFromState(stage, station, prod2Tab, isProfileActive = fal
         return '#/prod2/products'
       case 'LOGS':
         return '#/prod2/logs'
-      case 'CALIBRATION':
-        return '#/prod2/calibration'
       default:
         return '#/prod2/inbound'
     }
@@ -40,8 +38,6 @@ export function getHashFromState(stage, station, prod2Tab, isProfileActive = fal
       return '#/sauce'
     case 'LOGS':
       return '#/logs'
-    case 'CALIBRATION':
-      return '#/calibration'
     default:
       return '#/meat'
   }
@@ -82,7 +78,7 @@ export function getStateFromHash(hash) {
       return { stage: 'PROD_2', prod2Tab: 'LOGS' }
     }
     if (sub.includes('calib') || sub.includes('qrtest')) {
-      return { stage: 'PROD_2', prod2Tab: 'CALIBRATION' }
+      return { isProfile: true }
     }
     return { stage: 'PROD_2', prod2Tab: 'INBOUND' }
   }
@@ -106,8 +102,8 @@ export function getStateFromHash(hash) {
   if (clean === 'logs' || clean === 'riwayat' || clean === 'log') {
     return { stage: 'PROD_1', station: 'LOGS' }
   }
-  if (clean === 'calibration' || clean === 'kalibrasi') {
-    return { stage: 'PROD_1', station: 'CALIBRATION' }
+  if (clean === 'calibration' || clean === 'kalibrasi' || clean === 'qrtest') {
+    return { isProfile: true }
   }
 
   // Alias langsung ke sub-tab Produksi 2

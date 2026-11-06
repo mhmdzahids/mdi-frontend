@@ -68,3 +68,54 @@ export function groupStationLots(lots, stationId, scanModeSettings) {
     pendingCount: pendingConfirmation.length
   }
 }
+
+/**
+ * Menghasilkan Badge Semantik seragam untuk daftar kartu:
+ * - Belum discan: Abu-abu Netral (neutral)
+ * - Sudah scan in: Biru Muda Info (info)
+ * - Sudah scan out: Amber Transit (warning)
+ * - Diterima: Hijau Selesai (success)
+ */
+export function getLotSemanticBadge(lotStatus, mode = '1X') {
+  const norm = classifyLotStatus(lotStatus)
+  if (norm === 'DICETAK') {
+    return {
+      variant: 'neutral',
+      label: 'Belum discan',
+      canScanOut: mode === '1X'
+    }
+  }
+  if (norm === 'DI_STOK') {
+    return {
+      variant: 'info',
+      label: 'Sudah scan in',
+      canScanOut: true
+    }
+  }
+  if (norm === 'KELUAR') {
+    return {
+      variant: 'warning',
+      label: 'Sudah scan out',
+      canScanOut: false
+    }
+  }
+  if (norm === 'DITERIMA') {
+    return {
+      variant: 'success',
+      label: 'Diterima',
+      canScanOut: false
+    }
+  }
+  if (norm === 'CONSUMED') {
+    return {
+      variant: 'neutral',
+      label: 'Digunakan',
+      canScanOut: false
+    }
+  }
+  return {
+    variant: 'neutral',
+    label: lotStatus || 'Status',
+    canScanOut: false
+  }
+}

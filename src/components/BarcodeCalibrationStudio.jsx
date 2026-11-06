@@ -10,46 +10,9 @@ import {
 import { canvasToTsplRaster } from '../utils/tsplRaster'
 import { createBarcode1DCanvas, getSupermarketBarcodeData } from '../utils/barcode1d'
 import { bluetoothPrinter } from '../utils/bluetoothPrinter'
-import { useProduction1Store } from '../store/production1Store'
 import { PrinterIcon, BluetoothIcon, RefreshIcon, CheckIcon, XIcon, CalibrateIcon, AlertIcon } from './Icons'
-import { Trash2, AlertTriangle, Lock } from 'lucide-react'
-import { Modal } from './ui/Modal'
-import ScanModeSettingsCard from './ScanModeSettingsCard'
 
 export default function BarcodeCalibrationStudio() {
-  const employeeDateScope = useProduction1Store((s) => s.employeeDateScope)
-  const setEmployeeDateScope = useProduction1Store((s) => s.setEmployeeDateScope)
-  const ppicExternalWrapperMode = useProduction1Store((s) => s.ppicExternalWrapperMode)
-  const setPpicExternalWrapperMode = useProduction1Store((s) => s.setPpicExternalWrapperMode)
-  const currentUser = useProduction1Store((s) => s.currentUser)
-  const isPpicUser = useProduction1Store((s) => s.isPpicUser)
-  const wipeDatabase = useProduction1Store((s) => s.wipeDatabase)
-
-  const [isWipeModalOpen, setIsWipeModalOpen] = useState(false)
-  const [isWiping, setIsWiping] = useState(false)
-
-  const isPPIC = isPpicUser ? isPpicUser() : Boolean(
-    currentUser && (
-      currentUser.username === 'supervisor' ||
-      (currentUser.division && currentUser.division.toLowerCase().includes('ppic')) ||
-      (currentUser.operator_id && currentUser.operator_id.toUpperCase().includes('YOSI')) ||
-      (currentUser.division && currentUser.division.toLowerCase().includes('supervisor'))
-    )
-  )
-
-  const handleConfirmWipe = async () => {
-    setIsWiping(true)
-    try {
-      await wipeDatabase()
-      setIsWipeModalOpen(false)
-      setFeedback({ type: 'success', text: 'Database berhasil di-wipe dan data operasional telah direset.' })
-    } catch (err) {
-      setFeedback({ type: 'error', text: err?.message || 'Gagal melakukan wipe database.' })
-    } finally {
-      setIsWiping(false)
-    }
-  }
-
   const [profile, setProfile] = useState(() => loadCalibrationProfile())
   const [btStatus, setBtStatus] = useState('DISCONNECTED')
   const [btDeviceName, setBtDeviceName] = useState('')
@@ -731,135 +694,6 @@ export default function BarcodeCalibrationStudio() {
         </div>
       )}
 
-      {/* Tampilkan Data */}
-      <div className="bg-white border border-neutral-200/90 rounded-xl p-3 space-y-2 shadow-xs">
-        <span className="text-xs font-bold text-neutral-900 block">
-          Tampilkan Data
-        </span>
-
-        <div className="grid grid-cols-4 gap-1.5 text-xs">
-          {[
-            { id: 'TODAY', label: 'Hari Ini' },
-            { id: 'YESTERDAY', label: 'Kemarin' },
-            { id: 'TWO_DAYS', label: '2 Hari Lalu' },
-            { id: 'ALL', label: 'Semua' }
-          ].map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => setEmployeeDateScope(item.id)}
-              className={`min-h-11 py-2 px-1 rounded-lg font-bold text-center border transition-all cursor-pointer ${
-                employeeDateScope === item.id
-                  ? 'bg-neutral-900 text-white border-neutral-900 shadow-xs'
-                  : 'bg-white text-neutral-700 border-neutral-200 hover:bg-neutral-50'
-              }`}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Setelan Mode Scan Operasional (1x vs 2x) */}
-      <ScanModeSettingsCard />
-
-      {/* Setelan Alur Penerimaan Kulit PPIC */}
-      <div className="bg-white border border-neutral-200/90 rounded-xl p-3 space-y-2 shadow-xs">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-bold text-neutral-900 block">
-            Alur Penerimaan Kulit PPIC
-          </span>
-          <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-neutral-100 border border-neutral-200 text-neutral-800">
-            {ppicExternalWrapperMode === 'DIRECT' ? 'Langsung di Rencana' : 'Alihkan ke Kulit'}
-          </span>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2 text-xs">
-          <button
-            type="button"
-            onClick={() => setPpicExternalWrapperMode('DIRECT')}
-            className={`min-h-11 py-2 px-2.5 rounded-lg font-bold text-center border transition-all cursor-pointer ${
-              ppicExternalWrapperMode === 'DIRECT'
-                ? 'bg-neutral-900 text-white border-neutral-900 shadow-xs'
-                : 'bg-white text-neutral-700 border-neutral-200 hover:bg-neutral-50'
-            }`}
-          >
-            Langsung di Rencana
-          </button>
-          <button
-            type="button"
-            onClick={() => setPpicExternalWrapperMode('REDIRECT')}
-            className={`min-h-11 py-2 px-2.5 rounded-lg font-bold text-center border transition-all cursor-pointer ${
-              ppicExternalWrapperMode === 'REDIRECT'
-                ? 'bg-neutral-900 text-white border-neutral-900 shadow-xs'
-                : 'bg-white text-neutral-700 border-neutral-200 hover:bg-neutral-50'
-            }`}
-          >
-            Alihkan ke Stasiun Kulit
-          </button>
-        </div>
-        <span className="text-[11px] text-neutral-500 font-mono block">
-          {ppicExternalWrapperMode === 'DIRECT'
-            ? 'Tombol di menu Rencana langsung buka formulir generate QR bal kulit.'
-            : 'Tombol di menu Rencana mengarahkan pengguna ke tab Stasiun Kulit.'}
-        </span>
-      </div>
-
-      {/* Wipe Database (Masa Development - Khusus PPIC) */}
-      <div className="bg-white border border-rose-200/90 rounded-xl p-3.5 space-y-3 shadow-xs">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-rose-50 border border-rose-100 text-rose-600 flex items-center justify-center shrink-0">
-              <Trash2 className="w-4 h-4" />
-            </div>
-            <div>
-              <span className="text-xs font-bold text-neutral-900 block leading-tight">
-                Reset / Wipe Database
-              </span>
-              <span className="text-[10px] text-neutral-500 font-mono">
-                Masa Development
-              </span>
-            </div>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-amber-50 border border-amber-200 text-amber-800">
-              DEV ONLY
-            </span>
-            <span
-              className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md border ${
-                isPPIC
-                  ? 'bg-blue-50 border-blue-200 text-blue-800'
-                  : 'bg-neutral-100 border-neutral-200 text-neutral-500'
-              }`}
-            >
-              {isPPIC ? 'PPIC' : 'TERKUNCI'}
-            </span>
-          </div>
-        </div>
-
-        <p className="text-[11px] text-neutral-600 leading-relaxed">
-          {isPPIC
-            ? 'Menghapus seluruh lot tracking, log perpindahan, riwayat scan, dan mereset target rencana produksi harian ke 40 gilingan.'
-            : 'Fungsi Wipe Database terkunci. Fitur ini hanya dapat dieksekusi oleh akun PPIC (Pak Yosi / Supervisor).'}
-        </p>
-
-        {isPPIC ? (
-          <button
-            type="button"
-            onClick={() => setIsWipeModalOpen(true)}
-            className="w-full min-h-11 py-2.5 px-3 rounded-lg font-bold text-xs text-white bg-rose-600 hover:bg-rose-700 active:scale-[0.99] transition-all cursor-pointer flex items-center justify-center gap-2 shadow-xs"
-          >
-            <Trash2 className="w-4 h-4" />
-            <span>Wipe Database (Reset Pengujian)</span>
-          </button>
-        ) : (
-          <div className="flex items-center gap-2 p-2.5 rounded-lg bg-neutral-50 border border-neutral-200 text-neutral-500 text-xs">
-            <Lock className="w-4 h-4 shrink-0 text-neutral-400" />
-            <span>Akses dibatasi: Masuk sebagai PPIC / Supervisor untuk melakukan wipe database.</span>
-          </div>
-        )}
-      </div>
-
       {/* Progress Cetak */}
       {isPrinting && (
         <div className="w-full bg-neutral-200 rounded-full h-1.5 overflow-hidden">
@@ -872,15 +706,15 @@ export default function BarcodeCalibrationStudio() {
 
       {/* Visual Canvas Preview */}
       <div className="bg-white border border-neutral-200 rounded-lg p-3 shadow-xs space-y-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-neutral-800 uppercase tracking-wide">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-xs font-bold text-neutral-800 uppercase tracking-wide mr-1">
               Pratinjau ({profile.testMode.toUpperCase()})
             </span>
             <button
               type="button"
               onClick={() => updateSetting('showBorder', !profile.showBorder)}
-              className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-colors ${
+              className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-colors cursor-pointer ${
                 profile.showBorder
                   ? 'bg-neutral-900 text-white border-neutral-900 shadow-xs'
                   : 'bg-neutral-100 text-neutral-600 border-neutral-300 hover:bg-neutral-200'
@@ -892,7 +726,7 @@ export default function BarcodeCalibrationStudio() {
             <button
               type="button"
               onClick={() => updateSetting('barcodeType', profile.barcodeType === 'barcode1d' ? 'qr' : 'barcode1d')}
-              className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-colors ${
+              className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-colors cursor-pointer ${
                 profile.barcodeType === 'barcode1d'
                   ? 'bg-neutral-900 text-white border-neutral-900 shadow-xs'
                   : 'bg-neutral-100 text-neutral-700 border-neutral-300 hover:bg-neutral-200'
@@ -903,11 +737,11 @@ export default function BarcodeCalibrationStudio() {
             </button>
           </div>
 
-          <div className="flex items-center gap-1.5 text-xs">
+          <div className="flex items-center gap-1 text-xs shrink-0">
             <button
               type="button"
               onClick={() => setPreviewZoom(1.0)}
-              className={`px-2 h-6 border rounded text-[11px] font-semibold transition-colors ${
+              className={`px-2 h-6 border rounded text-[11px] font-semibold transition-colors cursor-pointer ${
                 previewZoom === 1.0
                   ? 'bg-neutral-900 text-white border-neutral-900'
                   : 'bg-neutral-50 hover:bg-neutral-100 text-neutral-700 border-neutral-300'
@@ -918,7 +752,7 @@ export default function BarcodeCalibrationStudio() {
             <button
               type="button"
               onClick={() => setPreviewZoom(1.5)}
-              className={`px-2 h-6 border rounded text-[11px] font-semibold transition-colors ${
+              className={`px-2 h-6 border rounded text-[11px] font-semibold transition-colors cursor-pointer ${
                 previewZoom === 1.5
                   ? 'bg-neutral-900 text-white border-neutral-900'
                   : 'bg-neutral-50 hover:bg-neutral-100 text-neutral-700 border-neutral-300'
@@ -930,17 +764,17 @@ export default function BarcodeCalibrationStudio() {
               <button
                 type="button"
                 onClick={() => setPreviewZoom((z) => Math.max(0.75, Math.round((z - 0.25) * 100) / 100))}
-                className="w-5 h-5 hover:bg-neutral-200 rounded flex items-center justify-center font-bold text-neutral-800"
+                className="w-5 h-5 hover:bg-neutral-200 rounded flex items-center justify-center font-bold text-neutral-800 cursor-pointer"
               >
                 -
               </button>
-              <span className="font-mono text-[11px] w-9 text-center text-neutral-600">
+              <span className="font-mono text-[11px] w-8 text-center text-neutral-600">
                 {Math.round(previewZoom * 100)}%
               </span>
               <button
                 type="button"
                 onClick={() => setPreviewZoom((z) => Math.min(2.5, Math.round((z + 0.25) * 100) / 100))}
-                className="w-5 h-5 hover:bg-neutral-200 rounded flex items-center justify-center font-bold text-neutral-800"
+                className="w-5 h-5 hover:bg-neutral-200 rounded flex items-center justify-center font-bold text-neutral-800 cursor-pointer"
               >
                 +
               </button>
@@ -952,14 +786,14 @@ export default function BarcodeCalibrationStudio() {
         {(() => {
           const currentX1Mm = (profile.marginLeftMm || 0) + (profile.xOffsetMm || 0)
           return (
-            <div className="flex justify-between items-center text-[10px] font-mono font-bold text-neutral-600 px-2 bg-neutral-100 py-1 rounded">
+            <div className="flex flex-wrap justify-between items-center text-[10px] font-mono font-bold text-neutral-600 px-2 bg-neutral-100 py-1 rounded gap-1">
               <span className="flex items-center gap-1.5 text-neutral-800">
-                <span className="w-2 h-2 rounded-full bg-neutral-900 inline-block"></span>
-                KOLOM 1 (KIRI) [X: {currentX1Mm.toFixed(1)}mm]
+                <span className="w-2 h-2 rounded-full bg-neutral-900 inline-block shrink-0"></span>
+                KOL 1 (KIRI) [{currentX1Mm.toFixed(1)}mm]
               </span>
               <span className="flex items-center gap-1.5 text-neutral-800">
-                KOLOM 2 (KANAN) [X: {(currentX1Mm + profile.labelWidthMm + profile.colGapMm).toFixed(1)}mm]
-                <span className="w-2 h-2 rounded-full bg-neutral-500 inline-block"></span>
+                KOL 2 (KANAN) [{(currentX1Mm + profile.labelWidthMm + profile.colGapMm).toFixed(1)}mm]
+                <span className="w-2 h-2 rounded-full bg-neutral-500 inline-block shrink-0"></span>
               </span>
             </div>
           )
@@ -1780,67 +1614,6 @@ export default function BarcodeCalibrationStudio() {
           </button>
         </div>
       </div>
-
-      {/* Modal Konfirmasi Wipe Database (Masa Development - Khusus PPIC) */}
-      <Modal
-        isOpen={isWipeModalOpen}
-        onClose={() => !isWiping && setIsWipeModalOpen(false)}
-        title="Konfirmasi Wipe Database"
-        subtitle="Masa Development - Khusus PPIC"
-        size="md"
-      >
-        <div className="space-y-4 text-xs">
-          <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl space-y-2 text-rose-900">
-            <div className="flex items-center gap-2 font-bold text-rose-800">
-              <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600" />
-              <span>PERINGATAN: Tindakan Ini Bersifat Permanen!</span>
-            </div>
-            <p className="text-[11px] leading-relaxed text-rose-700">
-              Tindakan ini akan menghapus permanen seluruh data operasional di server database:
-            </p>
-            <ul className="list-disc list-inside text-[11px] space-y-1 text-rose-800 font-mono">
-              <li>Seluruh QR Lot (Daging, Bumbu, Kulit, Saos, Adonan, Produk Jadi, Tray)</li>
-              <li>Seluruh Catatan Riwayat Perpindahan (Custody Logs)</li>
-              <li>Seluruh Log Event Scan & Undo</li>
-              <li>Log Selisih / Discrepancy & Riwayat Penerimaan Sales Toko</li>
-              <li>Rencana produksi harian akan direset ke target awal (40 gilingan)</li>
-            </ul>
-          </div>
-
-          <p className="text-neutral-600 text-[11px] leading-relaxed">
-            Pastikan seluruh pengujian sebelumnya telah dicatat jika diperlukan. Setelah di-wipe, sistem akan bersih kembali ke kondisi awal mula pabrik.
-          </p>
-
-          <div className="flex items-center gap-2 pt-2 border-t border-neutral-200">
-            <button
-              type="button"
-              disabled={isWiping}
-              onClick={() => setIsWipeModalOpen(false)}
-              className="flex-1 min-h-11 py-2 px-3 rounded-xl border border-neutral-300 bg-white hover:bg-neutral-50 text-neutral-700 font-bold transition-all cursor-pointer disabled:opacity-50"
-            >
-              Batal
-            </button>
-            <button
-              type="button"
-              disabled={isWiping}
-              onClick={handleConfirmWipe}
-              className="flex-1 min-h-11 py-2 px-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold transition-all cursor-pointer flex items-center justify-center gap-2 shadow-xs disabled:opacity-50"
-            >
-              {isWiping ? (
-                <>
-                  <RefreshIcon className="w-4 h-4 animate-spin" />
-                  <span>Memproses Wipe...</span>
-                </>
-              ) : (
-                <>
-                  <Trash2 className="w-4 h-4" />
-                  <span>Ya, Wipe Database</span>
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-      </Modal>
     </div>
   )
 }

@@ -9,14 +9,17 @@ import { Card, CardContent } from './ui/Card'
 import { SegmentedControl } from './ui/SegmentedControl'
 import { Badge } from './ui/Badge'
 import { Button } from './ui/Button'
-import { groupStationLots } from '../utils/scanMode'
+import { groupStationLots, getLotSemanticBadge } from '../utils/scanMode'
 import { canOpenQr, canManualDispatch } from '../utils/permissions'
+import { exportStationLotsExcel } from '../utils/excelExport'
+import ScanActionBar from './ScanActionBar'
 
 function SauceLotCard({
   lot,
   variantLabel,
   countDesc,
   isReady,
+  scanMode = '1X',
   isSelected,
   isSelecting,
   isEligible = true,
@@ -75,12 +78,14 @@ function SauceLotCard({
         className="flex items-center gap-2"
         onClick={(e) => isSelecting && e.stopPropagation()}
       >
-        <Badge
-          variant={isReady ? 'warning' : 'success'}
-          size="sm"
-        >
-          {isReady ? 'Siap' : 'Terkirim'}
-        </Badge>
+        {(() => {
+          const badge = getLotSemanticBadge(lot.status, scanMode)
+          return (
+            <Badge variant={badge.variant} size="sm">
+              {badge.label}
+            </Badge>
+          )
+        })()}
 
         {hasQrPermission && (
           <button
@@ -135,15 +140,14 @@ export default function SauceStation() {
   const eligibleCodesSet = new Set(eligibleSauceLots.map((s) => s.lotCode))
   const sauceSelect = useLotMultiSelect(eligibleSauceLots)
 
-  const parsedBal = Math.max(1, parseInt(balQty, 10) || 1)
-  const isMini = sauceType === 'MINI'
-  const pcsPerBal = isMini ? 200 : 50
-  const totalPcs = parsedBal * pcsPerBal
-
-  const handleCreate = (e) => {
-    e.preventDefault()
-    if (parsedBal <= 0) return
-    createSauceLot(sauceType, parsedBal)
+  const handleExportExcel = () => {
+    exportStationLotsExcel({
+      stationName: 'Divisi Saos Dimsum',
+      divisionCode: 'SAOS',
+      dateStr: new Date().toISOString().slice(0, 10),
+      lots: filteredSauceLots,
+      operatorName: operatorName || operatorId || 'Operator Saos'
+    })
   }
 
   const handleSendSelected = async () => {
@@ -159,122 +163,65 @@ export default function SauceStation() {
     }
   }
 
-  const sauceOptions = [
-    { value: 'REGULER', label: 'Reguler' },
-    { value: 'MINI', label: 'Mini' }
-  ]
-
   return (
     <div className="space-y-3.5 pb-24">
-      {/* 1. Tampilan Khusus PIC: Cetak Label Saos */}
-      {isPIC ? (
-        <Card variant="action" className="border-[#B7C3CE] bg-white">
-          <CardContent className="p-4 space-y-3.5">
-            <form onSubmit={handleCreate} className="space-y-3.5">
-              <div className="flex items-center justify-between border-b border-[#EDE8DF] pb-2.5">
-                <span className="text-xs font-bold text-[#2C3E50] font-heading">
-                  Cetak label saos
-                </span>
-              </div>
-
-              {/* Segmented Varian Saos */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[#2C3E50] font-heading block">
-                  Varian saos
-                </label>
-                <SegmentedControl
-                  options={sauceOptions}
-                  value={sauceType}
-                  onChange={(val) => setSauceType(val)}
-                />
-              </div>
-
-              {/* Input Jumlah Bal */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[#2C3E50] font-heading block">
-                  Jumlah bal
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  step="1"
-                  value={balQty}
-                  onChange={(e) => setBalQty(e.target.value)}
-                  className="w-full h-12 px-3.5 tabular-nums font-bold text-base border-[1.5px] border-[#B7C3CE] rounded-xl bg-white text-[#2C3E50] focus-visible:outline-none focus-visible:border-[#4685ac] focus-visible:ring-2 focus-visible:ring-[#4685ac]/20 transition-colors shadow-2xs"
-                  required
-                />
-                <p className="text-[11px] font-medium text-[#6B7B8D] pl-1">
-                  = {totalPcs} {sauceType === 'REGULER' ? 'pouch' : 'plastik'}
-                </p>
-              </div>
-
-              {/* Tombol Cetak Utama 56px */}
-              <Button
-                type="submit"
-                variant="primary"
-                size="lg"
-                fullWidth
-                icon={PrinterIcon}
-              >
-                Cetak label
-              </Button>
-            </form>
+      {/* 1. Status Harian & Scan Out ke Finishing */}
+      <div className="space-y-3">
+        <Card className="border-[#EDE8DF] bg-white shadow-2xs min-h-[var(--size-hero-card,96px)] flex flex-col justify-center">
+          <CardContent className="p-4 text-center space-y-1">
+            <span className="text-xs text-[#6B7B8D] font-medium block">
+              Saos siap kirim ke finishing
+            </span>
+            <span className="text-3xl font-bold tabular-nums text-[#2C3E50] block">
+              {readySauces.length} <span className="text-base font-normal text-[#6B7B8D]">bal</span>
+            </span>
           </CardContent>
         </Card>
-      ) : (
-        /* 2. Tampilan Khusus Pegawai: Status & Scan Out ke Finishing */
-        <div className="space-y-3">
-          <Card className="border-[#EDE8DF] bg-white shadow-2xs">
-            <CardContent className="p-4 text-center space-y-1">
-              <span className="text-xs text-[#6B7B8D] font-medium block">
-                Saos siap kirim ke finishing
-              </span>
-              <span className="text-3xl font-bold tabular-nums text-[#2C3E50] block">
-                {readySauces.length} <span className="text-base font-normal text-[#6B7B8D]">bal</span>
-              </span>
-            </CardContent>
-          </Card>
 
-          {/* Tombol Scan Out Saos ke Finishing */}
-          {readySauces.length > 0 && (
-            <Button
-              type="button"
-              variant="primary"
-              size="lg"
-              fullWidth
-              onClick={() =>
-                openCameraScanner({
-                  mode: 'UNIVERSAL',
-                  title: 'Scan Out Saos ke Finishing'
-                })
-              }
-              icon={ScanIcon}
-            >
-              Scan Out Saos ke Finishing ({readySauces.length} siap)
-            </Button>
-          )}
-        </div>
-      )}
+        {/* Tombol Scan In dan Scan Out Terpadu */}
+        <ScanActionBar
+          stationId="SAUCE_STATION"
+          stationName="Saos Dimsum"
+          targetName="Finishing / Packing"
+          scanMode={scanMode}
+          readyCount={readySauces.length}
+          pendingCount={pendingConfirmation.length}
+          inTransitCount={filteredSauceLots.filter((s) => s.status === 'IN_TRANSIT_TO_PACKING').length}
+        />
+      </div>
 
-      {/* 3. Daftar Lot Saos Dimsum */}
+      {/* 2. Daftar Lot Saos Dimsum */}
       <Card className="border-[#EDE8DF] bg-white shadow-2xs">
         <CardContent className="p-4 space-y-3">
           <div className="flex items-center justify-between border-b border-[#EDE8DF] pb-2.5">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-[#2C3E50]">
-                Daftar saos
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="text-xs font-bold text-[#2C3E50] font-heading whitespace-nowrap">
+                Daftar Saos
               </span>
-              <Badge variant="neutral" size="sm" tabular>
-                {filteredSauceLots.length}
-              </Badge>
+              <span className="text-xs text-[#6B7B8D] tabular-nums font-medium">
+                ({filteredSauceLots.length})
+              </span>
             </div>
 
-            <div className="flex items-center gap-1.5">
-              {lastBatchPrintModal?.lotList?.length > 1 && (
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={handleExportExcel}
+                className="h-8 px-2.5 text-xs font-semibold rounded-lg text-[#556575] hover:text-[#2C3E50] hover:bg-[#F5F1EB] border border-[#EDE8DF] bg-white transition-all cursor-pointer flex items-center gap-1.5 active:scale-95"
+                title="Unduh laporan Excel"
+                aria-label="Unduh laporan Excel"
+              >
+                <svg className="w-3.5 h-3.5 text-[#556575]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <span className="text-[11px] font-bold">Excel</span>
+              </button>
+
+              {isPIC && lastBatchPrintModal?.lotList?.length > 1 && (
                 <button
                   type="button"
                   onClick={reopenLastBatchPrintModal}
-                  className="text-[11px] font-semibold text-[#6B7B8D] hover:text-[#2C3E50] bg-[#EDE8DF] hover:bg-[#EFE6D9] border border-[#EDE8DF] rounded-lg px-2.5 py-1 cursor-pointer transition-all active:scale-95"
+                  className="h-8 px-2.5 text-[11px] font-semibold text-[#556575] hover:text-[#2C3E50] bg-[#EDE8DF] hover:bg-[#EFE6D9] border border-[#EDE8DF] rounded-lg cursor-pointer transition-all active:scale-95"
                   title="Buka kembali QR batch terakhir"
                 >
                   Rekap ({lastBatchPrintModal.lotList.length})
@@ -289,7 +236,7 @@ export default function SauceStation() {
                       ? sauceSelect.clearSelection()
                       : sauceSelect.startSelecting()
                   }
-                  className={`text-[11px] font-bold rounded-lg px-2.5 py-1 border transition-all cursor-pointer active:scale-95 ${
+                  className={`h-8 px-3 text-xs font-bold rounded-lg border transition-all cursor-pointer active:scale-95 ${
                     sauceSelect.isSelecting
                       ? 'bg-[#4685ac] text-white border-[#4685ac]'
                       : 'bg-white text-[#2C3E50] border-[#EDE8DF] hover:bg-[#EDE8DF]'
@@ -393,6 +340,7 @@ export default function SauceStation() {
                         variantLabel={variantLabel}
                         countDesc={countDesc}
                         isReady={isReady}
+                        scanMode={scanMode}
                         isSelected={sauceSelect.selectedCodes.has(s.lotCode)}
                         isSelecting={sauceSelect.isSelecting}
                         isEligible={eligibleCodesSet.has(s.lotCode)}

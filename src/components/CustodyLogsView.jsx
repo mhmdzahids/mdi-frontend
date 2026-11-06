@@ -63,7 +63,6 @@ const QUICK_FILTER_CHIPS = [
   { id: 'WAITING_RECEIVE', label: 'Menunggu diterima' },
   { id: 'SCAN_OUT', label: 'Pengiriman' },
   { id: 'SCAN_IN', label: 'Penerimaan' },
-  { id: 'PROD_PROCESS', label: 'Adonan dimix' },
   { id: 'QR_PRINTED', label: 'QR disiapkan' },
   { id: 'CONSUMED', label: 'Habis terpakai' }
 ]
@@ -196,6 +195,9 @@ function getNaturalDescription(log, operatorName, targetStationLabel) {
 export default function CustodyLogsView() {
   const userRole = useProduction1Store((s) => s.userRole)
   const currentUser = useProduction1Store((s) => s.currentUser)
+  const operatorId = useProduction1Store((s) => s.operatorId)
+  const activeStation = useProduction1Store((s) => s.activeStation)
+  const activeProductionStage = useProduction1Store((s) => s.activeProductionStage)
   const isSupervisorUser = useProduction1Store((s) => s.isSupervisorUser)
   const employeeDateScope = useProduction1Store((s) => s.employeeDateScope)
   const rawLogs = useProduction1Store((s) => s.custodyLogs)
@@ -203,24 +205,27 @@ export default function CustodyLogsView() {
   const lastSyncedAt = useProduction1Store((s) => s.lastSyncedAt)
   const syncWithBackend = useProduction1Store((s) => s.syncWithBackend)
 
-  const isSupervisor = Boolean(isSupervisorUser && isSupervisorUser())
+  const isSupervisor =
+    userRole !== 'OPERATOR' &&
+    currentUser?.role !== 'OPERATOR' &&
+    Boolean(isSupervisorUser && isSupervisorUser())
 
-  // Tentukan divisi default pengguna login
+  // Tentukan divisi pengguna login secara akurat (tidak pernah fallback ke 'ALL' untuk karyawan)
   const userDefaultDivision = useMemo(() => {
-    if (!currentUser) return 'ALL'
-    const st = currentUser.default_station || ''
-    const tab = currentUser.default_prod2_tab || ''
-    const div = (currentUser.division || '').toUpperCase()
+    const op = String(currentUser?.operator_id || operatorId || '').toUpperCase()
+    const st = String(currentUser?.default_station || activeStation || '').toUpperCase()
+    const div = String(currentUser?.division || '').toUpperCase()
 
-    if (st === 'WRAPPER' || div.includes('KULIT') || div.includes('PANGSIT')) return 'WRAPPER'
-    if (st === 'MEAT' || div.includes('DAGING') || div.includes('GILING')) return 'MEAT'
-    if (st === 'SEASONING' || div.includes('BUMBU')) return 'SEASONING'
-    if (st === 'SAUCE' || div.includes('SAOS')) return 'SAUCE'
-    if (st === 'ASSEMBLY' || tab === 'INBOUND' || div.includes('CETAK')) return 'ASSEMBLY'
-    if (st === 'PACKING' || tab === 'PACKING' || div.includes('PACKING')) return 'PACKING'
-    if (st === 'SALES' || tab === 'SALES' || div.includes('GUDANG')) return 'SALES'
-    return 'ALL'
-  }, [currentUser])
+    if (op.includes('KULIT') || st === 'WRAPPER' || div.includes('KULIT') || div.includes('PANGSIT')) return 'WRAPPER'
+    if (op.includes('DAGING') || op.includes('GILING') || st === 'MEAT' || div.includes('DAGING') || div.includes('GILING')) return 'MEAT'
+    if (op.includes('BUMBU') || st === 'SEASONING' || div.includes('BUMBU')) return 'SEASONING'
+    if (op.includes('SAOS') || st === 'SAUCE' || div.includes('SAOS')) return 'SAUCE'
+    if (op.includes('CETAK') || st === 'ASSEMBLY' || div.includes('CETAK')) return 'ASSEMBLY'
+    if (op.includes('PACKING') || st === 'PACKING' || div.includes('PACKING')) return 'PACKING'
+    if (op.includes('GUDANG') || op.includes('SALES') || st === 'SALES' || div.includes('GUDANG') || div.includes('SALES')) return 'SALES'
+    if (activeProductionStage === 'PROD_2') return 'ASSEMBLY'
+    return 'MEAT'
+  }, [currentUser, operatorId, activeStation, activeProductionStage])
 
   // Divisi aktif: Supervisor bisa pilih 'ALL', Karyawan terkunci ke divisinya
   const [supervisorDivision, setSupervisorDivision] = useState('ALL')
