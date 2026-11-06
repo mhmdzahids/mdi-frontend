@@ -196,66 +196,48 @@ export default function PpicDailySummaryView() {
       )}
 
       {/* Toolbar Filter Tanggal & Periode */}
-      <div className="bg-white border border-[#EDE8DF] rounded-3xl p-4 shadow-xs space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div className="flex items-center gap-1.5 p-1 bg-[#F5F1EB] rounded-2xl w-full sm:w-auto overflow-x-auto">
-            <button
-              type="button"
-              onClick={() => applyPreset('today')}
-              className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${filterPreset === 'today'
-                ? 'bg-white text-[#2C3E50] shadow-xs'
-                : 'text-[#6B7B8D] hover:text-[#2C3E50]'
-                }`}
-            >
-              Hari Ini
-            </button>
-            <button
-              type="button"
-              onClick={() => applyPreset('yesterday')}
-              className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${filterPreset === 'yesterday'
-                ? 'bg-white text-[#2C3E50] shadow-xs'
-                : 'text-[#6B7B8D] hover:text-[#2C3E50]'
-                }`}
-            >
-              Kemarin
-            </button>
-            <button
-              type="button"
-              onClick={() => applyPreset('single')}
-              className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${filterPreset === 'single'
-                ? 'bg-white text-[#2C3E50] shadow-xs'
-                : 'text-[#6B7B8D] hover:text-[#2C3E50]'
-                }`}
-            >
-              Pilih Tanggal
-            </button>
-            <button
-              type="button"
-              onClick={() => applyPreset('range')}
-              className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${filterPreset === 'range'
-                ? 'bg-white text-[#2C3E50] shadow-xs'
-                : 'text-[#6B7B8D] hover:text-[#2C3E50]'
-                }`}
-            >
-              Rentang Tanggal
-            </button>
-          </div>
-
-          <div className="flex flex-col sm:items-end gap-1">
-            <div className="flex items-center gap-2">
-              <div className="text-xs font-bold text-text-primary bg-bg-cream px-3 py-1.5 rounded-xl border border-bg-cream-dark">
-                Rekapitulasi: <span className="text-brand-blue-dark">{activePeriodLabel}</span>
-              </div>
-              {isHistorical && (
-                <span className="px-2.5 py-1 rounded-xl text-[11px] font-semibold bg-bg-cream-dark/60 text-text-secondary border border-bg-cream-dark">
-                  Arsip Riwayat
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-text-secondary px-0.5">
-              Petugas pencatat: <span className="font-semibold text-text-primary">{primaryOfficer}</span>
-            </p>
-          </div>
+      <div className="bg-white border border-[#EDE8DF] rounded-3xl p-3 sm:p-4 shadow-xs space-y-3">
+        <div className="flex items-center gap-1.5 p-1 bg-[#F5F1EB] rounded-2xl w-full overflow-x-auto">
+          <button
+            type="button"
+            onClick={() => applyPreset('today')}
+            className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${filterPreset === 'today'
+              ? 'bg-white text-[#2C3E50] shadow-xs'
+              : 'text-[#6B7B8D] hover:text-[#2C3E50]'
+              }`}
+          >
+            Hari Ini
+          </button>
+          <button
+            type="button"
+            onClick={() => applyPreset('yesterday')}
+            className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${filterPreset === 'yesterday'
+              ? 'bg-white text-[#2C3E50] shadow-xs'
+              : 'text-[#6B7B8D] hover:text-[#2C3E50]'
+              }`}
+          >
+            Kemarin
+          </button>
+          <button
+            type="button"
+            onClick={() => applyPreset('single')}
+            className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${filterPreset === 'single'
+              ? 'bg-white text-[#2C3E50] shadow-xs'
+              : 'text-[#6B7B8D] hover:text-[#2C3E50]'
+              }`}
+          >
+            Pilih Tanggal
+          </button>
+          <button
+            type="button"
+            onClick={() => applyPreset('range')}
+            className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${filterPreset === 'range'
+              ? 'bg-white text-[#2C3E50] shadow-xs'
+              : 'text-[#6B7B8D] hover:text-[#2C3E50]'
+              }`}
+          >
+            Rentang Tanggal
+          </button>
         </div>
 
         {/* Input Tanggal Tunggal */}
