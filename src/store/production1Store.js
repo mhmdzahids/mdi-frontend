@@ -230,8 +230,9 @@ export const useProduction1Store = create(
       // 5d. RIWAYAT PENERIMAAN TOKO BERTAHAP (Multi-Input Acc vs Onhold)
       salesReceiptLogs: [],
 
-      // 5e. SENTRALISASI PPIC & LOGISTIK INBOUND
+      // 5e. SENTRALISASI PPIC & LOGISTIK INBOUND / OUTBOUND
       supplierInboundList: [],
+      supplierOutboundList: [],
       divisionDailyNotes: [],
       dailyRecapData: null,
       isGeneratingLotsAll: false,
@@ -3795,6 +3796,83 @@ export const useProduction1Store = create(
         } catch (err) {
           playErrorBeep()
           const errMsg = err?.message || 'Gagal mencatat penerimaan barang supplier.'
+          set({
+            actionFeedback: {
+              type: 'error',
+              message: errMsg
+            }
+          })
+          throw err
+        }
+      },
+
+      fetchSupplierOutbound: async (dateStr = null, category = null, endDateStr = null, allTime = false) => {
+        try {
+          let url = '/api/v1/production1/supplier-outbound'
+          const params = []
+          if (allTime) {
+            params.push('all_time=true')
+          } else if (endDateStr) {
+            if (dateStr) params.push(`start_date=${encodeURIComponent(dateStr)}`)
+            params.push(`end_date=${encodeURIComponent(endDateStr)}`)
+          } else if (dateStr) {
+            params.push(`outbound_date=${encodeURIComponent(dateStr)}`)
+          }
+          if (category) params.push(`category=${encodeURIComponent(category)}`)
+          if (params.length > 0) url += `?${params.join('&')}`
+
+          const res = await apiFetch(url)
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}))
+            throw new Error(errData.detail || `Server error (${res.status})`)
+          }
+          const data = await res.json()
+          set({ supplierOutboundList: Array.isArray(data) ? data : [] })
+          return data
+        } catch (err) {
+          console.error('Gagal mengambil data outbound supplier:', err)
+          return []
+        }
+      },
+
+      createSupplierOutbound: async (outboundData) => {
+        try {
+          const res = await apiFetch('/api/v1/production1/supplier-outbound', {
+            method: 'POST',
+            body: JSON.stringify({
+              inbound_id: outboundData.inbound_id || null,
+              outbound_date: outboundData.outbound_date || null,
+              category: outboundData.category,
+              item_name: outboundData.item_name,
+              quantity: parseFloat(outboundData.quantity),
+              unit: outboundData.unit || 'BAL',
+              target_station: outboundData.target_station || null,
+              target_station_name: outboundData.target_station_name || null,
+              lot_qr_code: outboundData.lot_qr_code || null,
+              notes: outboundData.notes || null,
+              dispatched_by: outboundData.dispatched_by || get().operatorName || get().operatorId || 'PPIC-AYU'
+            })
+          })
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}))
+            throw new Error(errData.detail || `Server error (${res.status})`)
+          }
+          const created = await res.json()
+          playSuccessBeep()
+          set((state) => ({
+            supplierOutboundList: [created, ...state.supplierOutboundList],
+            actionFeedback: {
+              type: 'success',
+              message: `Pengeluaran ${created.item_name} berhasil dicatat.`
+            }
+          }))
+          if (outboundData.target_station && outboundData.target_station !== 'UMUM') {
+            get().syncTodayFromDatabase?.()
+          }
+          return created
+        } catch (err) {
+          playErrorBeep()
+          const errMsg = err?.message || 'Gagal mencatat pengeluaran barang.'
           set({
             actionFeedback: {
               type: 'error',
