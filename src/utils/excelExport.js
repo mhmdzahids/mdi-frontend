@@ -234,6 +234,8 @@ export function exportPpicRecapExcel({ dateStr, recapData, operatorName }) {
       diterbitkan: divisions.DAGING?.total_lots || 0,
       total_qty: divisions.DAGING?.total_quantity || 0,
       terkirim: divisions.DAGING?.completed_count || 0,
+      sisa_qr: divisions.DAGING?.printed_count || 0,
+      void_qr: divisions.DAGING?.void_count || 0,
       reject: divisions.DAGING?.reject_count || 0,
       reject_notes: divisions.DAGING?.reject_notes || '-',
       catatan: divisions.DAGING?.operational_notes || '-'
@@ -244,6 +246,8 @@ export function exportPpicRecapExcel({ dateStr, recapData, operatorName }) {
       diterbitkan: divisions.BUMBU?.total_lots || 0,
       total_qty: divisions.BUMBU?.total_quantity || 0,
       terkirim: divisions.BUMBU?.completed_count || 0,
+      sisa_qr: divisions.BUMBU?.printed_count || 0,
+      void_qr: divisions.BUMBU?.void_count || 0,
       reject: divisions.BUMBU?.reject_count || 0,
       reject_notes: divisions.BUMBU?.reject_notes || '-',
       catatan: divisions.BUMBU?.operational_notes || '-'
@@ -254,6 +258,8 @@ export function exportPpicRecapExcel({ dateStr, recapData, operatorName }) {
       diterbitkan: divisions.KULIT?.total_lots || 0,
       total_qty: divisions.KULIT?.total_quantity || 0,
       terkirim: divisions.KULIT?.completed_count || 0,
+      sisa_qr: divisions.KULIT?.printed_count || 0,
+      void_qr: divisions.KULIT?.void_count || 0,
       reject: divisions.KULIT?.reject_count || 0,
       reject_notes: divisions.KULIT?.reject_notes || '-',
       catatan: divisions.KULIT?.operational_notes || '-'
@@ -264,6 +270,8 @@ export function exportPpicRecapExcel({ dateStr, recapData, operatorName }) {
       diterbitkan: divisions.SAOS?.total_lots || 0,
       total_qty: divisions.SAOS?.total_quantity || 0,
       terkirim: divisions.SAOS?.completed_count || 0,
+      sisa_qr: divisions.SAOS?.printed_count || 0,
+      void_qr: divisions.SAOS?.void_count || 0,
       reject: divisions.SAOS?.reject_count || 0,
       reject_notes: divisions.SAOS?.reject_notes || '-',
       catatan: divisions.SAOS?.operational_notes || '-'
@@ -274,6 +282,8 @@ export function exportPpicRecapExcel({ dateStr, recapData, operatorName }) {
       diterbitkan: '-',
       total_qty: '-',
       terkirim: '-',
+      sisa_qr: '-',
+      void_qr: '-',
       reject: divisions.CETAK?.reject_count || 0,
       reject_notes: divisions.CETAK?.reject_notes || '-',
       catatan: divisions.CETAK?.operational_notes || '-'
@@ -284,6 +294,8 @@ export function exportPpicRecapExcel({ dateStr, recapData, operatorName }) {
       diterbitkan: '-',
       total_qty: '-',
       terkirim: '-',
+      sisa_qr: '-',
+      void_qr: '-',
       reject: divisions.PACKING?.reject_count || 0,
       reject_notes: divisions.PACKING?.reject_notes || '-',
       catatan: divisions.PACKING?.operational_notes || '-'
@@ -312,6 +324,8 @@ export function exportPpicRecapExcel({ dateStr, recapData, operatorName }) {
       { header: 'Lot Dibuat', key: 'diterbitkan', width: 85, align: 'right' },
       { header: 'Total Kuantitas', key: 'total_qty', width: 95, align: 'right' },
       { header: 'Terkirim / Selesai', key: 'terkirim', width: 110, align: 'right' },
+      { header: 'Sisa Belum Dibuat', key: 'sisa_qr', width: 110, align: 'right' },
+      { header: 'Batal (VOID)', key: 'void_qr', width: 90, align: 'right' },
       { header: 'Reject', key: 'reject', width: 70, align: 'right' },
       { header: 'Alasan Reject', key: 'reject_notes', width: 180, align: 'left' },
       { header: 'Catatan Operasional', key: 'catatan', width: 220, align: 'left' }

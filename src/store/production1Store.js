@@ -230,8 +230,9 @@ export const useProduction1Store = create(
       // 5d. RIWAYAT PENERIMAAN TOKO BERTAHAP (Multi-Input Acc vs Onhold)
       salesReceiptLogs: [],
 
-      // 5e. SENTRALISASI PPIC & LOGISTIK INBOUND
+      // 5e. SENTRALISASI PPIC & LOGISTIK INBOUND / OUTBOUND
       supplierInboundList: [],
+      supplierOutboundList: [],
       divisionDailyNotes: [],
       dailyRecapData: null,
       isGeneratingLotsAll: false,
@@ -321,14 +322,13 @@ export const useProduction1Store = create(
       // Setters dengan proteksi wewenang divisi
       setProductionStage: (stage) => {
         if (!get().isSupervisorUser()) return
-        set({ activeProductionStage: stage, isProfileActive: false, actionFeedback: null })
+        set({ activeProductionStage: stage, isProfileActive: false })
       },
       toggleProductionStage: () => {
         if (!get().isSupervisorUser()) return
         set((s) => ({
           activeProductionStage: s.activeProductionStage === 'PROD_1' ? 'PROD_2' : 'PROD_1',
-          isProfileActive: false,
-          actionFeedback: null
+          isProfileActive: false
         }))
       },
       setProd2Tab: (tab) => {
@@ -339,7 +339,7 @@ export const useProduction1Store = create(
           if (expectedTab === 'SALES') expectedTab = 'PRODUCTS'
           if (tab !== expectedTab) return
         }
-        set({ activeProd2Tab: tab, isProfileActive: false, actionFeedback: null })
+        set({ activeProd2Tab: tab, isProfileActive: false })
       },
       setPackingSubLine: (line) => {
         const val = line === 'VAKUM' ? 'VAKUM' : 'MIKA'
@@ -398,8 +398,7 @@ export const useProduction1Store = create(
           activeProductionStage: targetStage,
           activeStation: targetStation,
           activeProd2Tab: targetProd2Tab,
-          isProfileActive: false,
-          actionFeedback: null
+          isProfileActive: false
         })
       },
       setStation: (station) => {
@@ -407,7 +406,7 @@ export const useProduction1Store = create(
           const user = get().currentUser
           if (user?.default_station && station !== user.default_station) return
         }
-        set({ activeStation: station, isProfileActive: false, actionFeedback: null })
+        set({ activeStation: station, isProfileActive: false })
       },
       setOperator: (id, name) => set({ operatorId: id, operatorName: name }),
       setUserRole: (role) => set({ userRole: role === 'PIC' ? 'STAKEHOLDER' : role }),
@@ -2626,9 +2625,10 @@ export const useProduction1Store = create(
               navigator.vibrate([250])
             }
             const errMsg = data.detail || 'Transisi scan gagal.'
+            const isScanInReject = errMsg.toLowerCase().includes('tidak bisa di-scan in')
             get().setScanFeedbackBanner({
               type: 'danger',
-              title: 'Ditolak',
+              title: isScanInReject ? 'Tidak Bisa Scan In' : 'Ditolak',
               message: errMsg,
               code: cleanCode,
               canUndo: false
@@ -2926,7 +2926,7 @@ export const useProduction1Store = create(
         }
 
         try {
-          const resPlan = await apiFetch('/api/v1/production1/plans/active')
+          const resPlan = await apiFetch('/api/v1/production1/plans/active', { silent: isSilent })
           if (resPlan.ok) {
             const activePlan = await resPlan.json().catch(() => null)
             if (activePlan) {
@@ -2973,7 +2973,7 @@ export const useProduction1Store = create(
         }
 
         try {
-          const resLots = await apiFetch('/api/v1/production1/lots')
+          const resLots = await apiFetch('/api/v1/production1/lots', { silent: isSilent })
           if (resLots.ok) {
             const text = await resLots.text()
             let dbLots = []
@@ -3170,7 +3170,7 @@ export const useProduction1Store = create(
             }
           }
 
-          const resLogs = await apiFetch('/api/v1/production1/custody-logs')
+          const resLogs = await apiFetch('/api/v1/production1/custody-logs', { silent: isSilent })
           if (resLogs.ok) {
             const text = await resLogs.text()
             let dbLogs = []
@@ -3796,6 +3796,83 @@ export const useProduction1Store = create(
         } catch (err) {
           playErrorBeep()
           const errMsg = err?.message || 'Gagal mencatat penerimaan barang supplier.'
+          set({
+            actionFeedback: {
+              type: 'error',
+              message: errMsg
+            }
+          })
+          throw err
+        }
+      },
+
+      fetchSupplierOutbound: async (dateStr = null, category = null, endDateStr = null, allTime = false) => {
+        try {
+          let url = '/api/v1/production1/supplier-outbound'
+          const params = []
+          if (allTime) {
+            params.push('all_time=true')
+          } else if (endDateStr) {
+            if (dateStr) params.push(`start_date=${encodeURIComponent(dateStr)}`)
+            params.push(`end_date=${encodeURIComponent(endDateStr)}`)
+          } else if (dateStr) {
+            params.push(`outbound_date=${encodeURIComponent(dateStr)}`)
+          }
+          if (category) params.push(`category=${encodeURIComponent(category)}`)
+          if (params.length > 0) url += `?${params.join('&')}`
+
+          const res = await apiFetch(url)
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}))
+            throw new Error(errData.detail || `Server error (${res.status})`)
+          }
+          const data = await res.json()
+          set({ supplierOutboundList: Array.isArray(data) ? data : [] })
+          return data
+        } catch (err) {
+          console.error('Gagal mengambil data outbound supplier:', err)
+          return []
+        }
+      },
+
+      createSupplierOutbound: async (outboundData) => {
+        try {
+          const res = await apiFetch('/api/v1/production1/supplier-outbound', {
+            method: 'POST',
+            body: JSON.stringify({
+              inbound_id: outboundData.inbound_id || null,
+              outbound_date: outboundData.outbound_date || null,
+              category: outboundData.category,
+              item_name: outboundData.item_name,
+              quantity: parseFloat(outboundData.quantity),
+              unit: outboundData.unit || 'BAL',
+              target_station: outboundData.target_station || null,
+              target_station_name: outboundData.target_station_name || null,
+              lot_qr_code: outboundData.lot_qr_code || null,
+              notes: outboundData.notes || null,
+              dispatched_by: outboundData.dispatched_by || get().operatorName || get().operatorId || 'PPIC-AYU'
+            })
+          })
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}))
+            throw new Error(errData.detail || `Server error (${res.status})`)
+          }
+          const created = await res.json()
+          playSuccessBeep()
+          set((state) => ({
+            supplierOutboundList: [created, ...state.supplierOutboundList],
+            actionFeedback: {
+              type: 'success',
+              message: `Pengeluaran ${created.item_name} berhasil dicatat.`
+            }
+          }))
+          if (outboundData.target_station && outboundData.target_station !== 'UMUM') {
+            get().syncTodayFromDatabase?.()
+          }
+          return created
+        } catch (err) {
+          playErrorBeep()
+          const errMsg = err?.message || 'Gagal mencatat pengeluaran barang.'
           set({
             actionFeedback: {
               type: 'error',

@@ -4,6 +4,8 @@ import { exportSupplierInboundExcel } from '../utils/excelExport'
 import { useLockBodyScroll } from '../utils/useLockBodyScroll'
 import { CustomSelect } from './ui/CustomSelect'
 import { Modal } from './ui/Modal'
+import { Button } from './ui/Button'
+import { ListRowSkeleton } from './ui/Skeleton'
 import {
   SearchIcon,
   FilterIcon,
@@ -12,7 +14,15 @@ import {
   CheckIcon,
   AlertIcon
 } from './Icons'
-import { FileSpreadsheet, NotebookPen } from 'lucide-react'
+import {
+  FileSpreadsheet,
+  NotebookPen,
+  QrCode,
+  ArrowUpRight,
+  ChevronDown,
+  ChevronUp,
+  Send
+} from 'lucide-react'
 
 const INBOUND_CATEGORIES = [
   { id: 'KULIT', label: 'Kulit Dimsum' },
@@ -22,6 +32,31 @@ const INBOUND_CATEGORIES = [
   { id: 'KEMASAN', label: 'Kemasan & Plastik' },
   { id: 'LAINNYA', label: 'Lainnya' }
 ]
+
+const DESTINATION_STATIONS = [
+  { value: 'NONE', label: 'None (Tanpa Tujuan Khusus)' },
+  { value: 'ASSEMBLY_STATION', label: 'Meja Cetak (Produksi 2)' },
+  { value: 'MEAT_STATION', label: 'Giling & Mix (Produksi 1)' },
+  { value: 'FINISHING_STATION', label: 'Meja Packing / Finishing' },
+  { value: 'SPICE_STATION', label: 'Racik Bumbu' },
+  { value: 'UMUM', label: 'Keluar Umum / Pemakaian Lain' }
+]
+
+function getInboundLotCode(item) {
+  if (!item) return ''
+  const dateStr = item.inbound_date || (item.created_at ? String(item.created_at).slice(0, 10) : getTodayStr())
+  const todayCode = dateStr.replace(/-/g, '')
+  const cat = (item.category || '').toUpperCase()
+  const catPrefix = cat === 'KULIT' ? 'KL'
+    : cat === 'DAGING' ? 'DG'
+    : cat === 'BUMBU' ? 'BM'
+    : cat === 'SAOS' ? 'SA'
+    : cat === 'KEMASAN' ? 'KM'
+    : 'SP'
+  const rawId = item.inbound_id || 1
+  const idStr = String(rawId).padStart(3, '0')
+  return `IN-${catPrefix}-${todayCode}-${idStr}`
+}
 
 const UNIT_OPTIONS = [
   { value: 'BAL', label: 'BAL' },
@@ -77,21 +112,59 @@ function formatIndoDateFull(dStr) {
   return `${day} ${months[monthIdx] || parts[1]} ${year}`
 }
 
+const INDO_DAYS = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu']
+
+function getIndoDayName(dStr) {
+  if (!dStr) return ''
+  const parts = dStr.split('-')
+  if (parts.length !== 3) return ''
+  const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10))
+  return INDO_DAYS[d.getDay()] || ''
+}
+
+function formatItemTime(isoStr) {
+  if (!isoStr) return ''
+  try {
+    const s = String(isoStr)
+    const normalized = s.endsWith('Z') || s.includes('+') ? s : s.replace(' ', 'T') + 'Z'
+    const d = new Date(normalized)
+    if (isNaN(d.getTime())) return ''
+    return d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' }).replace('.', ':') + ' WIB'
+  } catch {
+    return ''
+  }
+}
+
 export default function SupplierInboundView() {
   // Modal Pop up State & Scroll Lock
   const [isModalOpen, setIsModalOpen] = useState(false)
-  useLockBodyScroll(isModalOpen)
+  const [isStockOutModalOpen, setIsStockOutModalOpen] = useState(false)
+  useLockBodyScroll(isModalOpen || isStockOutModalOpen)
+
+  // Card Action Expansion States (User harus toggle kartu dulu baru tombol aksi muncul)
+  const [expandedCardId, setExpandedCardId] = useState(null)
+  const [expandedOutboundId, setExpandedOutboundId] = useState(null)
+
+  // Form State Modal Keluarkan Stok (Barang Keluar)
+  const [stockOutItem, setStockOutItem] = useState(null)
+  const [stockOutQty, setStockOutQty] = useState('')
+  const [stockOutStation, setStockOutStation] = useState('NONE')
+  const [stockOutNotes, setStockOutNotes] = useState('')
+  const [stockOutNeedPrintQr, setStockOutNeedPrintQr] = useState(true)
+  const [isSubmittingStockOut, setIsSubmittingStockOut] = useState(false)
+  const [isStockOutSuccess, setIsStockOutSuccess] = useState(false)
+  const [stockOutError, setStockOutError] = useState('')
 
   // Tab Filter Utama (Gambar 1: Persis seperti Riwayat / Logs)
   const [activeTab, setActiveTab] = useState('ALL') // 'ALL' | 'INBOUND' | 'OUTBOUND' | 'INVENTORY'
   const [searchQuery, setSearchQuery] = useState('')
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
 
-  // Filter Kategori & Tanggal
+  // Filter Kategori & Tanggal (Default: 'recent' = Hari Ini & Kemarin agar pergantian hari 00:00 tidak mengosongkan data)
   const [filterCategory, setFilterCategory] = useState('ALL') // 'ALL' | 'KULIT' | 'DAGING' | ...
-  const [filterPreset, setFilterPreset] = useState('today') // 'today' | 'yesterday' | 'single' | 'range' | 'all'
+  const [filterPreset, setFilterPreset] = useState('recent') // 'recent' | 'today' | 'yesterday' | 'single' | 'range' | 'all'
   const [selectedDate, setSelectedDate] = useState(getTodayStr())
-  const [rangeStartDate, setRangeStartDate] = useState(getTodayStr())
+  const [rangeStartDate, setRangeStartDate] = useState(getYesterdayStr())
   const [rangeEndDate, setRangeEndDate] = useState(getTodayStr())
 
   // Form State Modal Catat Barang Masuk (Awalnya kosong tanpa nilai default)
@@ -104,7 +177,10 @@ export default function SupplierInboundView() {
   const [supplierName, setSupplierName] = useState('')
   const [documentNo, setDocumentNo] = useState('')
   const [notes, setNotes] = useState('')
+  const [needPrintQr, setNeedPrintQr] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [isSubmitSuccess, setIsSubmitSuccess] = useState(false)
+  const [isLoadingInbound, setIsLoadingInbound] = useState(true)
   const [formError, setFormError] = useState('')
   const [toastSuccess, setToastSuccess] = useState('')
 
@@ -116,6 +192,13 @@ export default function SupplierInboundView() {
   const supplierInboundList = rawSupplierInboundList || EMPTY_INBOUND_LIST
   const fetchSupplierInbound = useProduction1Store((s) => s.fetchSupplierInbound)
   const createSupplierInbound = useProduction1Store((s) => s.createSupplierInbound)
+
+  const rawSupplierOutboundList = useProduction1Store((s) => s.supplierOutboundList)
+  const supplierOutboundList = rawSupplierOutboundList || EMPTY_INBOUND_LIST
+  const fetchSupplierOutbound = useProduction1Store((s) => s.fetchSupplierOutbound)
+  const createSupplierOutbound = useProduction1Store((s) => s.createSupplierOutbound)
+
+  const openBatchPrintModal = useProduction1Store((s) => s.openBatchPrintModal)
   const operatorName = useProduction1Store((s) => s.operatorName)
   const operatorId = useProduction1Store((s) => s.operatorId)
 
@@ -123,72 +206,122 @@ export default function SupplierInboundView() {
 
   const activePeriodLabel = isRange
     ? `${formatIndoDate(rangeStartDate)} – ${formatIndoDate(rangeEndDate)}`
-    : filterPreset === 'all'
-      ? 'Semua Waktu'
-      : formatIndoDateFull(selectedDate)
+    : filterPreset === 'recent'
+      ? 'Hari Ini & Kemarin'
+      : filterPreset === 'today'
+        ? `Hari Ini (${formatIndoDate(selectedDate)})`
+        : filterPreset === 'yesterday'
+          ? `Kemarin (${formatIndoDate(selectedDate)})`
+          : filterPreset === 'all'
+            ? 'Semua Waktu'
+            : formatIndoDateFull(selectedDate)
 
   const activeExportDateStr = isRange
     ? `${rangeStartDate} s/d ${rangeEndDate}`
-    : filterPreset === 'all'
-      ? 'Semua'
-      : selectedDate
+    : filterPreset === 'recent'
+      ? `${getYesterdayStr()} s/d ${getTodayStr()}`
+      : filterPreset === 'all'
+        ? 'Semua'
+        : selectedDate
 
-  const isFilterActive = filterCategory !== 'ALL' || filterPreset !== 'today'
-  const activeFilterCount = (filterCategory !== 'ALL' ? 1 : 0) + (filterPreset !== 'today' ? 1 : 0)
+  const isFilterActive = filterCategory !== 'ALL' || filterPreset !== 'recent'
+  const activeFilterCount = (filterCategory !== 'ALL' ? 1 : 0) + (filterPreset !== 'recent' ? 1 : 0)
 
-  const loadInboundData = useCallback(() => {
-    const catParam = filterCategory === 'ALL' ? null : filterCategory
-    if (filterPreset === 'range') {
-      fetchSupplierInbound(rangeStartDate, catParam, rangeEndDate)
-    } else if (filterPreset === 'all') {
-      fetchSupplierInbound(null, catParam, null, true)
-    } else {
-      fetchSupplierInbound(selectedDate, catParam)
+  const loadAllData = useCallback(async () => {
+    setIsLoadingInbound(true)
+    try {
+      const catParam = filterCategory === 'ALL' ? null : filterCategory
+      if (filterPreset === 'recent') {
+        await Promise.all([
+          fetchSupplierInbound(getYesterdayStr(), catParam, getTodayStr()),
+          fetchSupplierOutbound(getYesterdayStr(), catParam, getTodayStr())
+        ])
+      } else if (filterPreset === 'range') {
+        await Promise.all([
+          fetchSupplierInbound(rangeStartDate, catParam, rangeEndDate),
+          fetchSupplierOutbound(rangeStartDate, catParam, rangeEndDate)
+        ])
+      } else if (filterPreset === 'all') {
+        await Promise.all([
+          fetchSupplierInbound(null, catParam, null, true),
+          fetchSupplierOutbound(null, catParam, null, true)
+        ])
+      } else {
+        await Promise.all([
+          fetchSupplierInbound(selectedDate, catParam),
+          fetchSupplierOutbound(selectedDate, catParam)
+        ])
+      }
+    } finally {
+      setIsLoadingInbound(false)
     }
-  }, [fetchSupplierInbound, filterPreset, filterCategory, rangeStartDate, rangeEndDate, selectedDate])
+  }, [fetchSupplierInbound, fetchSupplierOutbound, filterPreset, filterCategory, rangeStartDate, rangeEndDate, selectedDate])
 
   useEffect(() => {
-    loadInboundData()
-  }, [loadInboundData])
+    loadAllData()
+  }, [loadAllData])
 
   const applyPreset = (preset) => {
     setFilterPreset(preset)
     const catParam = filterCategory === 'ALL' ? null : filterCategory
-    if (preset === 'today') {
+    if (preset === 'recent') {
+      const t = getTodayStr()
+      const y = getYesterdayStr()
+      setSelectedDate(t)
+      setRangeStartDate(y)
+      setRangeEndDate(t)
+      fetchSupplierInbound(y, catParam, t)
+      fetchSupplierOutbound(y, catParam, t)
+    } else if (preset === 'today') {
       const t = getTodayStr()
       setSelectedDate(t)
       fetchSupplierInbound(t, catParam)
+      fetchSupplierOutbound(t, catParam)
     } else if (preset === 'yesterday') {
       const y = getYesterdayStr()
       setSelectedDate(y)
       fetchSupplierInbound(y, catParam)
+      fetchSupplierOutbound(y, catParam)
     } else if (preset === 'single') {
       fetchSupplierInbound(selectedDate, catParam)
+      fetchSupplierOutbound(selectedDate, catParam)
     } else if (preset === 'range') {
       fetchSupplierInbound(rangeStartDate, catParam, rangeEndDate)
+      fetchSupplierOutbound(rangeStartDate, catParam, rangeEndDate)
     } else if (preset === 'all') {
       fetchSupplierInbound(null, catParam, null, true)
+      fetchSupplierOutbound(null, catParam, null, true)
     }
   }
 
   const handleFilterCategoryChange = (catId) => {
     setFilterCategory(catId)
     const catParam = catId === 'ALL' ? null : catId
-    if (filterPreset === 'range') {
+    if (filterPreset === 'recent') {
+      fetchSupplierInbound(getYesterdayStr(), catParam, getTodayStr())
+      fetchSupplierOutbound(getYesterdayStr(), catParam, getTodayStr())
+    } else if (filterPreset === 'range') {
       fetchSupplierInbound(rangeStartDate, catParam, rangeEndDate)
+      fetchSupplierOutbound(rangeStartDate, catParam, rangeEndDate)
     } else if (filterPreset === 'all') {
       fetchSupplierInbound(null, catParam, null, true)
+      fetchSupplierOutbound(null, catParam, null, true)
     } else {
       fetchSupplierInbound(selectedDate, catParam)
+      fetchSupplierOutbound(selectedDate, catParam)
     }
   }
 
   const handleResetFilter = () => {
     setFilterCategory('ALL')
-    setFilterPreset('today')
+    setFilterPreset('recent')
     const t = getTodayStr()
+    const y = getYesterdayStr()
     setSelectedDate(t)
-    fetchSupplierInbound(t, null)
+    setRangeStartDate(y)
+    setRangeEndDate(t)
+    fetchSupplierInbound(y, null, t)
+    fetchSupplierOutbound(y, null, t)
   }
 
   // Handler Perubahan Kategori Form Modal
@@ -267,6 +400,7 @@ export default function SupplierInboundView() {
     setSupplierName('')
     setDocumentNo('')
     setNotes('')
+    setNeedPrintQr(false)
     setFormError('')
     setIsModalOpen(true)
   }
@@ -323,7 +457,7 @@ export default function SupplierInboundView() {
 
     setSubmitting(true)
     try {
-      await createSupplierInbound({
+      const created = await createSupplierInbound({
         category,
         item_name: cleanName,
         quantity: numQty,
@@ -334,17 +468,159 @@ export default function SupplierInboundView() {
         received_by: operatorName || operatorId || 'PPIC-AYU'
       })
 
+      // Micro-interaction: Tampilkan Centang Sukses sebelum tutup modal
+      setIsSubmitSuccess(true)
+      try {
+        if (typeof navigator !== 'undefined' && navigator.vibrate) {
+          navigator.vibrate(40)
+        }
+      } catch {
+        // ignore
+      }
+
+      // Jeda 600ms untuk konfirmasi emosional pengguna
+      await new Promise((resolve) => setTimeout(resolve, 600))
+
       // Tutup modal & tampilkan feedback
       setIsModalOpen(false)
+      setIsSubmitSuccess(false)
       setToastSuccess(`Barang masuk "${cleanName}" (${numQty} ${formatUnitDisplay(unit)}) berhasil dicatat.`)
       setTimeout(() => setToastSuccess(''), 4000)
 
       // Muat ulang data
-      loadInboundData()
+      loadAllData()
+
+      // Buka modal cetak QR jika toggle aktif
+      if (needPrintQr) {
+        handleOpenPrintQrForInbound(created || {
+          inbound_id: Math.floor(Date.now() / 1000) % 1000,
+          category,
+          item_name: cleanName,
+          quantity: numQty,
+          unit,
+          supplier_name: cleanSupplier,
+          created_at: new Date().toISOString()
+        })
+      }
     } catch (err) {
       setFormError(err?.message || 'Gagal menyimpan barang masuk ke server.')
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  // Handler Cetak Ulang Label QR Barang Masuk
+  const handleOpenPrintQrForInbound = (item) => {
+    if (!item) return
+    const baseCode = getInboundLotCode(item)
+    const numQty = parseFloat(item.quantity) || 1
+    const isIntQty = Number.isInteger(numQty) && numQty >= 1 && numQty <= 50
+    const count = isIntQty ? Math.floor(numQty) : 1
+    const printItems = []
+    for (let i = 1; i <= count; i++) {
+      const itemCode = count > 1 ? `${baseCode}-${String(i).padStart(2, '0')}` : baseCode
+      printItems.push({
+        lotCode: itemCode,
+        title: `BARANG MASUK: ${(item.item_name || '').toUpperCase()}`,
+        detail: `${item.supplier_name || 'Supplier'} · ${count > 1 ? `Unit ${i}/${count} (${formatUnitDisplay(item.unit)})` : `${numQty} ${formatUnitDisplay(item.unit)}`}`,
+        weight: count > 1 ? `1 ${formatUnitDisplay(item.unit)}` : `${numQty} ${formatUnitDisplay(item.unit)}`,
+        supplierName: item.supplier_name || 'Supplier',
+        createdAt: item.created_at || new Date().toISOString()
+      })
+    }
+    openBatchPrintModal(printItems, `BARANG MASUK: ${(item.item_name || '').toUpperCase()}`)
+  }
+
+  // Handler Cetak Ulang Label QR Barang Keluar
+  const handleOpenPrintQrForOutbound = (item) => {
+    if (!item) return
+    const targetName = item.target_station_name || item.target_station || 'Keluar Umum'
+    const printItems = [{
+      lotCode: item.lot_qr_code,
+      title: `BARANG KELUAR: ${(item.item_name || '').toUpperCase()}`,
+      detail: `Tujuan: ${targetName} · ${item.quantity} ${formatUnitDisplay(item.unit)}`,
+      weight: `${item.quantity} ${formatUnitDisplay(item.unit)}`,
+      supplierName: 'Gudang Logistik PPIC',
+      createdAt: item.created_at || new Date().toISOString()
+    }]
+    openBatchPrintModal(printItems, `BARANG KELUAR: ${(item.item_name || '').toUpperCase()}`)
+  }
+
+  // Buka Modal Keluarkan Stok
+  const handleOpenStockOutModal = (item) => {
+    setStockOutItem(item)
+    const alreadyOutbound = supplierOutboundList
+      .filter((o) => o.inbound_id === item.inbound_id)
+      .reduce((sum, o) => sum + (Number(o.quantity) || 0), 0)
+    const remaining = Math.max(0, (Number(item.quantity) || 0) - alreadyOutbound)
+    setStockOutQty(remaining > 0 ? String(remaining) : String(item.quantity))
+
+    // Default ketika dibuka adalah 'NONE' sesuai permintaan user
+    setStockOutStation('NONE')
+
+    setStockOutNotes('')
+    setStockOutNeedPrintQr(true)
+    setStockOutError('')
+    setIsStockOutModalOpen(true)
+  }
+
+  // Submit Modal Keluarkan Stok
+  const handleStockOutSubmit = async (e) => {
+    if (e && e.preventDefault) e.preventDefault()
+    setStockOutError('')
+
+    const numQty = parseFloat(stockOutQty)
+    if (isNaN(numQty) || numQty <= 0) {
+      setStockOutError('Jumlah yang dikeluarkan harus lebih dari 0.')
+      return
+    }
+
+    const isSpecialStation = stockOutStation && stockOutStation !== 'NONE' && stockOutStation !== 'UMUM'
+    const targetStation = isSpecialStation ? stockOutStation : null
+    const stationMeta = DESTINATION_STATIONS.find((s) => s.value === stockOutStation || s.id === stockOutStation)
+    const targetStationName = isSpecialStation && stationMeta ? stationMeta.label : null
+
+    setIsSubmittingStockOut(true)
+    try {
+      const created = await createSupplierOutbound({
+        inbound_id: stockOutItem.inbound_id,
+        category: stockOutItem.category,
+        item_name: stockOutItem.item_name,
+        quantity: numQty,
+        unit: stockOutItem.unit,
+        target_station: targetStation,
+        target_station_name: targetStationName,
+        notes: stockOutNotes.trim() || null,
+        dispatched_by: operatorName || operatorId || 'PPIC-AYU'
+      })
+
+      setIsStockOutSuccess(true)
+      try {
+        if (typeof navigator !== 'undefined' && navigator.vibrate) {
+          navigator.vibrate(40)
+        }
+      } catch {
+        // ignore
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 500))
+
+      setIsStockOutModalOpen(false)
+      setIsStockOutSuccess(false)
+      setToastSuccess(
+        `Stok "${stockOutItem.item_name}" (${numQty} ${formatUnitDisplay(stockOutItem.unit)}) berhasil dikeluarkan${targetStationName ? ` ke ${targetStationName}` : ''}.`
+      )
+      setTimeout(() => setToastSuccess(''), 4000)
+
+      loadAllData()
+
+      if (stockOutNeedPrintQr && created?.lot_qr_code) {
+        handleOpenPrintQrForOutbound(created)
+      }
+    } catch (err) {
+      setStockOutError(err?.message || 'Gagal mencatat pengeluaran barang ke server.')
+    } finally {
+      setIsSubmittingStockOut(false)
     }
   }
 
@@ -375,29 +651,181 @@ export default function SupplierInboundView() {
     return list
   }, [supplierInboundList, filterCategory, searchQuery])
 
-  // Ringkasan Stok / Inventory
-  const inventoryItems = useMemo(() => {
-    const map = new Map()
-    let list = supplierInboundList
+  // Filter daftar transaksi barang keluar
+  const filteredOutboundList = useMemo(() => {
+    let list = supplierOutboundList
     if (filterCategory !== 'ALL') {
       list = list.filter((it) => it.category?.toUpperCase() === filterCategory.toUpperCase())
     }
-    for (const item of list) {
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase()
+      list = list.filter(
+        (it) =>
+          it.item_name?.toLowerCase().includes(q) ||
+          it.target_station_name?.toLowerCase().includes(q) ||
+          it.lot_qr_code?.toLowerCase().includes(q) ||
+          it.category?.toLowerCase().includes(q) ||
+          it.dispatched_by?.toLowerCase().includes(q)
+      )
+    }
+    return list
+  }, [supplierOutboundList, filterCategory, searchQuery])
+
+  // Kelompokkan daftar transaksi barang masuk berdasarkan tanggal (divide beda hari)
+  const groupedInboundByDate = useMemo(() => {
+    const today = getTodayStr()
+    const yesterday = getYesterdayStr()
+
+    const map = new Map()
+    for (const item of filteredInboundList) {
+      const d = item.inbound_date || (item.created_at ? String(item.created_at).slice(0, 10) : today)
+      if (!map.has(d)) {
+        map.set(d, [])
+      }
+      map.get(d).push(item)
+    }
+
+    if (filterPreset === 'recent' && !searchQuery.trim() && !map.has(today)) {
+      map.set(today, [])
+    }
+
+    const sortedDates = Array.from(map.keys()).sort((a, b) => (b > a ? 1 : b < a ? -1 : 0))
+
+    return sortedDates.map((dateStr) => {
+      const items = map.get(dateStr) || []
+      const isToday = dateStr === today
+      const isYesterday = dateStr === yesterday
+
+      let badgeLabel = ''
+      let title = ''
+
+      if (isToday) {
+        badgeLabel = 'Hari Ini'
+        const dayName = getIndoDayName(dateStr)
+        title = dayName ? `${dayName}, ${formatIndoDate(dateStr)}` : formatIndoDate(dateStr)
+      } else if (isYesterday) {
+        badgeLabel = 'Kemarin'
+        const dayName = getIndoDayName(dateStr)
+        title = dayName ? `${dayName}, ${formatIndoDate(dateStr)}` : formatIndoDate(dateStr)
+      } else {
+        const dayName = getIndoDayName(dateStr)
+        badgeLabel = dayName || 'Riwayat'
+        title = formatIndoDate(dateStr)
+      }
+
+      return {
+        dateStr,
+        isToday,
+        isYesterday,
+        badgeLabel,
+        title,
+        items
+      }
+    })
+  }, [filteredInboundList, filterPreset, searchQuery])
+
+  // Kelompokkan daftar transaksi barang keluar berdasarkan tanggal (divide beda hari)
+  const groupedOutboundByDate = useMemo(() => {
+    const today = getTodayStr()
+    const yesterday = getYesterdayStr()
+
+    const map = new Map()
+    for (const item of filteredOutboundList) {
+      const d = item.outbound_date || (item.created_at ? String(item.created_at).slice(0, 10) : today)
+      if (!map.has(d)) {
+        map.set(d, [])
+      }
+      map.get(d).push(item)
+    }
+
+    if (filterPreset === 'recent' && !searchQuery.trim() && !map.has(today)) {
+      map.set(today, [])
+    }
+
+    const sortedDates = Array.from(map.keys()).sort((a, b) => (b > a ? 1 : b < a ? -1 : 0))
+
+    return sortedDates.map((dateStr) => {
+      const items = map.get(dateStr) || []
+      const isToday = dateStr === today
+      const isYesterday = dateStr === yesterday
+
+      let badgeLabel = ''
+      let title = ''
+
+      if (isToday) {
+        badgeLabel = 'Hari Ini'
+        const dayName = getIndoDayName(dateStr)
+        title = dayName ? `${dayName}, ${formatIndoDate(dateStr)}` : formatIndoDate(dateStr)
+      } else if (isYesterday) {
+        badgeLabel = 'Kemarin'
+        const dayName = getIndoDayName(dateStr)
+        title = dayName ? `${dayName}, ${formatIndoDate(dateStr)}` : formatIndoDate(dateStr)
+      } else {
+        const dayName = getIndoDayName(dateStr)
+        badgeLabel = dayName || 'Riwayat'
+        title = formatIndoDate(dateStr)
+      }
+
+      return {
+        dateStr,
+        isToday,
+        isYesterday,
+        badgeLabel,
+        title,
+        items
+      }
+    })
+  }, [filteredOutboundList, filterPreset, searchQuery])
+
+  // Ringkasan Stok / Inventory (Stok Tersedia = Total Masuk - Total Keluar)
+  const inventoryItems = useMemo(() => {
+    const map = new Map()
+    let inList = supplierInboundList
+    let outList = supplierOutboundList
+    if (filterCategory !== 'ALL') {
+      inList = inList.filter((it) => it.category?.toUpperCase() === filterCategory.toUpperCase())
+      outList = outList.filter((it) => it.category?.toUpperCase() === filterCategory.toUpperCase())
+    }
+    for (const item of inList) {
       const key = `${item.item_name}__${item.unit}`
       if (!map.has(key)) {
         map.set(key, {
           itemName: item.item_name,
           category: item.category,
           unit: item.unit,
-          totalQty: 0,
+          totalInbound: 0,
+          totalOutbound: 0,
+          stokTersedia: 0,
           latestDate: item.inbound_date
         })
       }
       const entry = map.get(key)
-      entry.totalQty += Number(item.quantity) || 0
+      entry.totalInbound += Number(item.quantity) || 0
       if (item.inbound_date && (!entry.latestDate || item.inbound_date > entry.latestDate)) {
         entry.latestDate = item.inbound_date
       }
+    }
+    for (const item of outList) {
+      const key = `${item.item_name}__${item.unit}`
+      if (!map.has(key)) {
+        map.set(key, {
+          itemName: item.item_name,
+          category: item.category,
+          unit: item.unit,
+          totalInbound: 0,
+          totalOutbound: 0,
+          stokTersedia: 0,
+          latestDate: item.outbound_date
+        })
+      }
+      const entry = map.get(key)
+      entry.totalOutbound += Number(item.quantity) || 0
+      if (item.outbound_date && (!entry.latestDate || item.outbound_date > entry.latestDate)) {
+        entry.latestDate = item.outbound_date
+      }
+    }
+    for (const entry of map.values()) {
+      entry.stokTersedia = Math.max(0, entry.totalInbound - entry.totalOutbound)
     }
     let res = Array.from(map.values())
     if (searchQuery.trim()) {
@@ -409,7 +837,7 @@ export default function SupplierInboundView() {
       )
     }
     return res
-  }, [supplierInboundList, filterCategory, searchQuery])
+  }, [supplierInboundList, supplierOutboundList, filterCategory, searchQuery])
 
   return (
     <div className="space-y-3 pb-24 font-sans select-none">
@@ -424,12 +852,8 @@ export default function SupplierInboundView() {
         </div>
       )}
 
-      {/* 1. Header Ringkas */}
-      <div className="flex items-center justify-between px-0.5 pt-0.5">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-bold text-[#2C3E50]">Barang Masuk & Keluar</span>
-        </div>
-
+      {/* 1. Tombol Aksi */}
+      <div className="flex items-center justify-end px-0.5 pt-0.5">
         <button
           type="button"
           onClick={openModal}
@@ -530,12 +954,12 @@ export default function SupplierInboundView() {
             </span>
           )}
 
-          {filterPreset !== 'today' && (
+          {filterPreset !== 'recent' && (
             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#FAF7F2] border border-[#EDE8DF] text-[11px] text-[#2C3E50] font-medium">
               <span>Waktu: {activePeriodLabel}</span>
               <button
                 type="button"
-                onClick={() => applyPreset('today')}
+                onClick={() => applyPreset('recent')}
                 className="hover:text-rose-600 cursor-pointer ml-0.5"
                 aria-label="Hapus filter waktu"
               >
@@ -558,7 +982,11 @@ export default function SupplierInboundView() {
       {/* Kasus 1: Tab SEMUA / BARANG MASUK */}
       {(activeTab === 'ALL' || activeTab === 'INBOUND') && (
         <>
-          {filteredInboundList.length === 0 ? (
+          {isLoadingInbound ? (
+            <div className="pt-2">
+              <ListRowSkeleton count={4} />
+            </div>
+          ) : filteredInboundList.length === 0 ? (
             /* State Kosong Identik Riwayat / Logs */
             <div className="bg-white border border-[#EDE8DF] rounded-2xl p-8 text-center text-xs text-[#6B7B8D] shadow-2xs mt-2">
               <p className="font-medium text-[#2C3E50]">
@@ -577,50 +1005,164 @@ export default function SupplierInboundView() {
               )}
             </div>
           ) : (
-            <div className="space-y-2 pt-1">
-              <div className="flex items-center justify-between px-1 text-[11px] text-[#6B7B8D] font-medium">
-                <span>{filteredInboundList.length} transaksi</span>
-                <span>Periode: {activePeriodLabel}</span>
-              </div>
-              <div className="space-y-2">
-                {filteredInboundList.map((item, idx) => (
-                  <div
-                    key={item.inbound_id || idx}
-                    className="bg-white border border-[#EDE8DF] rounded-2xl p-3 shadow-2xs transition-all hover:border-[#D5CEBF]"
-                  >
-                    <div className="flex items-start justify-between gap-2.5">
-                      <div className="space-y-1 min-w-0 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-[#FAF7F2] text-[#4685ac] border border-[#EDE8DF]">
-                            {item.category}
+            <div className="space-y-3 pt-0.5">
+              {groupedInboundByDate.map((group) => {
+                if (group.items.length === 0) {
+                  return (
+                    <div key={group.dateStr} className="space-y-1.5">
+                      <div className="flex items-center justify-between px-1 pt-1 pb-0.5">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-bold text-[#2C3E50]">
+                            {group.badgeLabel || 'Hari Ini'}
                           </span>
-                          <span className="font-bold text-xs text-[#2C3E50] block truncate">
-                            {item.item_name}
+                          <span className="text-xs text-[#6B7B8D]">
+                            {group.title}
                           </span>
                         </div>
-                        <span className="text-[11px] text-[#6B7B8D] block">
-                          {item.inbound_date ? formatIndoDate(item.inbound_date) : '-'} • Supplier: <span className="font-semibold text-[#2C3E50]">{item.supplier_name}</span>
-                          {item.document_no ? ` • SJ: ${item.document_no}` : ''}
+                        <span className="text-[10px] text-[#6B7B8D] font-medium">
+                          0 transaksi
                         </span>
-                        {item.notes && (
-                          <span className="text-[11px] text-[#6B7B8D] italic block">
-                            &ldquo;{item.notes}&rdquo;
-                          </span>
-                        )}
                       </div>
-
-                      <div className="text-right shrink-0">
-                        <span className="font-bold text-xs text-[#2C3E50] tabular-nums block">
-                          {item.quantity} <span className="text-[11px] font-semibold text-[#6B7B8D]">{formatUnitDisplay(item.unit)}</span>
-                        </span>
-                        <span className="text-[10px] text-[#6B7B8D] block mt-0.5">
-                          {item.received_by || 'PPIC'}
-                        </span>
+                      <div className="bg-[#FAF7F2]/60 border border-dashed border-[#EDE8DF] rounded-xl p-3 text-center text-[11px] text-[#6B7B8D]">
+                        Belum ada barang masuk tercatat hari ini.
                       </div>
                     </div>
+                  )
+                }
+
+                return (
+                  <div key={group.dateStr} className="space-y-1.5">
+                    {/* Section Divider per Hari */}
+                    <div className="flex items-center justify-between px-1 pt-1 pb-0.5">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-bold text-[#2C3E50]">
+                          {group.badgeLabel || 'Riwayat'}
+                        </span>
+                        <span className="text-xs text-[#6B7B8D]">
+                          {group.title}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-[#6B7B8D] font-semibold">
+                        {group.items.length} transaksi
+                      </span>
+                    </div>
+
+                    {/* Kartu Transaksi per Hari */}
+                    <div className="space-y-2">
+                      {group.items.map((item, idx) => {
+                        const isExpanded = expandedCardId === item.inbound_id
+                        const alreadyOutbound = supplierOutboundList
+                          .filter((o) => o.inbound_id === item.inbound_id)
+                          .reduce((sum, o) => sum + (Number(o.quantity) || 0), 0)
+                        const remainingStock = Math.max(0, (Number(item.quantity) || 0) - alreadyOutbound)
+
+                        return (
+                          <div
+                            key={item.inbound_id || idx}
+                            className={`bg-white border rounded-2xl p-3 shadow-2xs transition-all ${
+                              isExpanded ? 'border-[#4685ac] ring-1 ring-[#4685ac]/30 bg-[#FBFDFE]' : 'border-[#EDE8DF] hover:border-[#D5CEBF]'
+                            }`}
+                          >
+                            {/* Baris Ringkasan Kartu - Klik untuk Toggle Tampilkan / Sembunyikan Aksi */}
+                            <div
+                              onClick={() => setExpandedCardId(isExpanded ? null : item.inbound_id)}
+                              className="flex items-start justify-between gap-2.5 cursor-pointer select-none"
+                            >
+                              <div className="space-y-1 min-w-0 flex-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-[#FAF7F2] text-[#4685ac] border border-[#EDE8DF]">
+                                    {item.category}
+                                  </span>
+                                  <span className="font-bold text-xs text-[#2C3E50] block truncate">
+                                    {item.item_name}
+                                  </span>
+                                </div>
+                                <span className="text-[11px] text-[#6B7B8D] block">
+                                  {formatItemTime(item.created_at) ? `${formatItemTime(item.created_at)} • ` : ''}Supplier: <span className="font-semibold text-[#2C3E50]">{item.supplier_name}</span>
+                                  {item.document_no ? ` • SJ: ${item.document_no}` : ''}
+                                </span>
+                                {item.notes && (
+                                  <span className="text-[11px] text-[#6B7B8D] italic block">
+                                    &ldquo;{item.notes}&rdquo;
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="flex items-center gap-2 shrink-0">
+                                <div className="text-right">
+                                  <span className="font-bold text-xs text-[#2C3E50] tabular-nums block">
+                                    {item.quantity} <span className="text-[11px] font-semibold text-[#6B7B8D]">{formatUnitDisplay(item.unit)}</span>
+                                  </span>
+                                  <span className="text-[10px] text-[#6B7B8D] block mt-0.5">
+                                    {item.received_by || 'PPIC'}
+                                  </span>
+                                </div>
+
+                                {/* Tombol Toggle Chevron */}
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setExpandedCardId(isExpanded ? null : item.inbound_id)
+                                  }}
+                                  className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
+                                    isExpanded
+                                      ? 'bg-[#EEF5F9] text-[#4685ac]'
+                                      : 'bg-[#FAF7F2] text-[#6B7B8D] hover:text-[#2C3E50] hover:bg-[#EDE8DF]'
+                                  }`}
+                                  title={isExpanded ? 'Tutup aksi' : 'Tampilkan aksi (Print & Keluarkan Stok)'}
+                                  aria-label="Toggle opsi aksi"
+                                >
+                                  {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Ringkasan jika sebagian stok sudah dikeluarkan */}
+                            {alreadyOutbound > 0 && (
+                              <div className="mt-2 pt-2 border-t border-[#EDE8DF]/70 flex items-center justify-between text-[11px] text-[#6B7B8D]">
+                                <span>Sudah keluar: <strong className="text-[#2C3E50]">{alreadyOutbound} {formatUnitDisplay(item.unit)}</strong></span>
+                                <span>Sisa stok: <strong className={remainingStock > 0 ? 'text-[#2F7D5B]' : 'text-rose-600'}>{remainingStock} {formatUnitDisplay(item.unit)}</strong></span>
+                              </div>
+                            )}
+
+                            {/* Panel Aksi yang Tersembunyi (Hanya Muncul saat Kartu Ditoggle) */}
+                            {isExpanded && (
+                              <div className="mt-3 pt-2.5 border-t border-[#EDE8DF] flex items-center justify-end gap-2 animate-in fade-in duration-150">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleOpenPrintQrForInbound(item)
+                                  }}
+                                  className="min-h-[36px] px-3 rounded-xl border border-[#EDE8DF] bg-white hover:bg-[#FAF7F2] active:scale-95 text-[#2C3E50] text-xs font-semibold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
+                                  title="Buka / Cetak Label QR"
+                                >
+                                  <QrCode className="w-3.5 h-3.5 text-[#3A6B80]" />
+                                  <span>Cetak Label QR</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleOpenStockOutModal(item)
+                                  }}
+                                  className="min-h-[36px] px-3.5 rounded-xl border border-[#4685ac] bg-[#4685ac] hover:bg-[#3A6B80] active:scale-95 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
+                                  title="Keluarkan stok ke divisi produksi atau umum"
+                                >
+                                  <ArrowUpRight className="w-3.5 h-3.5" />
+                                  <span>Keluarkan Stok</span>
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
                   </div>
-                ))}
-              </div>
+                )
+              })}
             </div>
           )}
         </>
@@ -628,11 +1170,168 @@ export default function SupplierInboundView() {
 
       {/* Kasus 2: Tab BARANG KELUAR */}
       {activeTab === 'OUTBOUND' && (
-        <div className="bg-white border border-[#EDE8DF] rounded-2xl p-8 text-center text-xs text-[#6B7B8D] shadow-2xs mt-2">
-          <p className="font-medium text-[#2C3E50]">
-            Belum ada riwayat barang keluar.
-          </p>
-        </div>
+        <>
+          {isLoadingInbound ? (
+            <div className="pt-2">
+              <ListRowSkeleton count={4} />
+            </div>
+          ) : filteredOutboundList.length === 0 ? (
+            <div className="bg-white border border-[#EDE8DF] rounded-2xl p-8 text-center text-xs text-[#6B7B8D] shadow-2xs mt-2">
+              <p className="font-medium text-[#2C3E50]">
+                {searchQuery
+                  ? 'Tidak ada barang keluar yang sesuai dengan kata kunci pencarian.'
+                  : 'Belum ada riwayat barang keluar.'}
+              </p>
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="inline-flex items-center min-h-[36px] px-3.5 py-1.5 rounded-xl text-xs font-bold bg-[#4685ac] text-white hover:bg-[#3A6B80] cursor-pointer transition shadow-2xs active:scale-95 mt-3"
+                >
+                  Reset pencarian
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-3 pt-0.5">
+              {groupedOutboundByDate.map((group) => {
+                if (group.items.length === 0) {
+                  return (
+                    <div key={group.dateStr} className="space-y-1.5">
+                      <div className="flex items-center justify-between px-1 pt-1 pb-0.5">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-bold text-[#2C3E50]">
+                            {group.badgeLabel || 'Hari Ini'}
+                          </span>
+                          <span className="text-xs text-[#6B7B8D]">
+                            {group.title}
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-[#6B7B8D] font-medium">
+                          0 transaksi keluar
+                        </span>
+                      </div>
+                      <div className="bg-[#FAF7F2]/60 border border-dashed border-[#EDE8DF] rounded-xl p-3 text-center text-[11px] text-[#6B7B8D]">
+                        Belum ada barang keluar tercatat hari ini.
+                      </div>
+                    </div>
+                  )
+                }
+
+                return (
+                  <div key={group.dateStr} className="space-y-1.5">
+                    <div className="flex items-center justify-between px-1 pt-1 pb-0.5">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-bold text-[#2C3E50]">
+                          {group.badgeLabel || 'Riwayat'}
+                        </span>
+                        <span className="text-xs text-[#6B7B8D]">
+                          {group.title}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-[#6B7B8D] font-semibold">
+                        {group.items.length} transaksi keluar
+                      </span>
+                    </div>
+
+                    <div className="space-y-2">
+                      {group.items.map((item, idx) => {
+                        const isExpandedOut = expandedOutboundId === item.outbound_id
+                        return (
+                          <div
+                            key={item.outbound_id || idx}
+                            className={`bg-white border rounded-2xl p-3 shadow-2xs transition-all ${
+                              isExpandedOut ? 'border-[#4685ac] ring-1 ring-[#4685ac]/30 bg-[#FBFDFE]' : 'border-[#EDE8DF] hover:border-[#D5CEBF]'
+                            }`}
+                          >
+                            <div
+                              onClick={() => setExpandedOutboundId(isExpandedOut ? null : item.outbound_id)}
+                              className="flex items-start justify-between gap-2.5 cursor-pointer select-none"
+                            >
+                              <div className="space-y-1 min-w-0 flex-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-[#FAF7F2] text-[#4685ac] border border-[#EDE8DF]">
+                                    {item.category}
+                                  </span>
+                                  <span className="font-bold text-xs text-[#2C3E50] block truncate">
+                                    {item.item_name}
+                                  </span>
+                                  {item.target_station_name ? (
+                                    <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-[#EEF5F9] text-[#3A6B80] border border-[#C5DFEA]">
+                                      → {item.target_station_name}
+                                    </span>
+                                  ) : (
+                                    <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-gray-100 text-gray-600 border border-gray-200">
+                                      Keluar Umum
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2 flex-wrap text-[11px] text-[#6B7B8D]">
+                                  {formatItemTime(item.created_at) && <span>{formatItemTime(item.created_at)}</span>}
+                                  <span className="font-mono text-[10px] bg-[#FAF7F2] px-1.5 py-0.5 rounded border border-[#EDE8DF] text-[#2C3E50]">
+                                    {item.lot_qr_code}
+                                  </span>
+                                  <span>Petugas: <strong className="text-[#2C3E50]">{item.dispatched_by || 'PPIC'}</strong></span>
+                                </div>
+                                {item.notes && (
+                                  <span className="text-[11px] text-[#6B7B8D] italic block">
+                                    &ldquo;{item.notes}&rdquo;
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="flex items-center gap-2 shrink-0">
+                                <div className="text-right">
+                                  <span className="font-bold text-xs text-rose-600 tabular-nums block">
+                                    -{item.quantity} <span className="text-[11px] font-semibold text-[#6B7B8D]">{formatUnitDisplay(item.unit)}</span>
+                                  </span>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setExpandedOutboundId(isExpandedOut ? null : item.outbound_id)
+                                  }}
+                                  className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
+                                    isExpandedOut
+                                      ? 'bg-[#EEF5F9] text-[#4685ac]'
+                                      : 'bg-[#FAF7F2] text-[#6B7B8D] hover:text-[#2C3E50] hover:bg-[#EDE8DF]'
+                                  }`}
+                                  title={isExpandedOut ? 'Tutup aksi' : 'Tampilkan aksi cetak ulang QR'}
+                                  aria-label="Toggle opsi aksi"
+                                >
+                                  {isExpandedOut ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                                </button>
+                              </div>
+                            </div>
+
+                            {isExpandedOut && (
+                              <div className="mt-3 pt-2.5 border-t border-[#EDE8DF] flex items-center justify-end gap-2 animate-in fade-in duration-150">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleOpenPrintQrForOutbound(item)
+                                  }}
+                                  className="min-h-[36px] px-3.5 rounded-xl border border-[#4685ac] bg-[#4685ac] hover:bg-[#3A6B80] active:scale-95 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
+                                  title="Cetak ulang label QR pengeluaran ini"
+                                >
+                                  <QrCode className="w-3.5 h-3.5" />
+                                  <span>Cetak Ulang QR Outbound</span>
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </>
       )}
 
       {/* Kasus 3: Tab INVENTORY */}
@@ -648,6 +1347,7 @@ export default function SupplierInboundView() {
             <div className="space-y-2 pt-1">
               <div className="flex items-center justify-between px-1 text-[11px] text-[#6B7B8D] font-medium">
                 <span>{inventoryItems.length} jenis barang terdata</span>
+                <span className="text-[10px]">Sisa Stok = Total Masuk - Total Keluar</span>
               </div>
               <div className="space-y-2">
                 {inventoryItems.map((inv, idx) => (
@@ -664,14 +1364,25 @@ export default function SupplierInboundView() {
                           {inv.itemName}
                         </span>
                       </div>
-                      <span className="text-[11px] text-[#6B7B8D] block mt-0.5">
-                        Terakhir diterima: {formatIndoDate(inv.latestDate)}
-                      </span>
+                      <div className="text-[11px] text-[#6B7B8D] flex items-center gap-2 mt-1 flex-wrap">
+                        <span>Masuk: <strong className="text-[#2C3E50]">{inv.totalInbound}</strong></span>
+                        <span>•</span>
+                        <span>Keluar: <strong className="text-rose-600">{inv.totalOutbound}</strong></span>
+                        {inv.latestDate && (
+                          <>
+                            <span>•</span>
+                            <span>Aktivitas: {formatIndoDate(inv.latestDate)}</span>
+                          </>
+                        )}
+                      </div>
                     </div>
 
                     <div className="text-right shrink-0">
-                      <span className="font-bold text-xs text-[#2C3E50] tabular-nums block">
-                        {inv.totalQty} <span className="text-[11px] font-semibold text-[#6B7B8D]">{formatUnitDisplay(inv.unit)}</span>
+                      <span className="text-[10px] text-[#6B7B8D] block uppercase font-bold tracking-wider">
+                        Sisa Stok
+                      </span>
+                      <span className={`font-bold text-sm tabular-nums block ${inv.stokTersedia > 0 ? 'text-[#2F7D5B]' : 'text-slate-400'}`}>
+                        {inv.stokTersedia} <span className="text-xs font-semibold">{formatUnitDisplay(inv.unit)}</span>
                       </span>
                     </div>
                   </div>
@@ -924,22 +1635,251 @@ export default function SupplierInboundView() {
                 />
               </div>
 
-              {/* Tombol Simpan Barang Masuk */}
-              <div className="pt-2">
+              {/* 8. Toggle Perlu Cetak QR atau Tidak */}
+              <div className="p-3 bg-[#F5F1EB]/70 border border-[#EDE8DF] rounded-xl flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div
+                    className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+                      needPrintQr ? 'bg-[#3A6B80] text-white shadow-2xs' : 'bg-white text-[#6B7B8D] border border-[#EDE8DF]'
+                    }`}
+                  >
+                    <QrCode className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-xs font-bold text-[#2C3E50] block leading-tight">
+                      Cetak Label QR
+                    </span>
+                    <span className="text-[11px] text-[#556575] block truncate">
+                      {needPrintQr ? 'Label QR akan langsung dibuka untuk dicetak' : 'Hanya simpan data tanpa cetak QR'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Switch Toggle */}
                 <button
-                  type="submit"
+                  type="button"
+                  role="switch"
+                  aria-checked={needPrintQr}
                   disabled={submitting}
-                  className="w-full min-h-[44px] py-2 px-4 rounded-xl font-bold text-xs sm:text-sm text-white bg-[#4685ac] hover:bg-[#3A6B80] active:scale-[0.99] transition-all cursor-pointer flex items-center justify-center gap-2 shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={() => setNeedPrintQr((prev) => !prev)}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    needPrintQr ? 'bg-[#3A6B80]' : 'bg-[#D1D5DB]'
+                  }`}
+                  aria-label="Toggle perlu cetak QR"
                 >
-                  {submitting ? (
-                    <>
-                      <RefreshIcon className="w-4 h-4 animate-spin" />
-                      <span>Menyimpan Barang Masuk...</span>
-                    </>
-                  ) : (
-                    <span>Simpan Barang Masuk</span>
-                  )}
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                      needPrintQr ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
                 </button>
+              </div>
+
+              {/* Tombol Simpan Barang Masuk */}
+              <div className="pt-1">
+                <Button
+                  type="submit"
+                  fullWidth
+                  size="md"
+                  loading={submitting}
+                  isSuccess={isSubmitSuccess}
+                  successText="Barang Masuk Tersimpan!"
+                  className="font-bold text-xs sm:text-sm"
+                >
+                  {needPrintQr ? 'Simpan & Buka Cetak QR' : 'Simpan Barang Masuk'}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* 6. MODAL POP UP "KELUARKAN STOK (BARANG KELUAR)"        */}
+      {/* ======================================================== */}
+      {isStockOutModalOpen && stockOutItem && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs overscroll-contain select-none animate-in fade-in duration-150"
+          onTouchMove={(e) => {
+            if (e.target === e.currentTarget) e.preventDefault()
+          }}
+        >
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 -z-10"
+            onClick={() => !isSubmittingStockOut && setIsStockOutModalOpen(false)}
+            aria-hidden="true"
+          />
+
+          {/* Modal Container */}
+          <div
+            className="w-full max-w-lg bg-white rounded-2xl border border-[#EDE8DF] shadow-xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-150 select-text overscroll-contain"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header Modal */}
+            <div className="px-4 py-3 border-b border-[#EDE8DF] flex items-center justify-between shrink-0 bg-[#F5F1EB]/80">
+              <div className="flex items-center gap-2">
+                <ArrowUpRight className="w-4 h-4 text-[#4685ac]" />
+                <span className="text-xs font-bold text-[#2C3E50]">
+                  Keluarkan Stok (Barang Keluar)
+                </span>
+              </div>
+              <button
+                type="button"
+                disabled={isSubmittingStockOut}
+                onClick={() => setIsStockOutModalOpen(false)}
+                className="w-7 h-7 -mr-1 rounded-lg flex items-center justify-center text-[#6B7B8D] hover:text-[#2C3E50] hover:bg-[#EDE8DF] transition-colors cursor-pointer disabled:opacity-50"
+              >
+                <XIcon className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* Form Scrollable Area */}
+            <form onSubmit={handleStockOutSubmit} className="p-4 sm:p-5 overflow-y-auto flex-1 overscroll-contain space-y-3.5">
+              {/* Ringkasan Barang yang Dikeluarkan */}
+              <div className="p-3 bg-[#FAF7F2] border border-[#EDE8DF] rounded-xl space-y-1">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-white text-[#4685ac] border border-[#EDE8DF]">
+                    {stockOutItem.category}
+                  </span>
+                  <span className="text-[11px] text-[#6B7B8D]">
+                    Supplier: <strong className="text-[#2C3E50]">{stockOutItem.supplier_name}</strong>
+                  </span>
+                </div>
+                <div className="text-xs font-bold text-[#2C3E50]">
+                  {stockOutItem.item_name}
+                </div>
+                <div className="text-[11px] text-[#6B7B8D]">
+                  Stok: <strong className="text-[#2C3E50] font-semibold">{(() => {
+                    const already = supplierOutboundList
+                      .filter((o) => o.inbound_id === stockOutItem.inbound_id)
+                      .reduce((sum, o) => sum + (Number(o.quantity) || 0), 0)
+                    return Math.max(0, (Number(stockOutItem.quantity) || 0) - already)
+                  })()} {formatUnitDisplay(stockOutItem.unit)}</strong>
+                </div>
+              </div>
+
+              {/* Banner Kesalahan */}
+              {stockOutError && (
+                <div
+                  role="alert"
+                  className="flex items-center gap-2 p-3 bg-[#FDEDEC] border border-[#FADBD8] rounded-xl text-[#9F2F2D] text-xs font-semibold animate-in fade-in"
+                >
+                  <AlertIcon className="w-4 h-4 text-[#E8352D] shrink-0" />
+                  <span>{stockOutError}</span>
+                </div>
+              )}
+
+              {/* Input Jumlah Dikeluarkan */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-[#2C3E50] uppercase tracking-wide">
+                  Jumlah Dikeluarkan ({formatUnitDisplay(stockOutItem.unit)})
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={stockOutQty}
+                    disabled={isSubmittingStockOut}
+                    onChange={(e) => {
+                      setStockOutError('')
+                      setStockOutQty(e.target.value.replace(/[^0-9.]/g, ''))
+                    }}
+                    placeholder="Masukkan jumlah..."
+                    className="flex-1 h-11 px-3.5 bg-white border border-[#EDE8DF] rounded-xl text-sm font-bold text-[#2C3E50] placeholder-[#6B7B8D] focus-visible:outline-none focus-visible:border-[#4685ac] focus-visible:ring-2 focus-visible:ring-[#4685ac]/20 shadow-2xs tabular-nums"
+                    required
+                  />
+                  <span className="px-3 py-2.5 bg-[#FAF7F2] border border-[#EDE8DF] rounded-xl text-xs font-bold text-[#6B7B8D]">
+                    {formatUnitDisplay(stockOutItem.unit)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Pilihan Tujuan Pengiriman (Opsional Dropdown) */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-[#2C3E50] uppercase tracking-wide">
+                  Tujuan Pengiriman (Opsional)
+                </label>
+                <CustomSelect
+                  id="stockout-target-station"
+                  ariaLabel="Tujuan Pengiriman"
+                  value={stockOutStation}
+                  disabled={isSubmittingStockOut}
+                  onChange={(val) => setStockOutStation(val)}
+                  options={DESTINATION_STATIONS}
+                  placeholder="Pilih Tujuan Pengiriman (Opsional)"
+                />
+              </div>
+
+              {/* Catatan Tambahan (Opsional) */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-[#2C3E50] uppercase tracking-wide">
+                  Catatan Pengeluaran (Opsional)
+                </label>
+                <input
+                  type="text"
+                  value={stockOutNotes}
+                  disabled={isSubmittingStockOut}
+                  onChange={(e) => setStockOutNotes(e.target.value)}
+                  placeholder="Contoh: Kebutuhan cetak kloter pagi, shift 1..."
+                  className="w-full h-11 px-3.5 bg-white border border-[#EDE8DF] rounded-xl text-xs sm:text-sm font-semibold text-[#2C3E50] placeholder-[#6B7B8D] focus-visible:outline-none focus-visible:border-[#4685ac] focus-visible:ring-2 focus-visible:ring-[#4685ac]/20 shadow-2xs disabled:opacity-60"
+                />
+              </div>
+
+              {/* Toggle Cetak QR Outbound */}
+              <div className="p-3 bg-[#F5F1EB]/70 border border-[#EDE8DF] rounded-xl flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div
+                    className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+                      stockOutNeedPrintQr ? 'bg-[#3A6B80] text-white shadow-2xs' : 'bg-white text-[#6B7B8D] border border-[#EDE8DF]'
+                    }`}
+                  >
+                    <QrCode className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-xs font-bold text-[#2C3E50] block leading-tight">
+                      Cetak Label QR Outbound
+                    </span>
+                    <span className="text-[11px] text-[#556575] block truncate">
+                      {stockOutNeedPrintQr ? 'QR akan dibuka untuk dicetak & ditempel di barang' : 'Simpan data tanpa cetak QR'}
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={stockOutNeedPrintQr}
+                  disabled={isSubmittingStockOut}
+                  onClick={() => setStockOutNeedPrintQr((prev) => !prev)}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    stockOutNeedPrintQr ? 'bg-[#3A6B80]' : 'bg-[#D1D5DB]'
+                  }`}
+                  aria-label="Toggle cetak QR outbound"
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                      stockOutNeedPrintQr ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Submit Button */}
+              <div className="pt-1">
+                <Button
+                  type="submit"
+                  fullWidth
+                  size="md"
+                  loading={isSubmittingStockOut}
+                  isSuccess={isStockOutSuccess}
+                  successText="Pengeluaran Berhasil Dicatat!"
+                  className="font-bold text-xs sm:text-sm"
+                >
+                  {stockOutNeedPrintQr ? 'Konfirmasi & Buka Cetak QR' : 'Konfirmasi Pengeluaran Stok'}
+                </Button>
               </div>
             </form>
           </div>
@@ -991,6 +1931,7 @@ export default function SupplierInboundView() {
             </label>
             <div className="grid grid-cols-2 gap-1.5">
               {[
+                { id: 'recent', label: 'Hari Ini & Kemarin' },
                 { id: 'today', label: 'Hari Ini' },
                 { id: 'yesterday', label: 'Kemarin' },
                 { id: 'single', label: 'Pilih Tanggal' },

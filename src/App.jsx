@@ -9,6 +9,7 @@ import CustodyLogsView from './components/CustodyLogsView'
 import QRCodeModal from './components/QRCodeModal'
 import CameraQRScannerModal from './components/CameraQRScannerModal'
 import ToastNotification from './components/ToastNotification'
+import TopProgressBar from './components/TopProgressBar'
 import Production2View from './components/Production2View'
 import ProductionPlanView from './components/ProductionPlanView'
 import PpicDailySummaryView from './components/PpicDailySummaryView'
@@ -135,6 +136,9 @@ export default function App() {
 
   return (
     <div className="w-full max-w-md md:max-w-xl lg:max-w-2xl mx-auto min-h-screen bg-[var(--canvas)] text-[#2C3E50] flex flex-col font-sans pb-24 sm:pb-28 relative shadow-2xs">
+      {/* Global Top Progress Bar (YouTube/GitHub Style) */}
+      <TopProgressBar />
+
       {/* Sentinel Elemen di Paling Atas untuk Deteksi Scroll Bebas Lag */}
       <div ref={sentinelRef} className="h-px w-full absolute top-0 pointer-events-none -z-10" />
 
