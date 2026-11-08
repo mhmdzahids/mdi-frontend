@@ -11,8 +11,9 @@ export function getHashFromState(stage, station, prod2Tab, isProfileActive = fal
 
   if (stage === 'PROD_2') {
     switch (prod2Tab) {
-      case 'INBOUND':
       case 'ASSEMBLY':
+        return '#/prod2/assembly'
+      case 'INBOUND':
         return '#/prod2/inbound'
       case 'FREEZER':
         return '#/prod2/packing'
@@ -28,6 +29,10 @@ export function getHashFromState(stage, station, prod2Tab, isProfileActive = fal
   switch (station) {
     case 'PLAN':
       return '#/plan'
+    case 'SUMMARY':
+      return '#/summary'
+    case 'SUPPLIER':
+      return '#/supplier'
     case 'MEAT':
       return '#/meat'
     case 'SEASONING':
@@ -39,7 +44,7 @@ export function getHashFromState(stage, station, prod2Tab, isProfileActive = fal
     case 'LOGS':
       return '#/logs'
     default:
-      return '#/meat'
+      return '#/plan'
   }
 }
 
@@ -53,8 +58,12 @@ export function getStateFromHash(hash) {
     .trim()
     .replace(/\/$/, '')
 
-  if (!clean || clean === 'login' || clean === 'masuk') {
+  if (clean === 'login' || clean === 'auth') {
     return { isLogin: true }
+  }
+
+  if (!clean) {
+    return null
   }
 
   // Rute Profil Pengguna Terpadu
@@ -65,7 +74,10 @@ export function getStateFromHash(hash) {
   // Rute Produksi 2
   if (clean.startsWith('prod2') || clean.startsWith('p2')) {
     const sub = clean.replace(/^(prod2|p2)\/?/, '')
-    if (sub.includes('inbound') || sub.includes('terima') || sub.includes('assembly') || sub.includes('cetak')) {
+    if (sub.includes('assembly') || sub.includes('cetak')) {
+      return { stage: 'PROD_2', prod2Tab: 'ASSEMBLY' }
+    }
+    if (sub.includes('inbound') || sub.includes('terima')) {
       return { stage: 'PROD_2', prod2Tab: 'INBOUND' }
     }
     if (sub.includes('freezer') || sub.includes('packing') || sub.includes('kemas')) {
@@ -87,6 +99,19 @@ export function getStateFromHash(hash) {
   if (clean === 'plan' || clean === 'rencana') {
     return { stage: 'PROD_1', station: 'PLAN' }
   }
+  if (clean === 'summary' || clean === 'rekap' || clean === 'rekap-ppic' || clean === 'ppic-summary') {
+    return { stage: 'PROD_1', station: 'SUMMARY' }
+  }
+  if (
+    clean === 'supplier' ||
+    clean === 'inbound-supplier' ||
+    clean === 'supplier-inbound' ||
+    clean === 'barang-masuk' ||
+    clean === 'barangmasuk' ||
+    clean === 'inbound'
+  ) {
+    return { stage: 'PROD_1', station: 'SUPPLIER' }
+  }
   if (clean === 'meat' || clean === 'giling' || clean === 'daging' || clean === 'mix' || clean === 'adonan') {
     return { stage: 'PROD_1', station: 'MEAT' }
   }
@@ -107,8 +132,8 @@ export function getStateFromHash(hash) {
   }
 
   // Alias langsung ke sub-tab Produksi 2
-  if (clean === 'inbound' || clean === 'terima' || clean === 'assembly' || clean === 'cetak') {
-    return { stage: 'PROD_2', prod2Tab: 'INBOUND' }
+  if (clean === 'assembly' || clean === 'cetak') {
+    return { stage: 'PROD_2', prod2Tab: 'ASSEMBLY' }
   }
   if (clean === 'packing' || clean === 'freezer') {
     return { stage: 'PROD_2', prod2Tab: 'FREEZER' }
@@ -215,9 +240,25 @@ export function useHashNavigation() {
       const route = getStateFromHash(currentHash)
 
       // B. Jika pengguna menekan Back hingga kembali ke halaman login
-      if (!route || route.isLogin) {
+      if (route?.isLogin) {
         if (isAuth) {
           state.logout()
+        }
+        return
+      }
+
+      // Jika hash tidak dikenali atau kosong, jangan logout! Pulihkan hash kanonikal dari state saat ini
+      if (!route) {
+        if (isAuth) {
+          const canonicalHash = getHashFromState(
+            state.activeProductionStage,
+            state.activeStation,
+            state.activeProd2Tab,
+            state.isProfileActive
+          )
+          if (window.location.hash !== canonicalHash) {
+            window.history.replaceState(null, '', canonicalHash)
+          }
         }
         return
       }

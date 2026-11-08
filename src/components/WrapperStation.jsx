@@ -11,7 +11,7 @@ import { Badge } from './ui/Badge'
 import { Button } from './ui/Button'
 import { Stepper } from './ui/Stepper'
 import { groupStationLots, getLotSemanticBadge } from '../utils/scanMode'
-import { canOpenQr, canManualDispatch } from '../utils/permissions'
+import { canOpenQr, canManualDispatch, canExportExcel } from '../utils/permissions'
 import { exportStationLotsExcel } from '../utils/excelExport'
 import ScanActionBar from './ScanActionBar'
 
@@ -118,7 +118,9 @@ export default function WrapperStation() {
   const [isSending, setIsSending] = useState(false)
 
   const userRole = useProduction1Store((s) => s.userRole)
-  const isPIC = userRole === 'STAKEHOLDER' || userRole === 'PIC'
+  const currentUser = useProduction1Store((s) => s.currentUser)
+  const isPIC = canManualDispatch(userRole, currentUser)
+  const canExport = canExportExcel(userRole, currentUser)
   const wrapperLots = useProduction1Store((s) => s.wrapperLots)
   const createWrapperLot = useProduction1Store((s) => s.createWrapperLot)
   const scanOutWrapperLot = useProduction1Store((s) => s.scanOutWrapperLot)
@@ -212,18 +214,20 @@ export default function WrapperStation() {
             </div>
 
             <div className="flex items-center gap-1.5 shrink-0">
-              <button
-                type="button"
-                onClick={handleExportExcel}
-                className="h-8 px-2.5 text-xs font-semibold rounded-lg text-[#556575] hover:text-[#2C3E50] hover:bg-[#F5F1EB] border border-[#EDE8DF] bg-white transition-all cursor-pointer flex items-center gap-1.5 active:scale-95"
-                title="Unduh laporan Excel"
-                aria-label="Unduh laporan Excel"
-              >
-                <svg className="w-3.5 h-3.5 text-[#556575]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                <span className="text-[11px] font-bold">Excel</span>
-              </button>
+              {canExport && (
+                <button
+                  type="button"
+                  onClick={handleExportExcel}
+                  className="h-8 px-2.5 text-xs font-semibold rounded-lg text-[#556575] hover:text-[#2C3E50] hover:bg-[#F5F1EB] border border-[#EDE8DF] bg-white transition-all cursor-pointer flex items-center gap-1.5 active:scale-95"
+                  title="Unduh laporan Excel"
+                  aria-label="Unduh laporan Excel"
+                >
+                  <svg className="w-3.5 h-3.5 text-[#556575]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <span className="text-[11px] font-bold">Excel</span>
+                </button>
+              )}
 
               {isPIC && lastBatchPrintModal?.lotList?.length > 1 && (
                 <button

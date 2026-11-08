@@ -768,7 +768,7 @@ export default function ProductionPlanView() {
               <div className="flex items-center justify-between">
                 <div>
                   <h1 className="text-xs font-bold text-[#2C3E50] uppercase tracking-wide">
-                    Rencana Produksi & Kebutuhan QR
+                    Rencana Produksi
                   </h1>
                   <p className="text-[11px] text-[#556575] mt-0.5">
                     Tanggal: {todayStr}
@@ -786,11 +786,6 @@ export default function ProductionPlanView() {
                     <span className="inline-flex items-center gap-1 text-[11px] text-[#556575]">
                       <Loader2 className="w-3 h-3 animate-spin text-[#3A6B80]" />
                       <span>Menyimpan...</span>
-                    </span>
-                  ) : lastSavedDraftAt ? (
-                    <span className="inline-flex items-center gap-1 text-[11px] text-[#2F7D5B] font-medium">
-                      <Check className="w-3.5 h-3.5" />
-                      <span>Tersimpan {lastSavedDraftAt}</span>
                     </span>
                   ) : null}
                 </div>
@@ -848,7 +843,7 @@ export default function ProductionPlanView() {
                     <span className="text-xs font-bold text-[#2C3E50] block leading-tight">
                       Pesanan Pembeli
                     </span>
-                    <span className="text-[11px] text-[#556575]">Online & Offline</span>
+                    <span className="text-[11px] text-[#556575] italic">Online & Offline</span>
                   </div>
                   <div className="col-span-3">
                     <input
@@ -888,7 +883,7 @@ export default function ProductionPlanView() {
                     <span className="text-xs font-bold text-[#2C3E50] block leading-tight">
                       Cadangan Freezer
                     </span>
-                    <span className="text-[11px] text-[#556575]">Stok pengaman gudang</span>
+                    <span className="text-[11px] text-[#556575] italic">Stok pengaman gudang</span>
                   </div>
                   <div className="col-span-3">
                     <input
@@ -1030,28 +1025,17 @@ export default function ProductionPlanView() {
               </div>
             </div>
 
-            {/* ③ LANGKAH 3: Ringkasan Hasil (Tampil Sekali, Tanpa Duplikasi) */}
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full bg-[#3A6B80] text-white text-[11px] font-bold flex items-center justify-center shrink-0">
-                  3
+            {/* Total QR Produksi */}
+            <div className="p-3.5 bg-[#EEF5F9] border border-[#D1E4EF] rounded-xl flex items-center justify-between shadow-2xs">
+              <div>
+                <span className="text-xs font-bold text-[#2C3E50] block">
+                  Total QR Produksi
                 </span>
-                <h2 className="text-xs font-bold text-[#2C3E50] uppercase tracking-wide">
-                  Ringkasan Kebutuhan
-                </h2>
               </div>
-
-              <div className="p-3.5 bg-[#EEF5F9] border border-[#D1E4EF] rounded-xl flex items-center justify-between shadow-2xs">
-                <div>
-                  <span className="text-xs font-bold text-[#2C3E50] block">
-                    Total QR Produksi
-                  </span>
-                </div>
-                <div className="text-right">
-                  <span className="text-xl font-extrabold text-[#3A6B80] tabular-nums block leading-tight">
-                    {totalLotsToIssue} QR
-                  </span>
-                </div>
+              <div className="text-right">
+                <span className="text-xl font-extrabold text-[#3A6B80] tabular-nums block leading-tight">
+                  {totalLotsToIssue} QR
+                </span>
               </div>
             </div>
 

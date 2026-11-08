@@ -13,7 +13,7 @@ import { Badge } from './ui/Badge'
 import { Modal } from './ui/Modal'
 import { SegmentedControl } from './ui/SegmentedControl'
 import { Button } from './ui/Button'
-import { canOpenQr, canManualDispatch } from '../utils/permissions'
+import { canOpenQr, canManualDispatch, canExportExcel } from '../utils/permissions'
 import { exportStationLotsExcel } from '../utils/excelExport'
 import { ChevronDown } from 'lucide-react'
 
@@ -210,6 +210,7 @@ export default function Production2View() {
   const packingSubLine = useProduction1Store((s) => s.packingSubLine)
   const setPackingSubLine = useProduction1Store((s) => s.setPackingSubLine)
   const userRole = useProduction1Store((s) => s.userRole)
+  const currentUser = useProduction1Store((s) => s.currentUser)
   const rawDoughLots = useProduction1Store((s) => s.doughLots)
   const rawWrapperLots = useProduction1Store((s) => s.wrapperLots)
   const rawSauceLots = useProduction1Store((s) => s.sauceLots)
@@ -276,7 +277,8 @@ export default function Production2View() {
   const remainingMikaPacks = Math.max(0, targetMikaPacks - verifiedMikaLots.length)
   const remainingVakumPacks = Math.max(0, targetVakumPacks - verifiedVakumLots.length)
   const fgSelect = useLotMultiSelect(pendingPackingLots)
-  const isPIC = canManualDispatch(userRole)
+  const isPIC = canManualDispatch(userRole, currentUser)
+  const canExport = canExportExcel(userRole, currentUser)
 
   // 1. Bahan Transit Masuk (dari Produksi 1)
   const transitDough = doughLots.filter((d) => d.status === 'IN_TRANSIT_TO_ASSEMBLY')
@@ -1100,17 +1102,19 @@ export default function Production2View() {
                     </span>
 
                     <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={handleExportExcel}
-                        className="text-[11px] font-bold rounded-lg px-2.5 py-1 border border-[#3A6B80] text-[#3A6B80] bg-white hover:bg-[#F5F1EB] transition-colors cursor-pointer flex items-center gap-1"
-                        title="Unduh laporan Excel produk jadi"
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                        <span>Excel</span>
-                      </button>
+                      {canExport && (
+                        <button
+                          type="button"
+                          onClick={handleExportExcel}
+                          className="text-[11px] font-bold rounded-lg px-2.5 py-1 border border-[#3A6B80] text-[#3A6B80] bg-white hover:bg-[#F5F1EB] transition-colors cursor-pointer flex items-center gap-1"
+                          title="Unduh laporan Excel produk jadi"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          <span>Excel</span>
+                        </button>
+                      )}
 
                       {lastBatchPrintModal?.lotList?.length > 1 && (
                         <button

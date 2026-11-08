@@ -19,7 +19,7 @@ import { Badge } from './ui/Badge'
 import { Modal } from './ui/Modal'
 import { Button } from './ui/Button'
 import { groupStationLots, getLotSemanticBadge } from '../utils/scanMode'
-import { canOpenQr, canManualDispatch } from '../utils/permissions'
+import { canOpenQr, canManualDispatch, canExportExcel } from '../utils/permissions'
 import { exportStationLotsExcel } from '../utils/excelExport'
 import ScanActionBar from './ScanActionBar'
 
@@ -148,6 +148,7 @@ export default function MeatStation() {
   const userRole = useProduction1Store((s) => s.userRole)
   const currentUser = useProduction1Store((s) => s.currentUser)
   const isPIC = canManualDispatch(userRole, currentUser)
+  const canExport = canExportExcel(userRole, currentUser)
 
   const seasoningLots = useProduction1Store((s) => s.seasoningLots)
   const doughLots = useProduction1Store((s) => s.doughLots)
@@ -397,17 +398,19 @@ export default function MeatStation() {
           ))}
         </div>
 
-        <button
-          type="button"
-          onClick={handleExportExcel}
-          className="min-h-[36px] px-3 py-1.5 bg-white hover:bg-[#F5F1EB] active:bg-[#EDE8DF] border border-[#3A6B80] text-[#3A6B80] text-xs font-bold rounded-xl flex items-center gap-1.5 cursor-pointer whitespace-nowrap transition-colors"
-          title="Unduh laporan data lot ke format Excel"
-        >
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
-          <span>Unduh Excel</span>
-        </button>
+        {canExport && (
+          <button
+            type="button"
+            onClick={handleExportExcel}
+            className="min-h-[36px] px-3 py-1.5 bg-white hover:bg-[#F5F1EB] active:bg-[#EDE8DF] border border-[#3A6B80] text-[#3A6B80] text-xs font-bold rounded-xl flex items-center gap-1.5 cursor-pointer whitespace-nowrap transition-colors"
+            title="Unduh laporan data lot ke format Excel"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <span>Unduh Excel</span>
+          </button>
+        )}
       </div>
 
       {/* =================================================================== */}

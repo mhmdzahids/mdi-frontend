@@ -21,7 +21,8 @@ import {
   ArrowUpRight,
   ChevronDown,
   ChevronUp,
-  Send
+  Send,
+  Info
 } from 'lucide-react'
 
 const INBOUND_CATEGORIES = [
@@ -143,14 +144,12 @@ export default function SupplierInboundView() {
 
   // Card Action Expansion States (User harus toggle kartu dulu baru tombol aksi muncul)
   const [expandedCardId, setExpandedCardId] = useState(null)
-  const [expandedOutboundId, setExpandedOutboundId] = useState(null)
 
   // Form State Modal Keluarkan Stok (Barang Keluar)
   const [stockOutItem, setStockOutItem] = useState(null)
   const [stockOutQty, setStockOutQty] = useState('')
   const [stockOutStation, setStockOutStation] = useState('NONE')
   const [stockOutNotes, setStockOutNotes] = useState('')
-  const [stockOutNeedPrintQr, setStockOutNeedPrintQr] = useState(true)
   const [isSubmittingStockOut, setIsSubmittingStockOut] = useState(false)
   const [isStockOutSuccess, setIsStockOutSuccess] = useState(false)
   const [stockOutError, setStockOutError] = useState('')
@@ -182,7 +181,7 @@ export default function SupplierInboundView() {
   const [isSubmitSuccess, setIsSubmitSuccess] = useState(false)
   const [isLoadingInbound, setIsLoadingInbound] = useState(true)
   const [formError, setFormError] = useState('')
-  const [toastSuccess, setToastSuccess] = useState('')
+  const [qrTipInboundId, setQrTipInboundId] = useState(null)
 
   // Store
   const planDetailMode = useProduction1Store((s) => s.planDetailMode) || 'GENERAL'
@@ -400,7 +399,7 @@ export default function SupplierInboundView() {
     setSupplierName('')
     setDocumentNo('')
     setNotes('')
-    setNeedPrintQr(false)
+    setNeedPrintQr(true)
     setFormError('')
     setIsModalOpen(true)
   }
@@ -465,7 +464,8 @@ export default function SupplierInboundView() {
         supplier_name: cleanSupplier,
         document_no: documentNo.trim() || null,
         notes: notes.trim() || null,
-        received_by: operatorName || operatorId || 'PPIC-AYU'
+        received_by: operatorName || operatorId || 'PPIC-AYU',
+        has_qr: needPrintQr
       })
 
       // Micro-interaction: Tampilkan Centang Sukses sebelum tutup modal
@@ -481,11 +481,9 @@ export default function SupplierInboundView() {
       // Jeda 600ms untuk konfirmasi emosional pengguna
       await new Promise((resolve) => setTimeout(resolve, 600))
 
-      // Tutup modal & tampilkan feedback
+      // Tutup modal
       setIsModalOpen(false)
       setIsSubmitSuccess(false)
-      setToastSuccess(`Barang masuk "${cleanName}" (${numQty} ${formatUnitDisplay(unit)}) berhasil dicatat.`)
-      setTimeout(() => setToastSuccess(''), 4000)
 
       // Muat ulang data
       loadAllData()
@@ -508,6 +506,34 @@ export default function SupplierInboundView() {
       setSubmitting(false)
     }
   }
+
+  // Handler jika tombol Cetak QR ditekan pada barang tanpa QR
+  const handleNoQrButtonClick = (item) => {
+    if (!item) return
+    setQrTipInboundId(item.inbound_id)
+    useProduction1Store.setState({
+      actionFeedback: {
+        type: 'info',
+        message: `💡 Tips: Barang "${item.item_name}" tidak memiliki label QR (dicatat tanpa QR).`
+      }
+    })
+    try {
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        navigator.vibrate(40)
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  // Auto-dismiss tip popover setelah 3.5 detik
+  useEffect(() => {
+    if (!qrTipInboundId) return
+    const timer = setTimeout(() => {
+      setQrTipInboundId(null)
+    }, 3500)
+    return () => clearTimeout(timer)
+  }, [qrTipInboundId])
 
   // Handler Cetak Ulang Label QR Barang Masuk
   const handleOpenPrintQrForInbound = (item) => {
@@ -548,18 +574,28 @@ export default function SupplierInboundView() {
 
   // Buka Modal Keluarkan Stok
   const handleOpenStockOutModal = (item) => {
-    setStockOutItem(item)
     const alreadyOutbound = supplierOutboundList
       .filter((o) => o.inbound_id === item.inbound_id)
       .reduce((sum, o) => sum + (Number(o.quantity) || 0), 0)
     const remaining = Math.max(0, (Number(item.quantity) || 0) - alreadyOutbound)
-    setStockOutQty(remaining > 0 ? String(remaining) : String(item.quantity))
+
+    if (remaining <= 0) {
+      useProduction1Store.setState({
+        actionFeedback: {
+          type: 'error',
+          message: `Stok "${item.item_name}" sudah habis (0 ${formatUnitDisplay(item.unit)}). Tidak dapat mengeluarkan stok.`
+        }
+      })
+      return
+    }
+
+    setStockOutItem(item)
+    setStockOutQty(String(remaining))
 
     // Default ketika dibuka adalah 'NONE' sesuai permintaan user
     setStockOutStation('NONE')
 
     setStockOutNotes('')
-    setStockOutNeedPrintQr(true)
     setStockOutError('')
     setIsStockOutModalOpen(true)
   }
@@ -575,6 +611,22 @@ export default function SupplierInboundView() {
       return
     }
 
+    // Validasi sisa stok aktual
+    const alreadyOutbound = supplierOutboundList
+      .filter((o) => o.inbound_id === stockOutItem?.inbound_id)
+      .reduce((sum, o) => sum + (Number(o.quantity) || 0), 0)
+    const remaining = Math.max(0, (Number(stockOutItem?.quantity) || 0) - alreadyOutbound)
+
+    if (remaining <= 0) {
+      setStockOutError(`Stok barang "${stockOutItem?.item_name}" sudah habis (0 ${formatUnitDisplay(stockOutItem?.unit)}).`)
+      return
+    }
+
+    if (numQty > remaining) {
+      setStockOutError(`Jumlah keluar (${numQty} ${formatUnitDisplay(stockOutItem?.unit)}) melebihi sisa stok yang tersedia (${remaining} ${formatUnitDisplay(stockOutItem?.unit)}).`)
+      return
+    }
+
     const isSpecialStation = stockOutStation && stockOutStation !== 'NONE' && stockOutStation !== 'UMUM'
     const targetStation = isSpecialStation ? stockOutStation : null
     const stationMeta = DESTINATION_STATIONS.find((s) => s.value === stockOutStation || s.id === stockOutStation)
@@ -582,7 +634,7 @@ export default function SupplierInboundView() {
 
     setIsSubmittingStockOut(true)
     try {
-      const created = await createSupplierOutbound({
+      await createSupplierOutbound({
         inbound_id: stockOutItem.inbound_id,
         category: stockOutItem.category,
         item_name: stockOutItem.item_name,
@@ -607,16 +659,8 @@ export default function SupplierInboundView() {
 
       setIsStockOutModalOpen(false)
       setIsStockOutSuccess(false)
-      setToastSuccess(
-        `Stok "${stockOutItem.item_name}" (${numQty} ${formatUnitDisplay(stockOutItem.unit)}) berhasil dikeluarkan${targetStationName ? ` ke ${targetStationName}` : ''}.`
-      )
-      setTimeout(() => setToastSuccess(''), 4000)
 
       loadAllData()
-
-      if (stockOutNeedPrintQr && created?.lot_qr_code) {
-        handleOpenPrintQrForOutbound(created)
-      }
     } catch (err) {
       setStockOutError(err?.message || 'Gagal mencatat pengeluaran barang ke server.')
     } finally {
@@ -777,6 +821,79 @@ export default function SupplierInboundView() {
     })
   }, [filteredOutboundList, filterPreset, searchQuery])
 
+  // Kelompokkan SELURUH transaksi (Masuk & Keluar) berdasarkan tanggal untuk tab "Semua"
+  const groupedAllByDate = useMemo(() => {
+    const today = getTodayStr()
+    const yesterday = getYesterdayStr()
+
+    const map = new Map()
+    for (const item of filteredInboundList) {
+      const d = item.inbound_date || (item.created_at ? String(item.created_at).slice(0, 10) : today)
+      if (!map.has(d)) {
+        map.set(d, [])
+      }
+      const rawTime = item.created_at || item.inbound_date
+      const timeMs = rawTime ? new Date(String(rawTime).endsWith('Z') || String(rawTime).includes('+') ? rawTime : String(rawTime).replace(' ', 'T') + 'Z').getTime() : 0
+      map.get(d).push({
+        ...item,
+        _type: 'INBOUND',
+        _timeMs: isNaN(timeMs) ? 0 : timeMs
+      })
+    }
+
+    for (const item of filteredOutboundList) {
+      const d = item.outbound_date || (item.created_at ? String(item.created_at).slice(0, 10) : today)
+      if (!map.has(d)) {
+        map.set(d, [])
+      }
+      const rawTime = item.created_at || item.outbound_date
+      const timeMs = rawTime ? new Date(String(rawTime).endsWith('Z') || String(rawTime).includes('+') ? rawTime : String(rawTime).replace(' ', 'T') + 'Z').getTime() : 0
+      map.get(d).push({
+        ...item,
+        _type: 'OUTBOUND',
+        _timeMs: isNaN(timeMs) ? 0 : timeMs
+      })
+    }
+
+    if (filterPreset === 'recent' && !searchQuery.trim() && !map.has(today)) {
+      map.set(today, [])
+    }
+
+    const sortedDates = Array.from(map.keys()).sort((a, b) => (b > a ? 1 : b < a ? -1 : 0))
+
+    return sortedDates.map((dateStr) => {
+      const items = (map.get(dateStr) || []).sort((a, b) => (b._timeMs || 0) - (a._timeMs || 0))
+      const isToday = dateStr === today
+      const isYesterday = dateStr === yesterday
+
+      let badgeLabel = ''
+      let title = ''
+
+      if (isToday) {
+        badgeLabel = 'Hari Ini'
+        const dayName = getIndoDayName(dateStr)
+        title = dayName ? `${dayName}, ${formatIndoDate(dateStr)}` : formatIndoDate(dateStr)
+      } else if (isYesterday) {
+        badgeLabel = 'Kemarin'
+        const dayName = getIndoDayName(dateStr)
+        title = dayName ? `${dayName}, ${formatIndoDate(dateStr)}` : formatIndoDate(dateStr)
+      } else {
+        const dayName = getIndoDayName(dateStr)
+        badgeLabel = dayName || 'Riwayat'
+        title = formatIndoDate(dateStr)
+      }
+
+      return {
+        dateStr,
+        isToday,
+        isYesterday,
+        badgeLabel,
+        title,
+        items
+      }
+    })
+  }, [filteredInboundList, filteredOutboundList, filterPreset, searchQuery])
+
   // Ringkasan Stok / Inventory (Stok Tersedia = Total Masuk - Total Keluar)
   const inventoryItems = useMemo(() => {
     const map = new Map()
@@ -839,19 +956,217 @@ export default function SupplierInboundView() {
     return res
   }, [supplierInboundList, supplierOutboundList, filterCategory, searchQuery])
 
+  // Render Kartu Transaksi Barang Masuk (Inbound)
+  const renderInboundCard = (item, idx, showTypeBadge = false) => {
+    const isExpanded = expandedCardId === item.inbound_id
+    const itemOutbounds = supplierOutboundList.filter((o) => o.inbound_id === item.inbound_id)
+    const alreadyOutbound = itemOutbounds.reduce((sum, o) => sum + (Number(o.quantity) || 0), 0)
+    const remainingStock = Math.max(0, (Number(item.quantity) || 0) - alreadyOutbound)
+    const isOutOfStock = remainingStock <= 0
+
+    return (
+      <div
+        key={`in-${item.inbound_id || idx}`}
+        className={`bg-white border rounded-2xl p-3 shadow-2xs transition-all ${
+          isExpanded ? 'border-[#4685ac] ring-1 ring-[#4685ac]/30 bg-[#FBFDFE]' : 'border-[#EDE8DF] hover:border-[#D5CEBF]'
+        }`}
+      >
+        {/* Baris Ringkasan Kartu - Klik untuk Toggle Tampilkan / Sembunyikan Aksi */}
+        <div
+          onClick={() => setExpandedCardId(isExpanded ? null : item.inbound_id)}
+          className="flex items-start justify-between gap-2.5 cursor-pointer select-none"
+        >
+          <div className="space-y-1 min-w-0 flex-1">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {showTypeBadge && (
+                <span className="px-1.5 py-0.5 rounded-md text-[9px] font-extrabold bg-[#EAF5EE] text-[#2F7D5B] border border-[#CBEAD6]">
+                  MASUK
+                </span>
+              )}
+              {(item.has_qr === false || item.has_qr === 0) && (
+                <span className="px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-[#F5F1EB] text-[#8C9BA8] border border-[#EDE8DF]">
+                  Tanpa QR
+                </span>
+              )}
+              <span className="font-bold text-xs text-[#2C3E50] block truncate">
+                {item.item_name}
+              </span>
+            </div>
+            <span className="text-[11px] text-[#6B7B8D] block">
+              {formatItemTime(item.created_at) ? `${formatItemTime(item.created_at)} • ` : ''}Supplier: <span className="font-semibold text-[#2C3E50]">{item.supplier_name}</span>
+              {item.document_no ? ` • SJ: ${item.document_no}` : ''}
+            </span>
+            {item.notes && (
+              <span className="text-[11px] text-[#6B7B8D] italic block">
+                &ldquo;{item.notes}&rdquo;
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="text-right">
+              <span className="font-bold text-xs text-[#2C3E50] tabular-nums block">
+                {item.quantity} <span className="text-[11px] font-semibold text-[#6B7B8D]">{formatUnitDisplay(item.unit)}</span>
+              </span>
+              {isOutOfStock ? (
+                <span className="text-[10px] font-bold text-rose-600 block mt-0.5">
+                  Stok Habis
+                </span>
+              ) : alreadyOutbound > 0 ? (
+                <span className="text-[10px] font-semibold text-emerald-700 block mt-0.5">
+                  Sisa: {remainingStock} {formatUnitDisplay(item.unit)}
+                </span>
+              ) : (
+                <span className="text-[10px] text-[#6B7B8D] block mt-0.5">
+                  {item.received_by || 'PPIC'}
+                </span>
+              )}
+            </div>
+
+            {/* Tombol Toggle Chevron */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                setExpandedCardId(isExpanded ? null : item.inbound_id)
+              }}
+              className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
+                isExpanded
+                  ? 'bg-[#EEF5F9] text-[#4685ac]'
+                  : 'bg-[#FAF7F2] text-[#6B7B8D] hover:text-[#2C3E50] hover:bg-[#EDE8DF]'
+              }`}
+              title={isExpanded ? 'Tutup aksi' : 'Tampilkan opsi aksi'}
+              aria-label="Toggle opsi aksi"
+            >
+              {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </button>
+          </div>
+        </div>
+
+        {/* Panel Aksi yang Tersembunyi (Hanya Muncul saat Kartu Ditoggle) */}
+        {isExpanded && (
+          <div className="mt-3 pt-2.5 border-t border-[#EDE8DF] flex items-center justify-end gap-2 animate-in fade-in duration-150 relative">
+            {item.has_qr !== false && item.has_qr !== 0 ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleOpenPrintQrForInbound(item)
+                }}
+                className="min-h-[36px] px-3 rounded-xl border border-[#EDE8DF] bg-white hover:bg-[#FAF7F2] active:scale-95 text-[#2C3E50] text-xs font-semibold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
+                title="Buka / Cetak Label QR"
+              >
+                <QrCode className="w-3.5 h-3.5 text-[#3A6B80]" />
+                <span>Cetak Label QR</span>
+              </button>
+            ) : (
+              <div className="relative inline-flex">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleNoQrButtonClick(item)
+                  }}
+                  className="min-h-[36px] px-3 rounded-xl border border-[#EDE8DF] bg-[#F5F1EB] text-[#8C9BA8] hover:bg-[#EDE8DF] active:scale-95 text-xs font-semibold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer opacity-70"
+                  title="Tips: Barang ini tidak memiliki label QR"
+                  aria-label="Cetak Label QR (Dinonaktifkan: Barang tidak memiliki QR)"
+                >
+                  <QrCode className="w-3.5 h-3.5 text-[#8C9BA8]" />
+                  <span>Cetak Label QR</span>
+                </button>
+
+                {qrTipInboundId === item.inbound_id && (
+                  <div
+                    onClick={(e) => e.stopPropagation()}
+                    className="absolute bottom-full right-0 mb-2 z-30 px-3 py-1.5 bg-[#1E2B37] text-white text-[11px] font-semibold rounded-xl shadow-xl flex items-center gap-1.5 whitespace-nowrap animate-in fade-in zoom-in-95 duration-150 border border-neutral-700/50"
+                  >
+                    <Info className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                    <span>Barang tidak memiliki QR</span>
+                    <div className="absolute top-full right-6 -mt-1 border-4 border-transparent border-t-[#1E2B37]" />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {isOutOfStock ? (
+              <button
+                type="button"
+                disabled
+                className="min-h-[36px] px-3.5 rounded-xl border border-stone-200 bg-stone-100 text-stone-400 text-xs font-semibold flex items-center gap-1.5 cursor-not-allowed opacity-75"
+                title="Stok barang ini sudah habis (0)"
+              >
+                <ArrowUpRight className="w-3.5 h-3.5 text-stone-400" />
+                <span>Stok Habis</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleOpenStockOutModal(item)
+                }}
+                className="min-h-[36px] px-3.5 rounded-xl border border-red-600 bg-red-600 hover:bg-red-700 active:bg-red-800 active:scale-95 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
+                title="Keluarkan stok ke divisi produksi atau umum"
+              >
+                <ArrowUpRight className="w-3.5 h-3.5 text-white" />
+                <span>Keluarkan Stok</span>
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // Render Kartu Transaksi Barang Keluar (Outbound)
+  const renderOutboundCard = (item, idx, showTypeBadge = false) => {
+    return (
+      <div
+        key={`out-${item.outbound_id || idx}`}
+        className="bg-white border border-[#EDE8DF] hover:border-[#D5CEBF] rounded-2xl p-3 shadow-2xs transition-all select-none"
+      >
+        <div className="flex items-start justify-between gap-2.5">
+          <div className="space-y-1 min-w-0 flex-1">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {showTypeBadge && (
+                <span className="px-1.5 py-0.5 rounded-md text-[9px] font-extrabold bg-[#FDEDEC] text-[#E8352D] border border-[#FADBD8]">
+                  KELUAR
+                </span>
+              )}
+              <span className="font-bold text-xs text-[#2C3E50] block truncate">
+                {item.item_name}
+              </span>
+              {item.target_station_name && (
+                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-[#EEF5F9] text-[#3A6B80] border border-[#C5DFEA]">
+                  → {item.target_station_name}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2 flex-wrap text-[11px] text-[#6B7B8D]">
+              {formatItemTime(item.created_at) && <span>{formatItemTime(item.created_at)}</span>}
+              <span>Petugas: <strong className="text-[#2C3E50]">{item.dispatched_by || 'PPIC'}</strong></span>
+            </div>
+            {item.notes && (
+              <span className="text-[11px] text-[#6B7B8D] italic block">
+                &ldquo;{item.notes}&rdquo;
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="text-right">
+              <span className="font-bold text-xs text-rose-600 tabular-nums block">
+                -{item.quantity} <span className="text-[11px] font-semibold text-[#6B7B8D]">{formatUnitDisplay(item.unit)}</span>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-3 pb-24 font-sans select-none">
-      {/* Toast Notifikasi Sukses */}
-      {toastSuccess && (
-        <div
-          role="status"
-          className="flex items-center gap-2 p-3 bg-[#EAF5EE] border border-[#CBEAD6] rounded-xl text-[#2F7D5B] text-xs font-semibold animate-in fade-in"
-        >
-          <CheckIcon className="w-4 h-4 text-[#2F7D5B] shrink-0" />
-          <span>{toastSuccess}</span>
-        </div>
-      )}
-
       {/* 1. Tombol Aksi */}
       <div className="flex items-center justify-end px-0.5 pt-0.5">
         <button
@@ -979,20 +1294,91 @@ export default function SupplierInboundView() {
       )}
 
       {/* 4. Area Konten Riwayat Barang */}
-      {/* Kasus 1: Tab SEMUA / BARANG MASUK */}
-      {(activeTab === 'ALL' || activeTab === 'INBOUND') && (
+
+      {/* Kasus 1: Tab SEMUA (Tampilkan Masuk & Keluar secara kronologis) */}
+      {activeTab === 'ALL' && (
+        <>
+          {isLoadingInbound ? (
+            <div className="pt-2">
+              <ListRowSkeleton count={4} />
+            </div>
+          ) : filteredInboundList.length === 0 && filteredOutboundList.length === 0 ? (
+            <div className="bg-white border border-[#EDE8DF] rounded-2xl p-8 text-center text-xs text-[#6B7B8D] shadow-2xs mt-2">
+              <p className="font-medium text-[#2C3E50]">
+                {searchQuery
+                  ? 'Tidak ada barang yang sesuai dengan kata kunci pencarian.'
+                  : 'Belum ada riwayat transaksi barang.'}
+              </p>
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="inline-flex items-center min-h-[36px] px-3.5 py-1.5 rounded-xl text-xs font-bold bg-[#4685ac] text-white hover:bg-[#3A6B80] cursor-pointer transition shadow-2xs active:scale-95 mt-3"
+                >
+                  Reset pencarian
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-3 pt-0.5">
+              {groupedAllByDate.map((group) => {
+                if (group.items.length === 0) {
+                  return (
+                    <div key={group.dateStr} className="space-y-1.5">
+                      <div className="flex items-center gap-1.5 px-1 pt-1 pb-0.5">
+                        <span className="text-xs font-bold text-[#2C3E50]">
+                          {group.badgeLabel || 'Hari Ini'}
+                        </span>
+                        <span className="text-xs text-[#6B7B8D]">
+                          {group.title}
+                        </span>
+                      </div>
+                      <div className="bg-[#FAF7F2]/60 border border-dashed border-[#EDE8DF] rounded-xl p-3 text-center text-[11px] text-[#6B7B8D]">
+                        Belum ada barang masuk atau keluar tercatat hari ini.
+                      </div>
+                    </div>
+                  )
+                }
+
+                return (
+                  <div key={group.dateStr} className="space-y-1.5">
+                    <div className="flex items-center gap-1.5 px-1 pt-1 pb-0.5">
+                      <span className="text-xs font-bold text-[#2C3E50]">
+                        {group.badgeLabel || 'Riwayat'}
+                      </span>
+                      <span className="text-xs text-[#6B7B8D]">
+                        {group.title}
+                      </span>
+                    </div>
+
+                    <div className="space-y-2">
+                      {group.items.map((item, idx) =>
+                        item._type === 'OUTBOUND'
+                          ? renderOutboundCard(item, idx, true)
+                          : renderInboundCard(item, idx, true)
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Kasus 2: Tab BARANG MASUK */}
+      {activeTab === 'INBOUND' && (
         <>
           {isLoadingInbound ? (
             <div className="pt-2">
               <ListRowSkeleton count={4} />
             </div>
           ) : filteredInboundList.length === 0 ? (
-            /* State Kosong Identik Riwayat / Logs */
             <div className="bg-white border border-[#EDE8DF] rounded-2xl p-8 text-center text-xs text-[#6B7B8D] shadow-2xs mt-2">
               <p className="font-medium text-[#2C3E50]">
                 {searchQuery
-                  ? 'Tidak ada barang yang sesuai dengan kata kunci pencarian.'
-                  : 'Belum ada riwayat barang.'}
+                  ? 'Tidak ada barang masuk yang sesuai dengan kata kunci pencarian.'
+                  : 'Belum ada riwayat barang masuk.'}
               </p>
               {searchQuery && (
                 <button
@@ -1010,17 +1396,12 @@ export default function SupplierInboundView() {
                 if (group.items.length === 0) {
                   return (
                     <div key={group.dateStr} className="space-y-1.5">
-                      <div className="flex items-center justify-between px-1 pt-1 pb-0.5">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs font-bold text-[#2C3E50]">
-                            {group.badgeLabel || 'Hari Ini'}
-                          </span>
-                          <span className="text-xs text-[#6B7B8D]">
-                            {group.title}
-                          </span>
-                        </div>
-                        <span className="text-[10px] text-[#6B7B8D] font-medium">
-                          0 transaksi
+                      <div className="flex items-center gap-1.5 px-1 pt-1 pb-0.5">
+                        <span className="text-xs font-bold text-[#2C3E50]">
+                          {group.badgeLabel || 'Hari Ini'}
+                        </span>
+                        <span className="text-xs text-[#6B7B8D]">
+                          {group.title}
                         </span>
                       </div>
                       <div className="bg-[#FAF7F2]/60 border border-dashed border-[#EDE8DF] rounded-xl p-3 text-center text-[11px] text-[#6B7B8D]">
@@ -1032,133 +1413,17 @@ export default function SupplierInboundView() {
 
                 return (
                   <div key={group.dateStr} className="space-y-1.5">
-                    {/* Section Divider per Hari */}
-                    <div className="flex items-center justify-between px-1 pt-1 pb-0.5">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-bold text-[#2C3E50]">
-                          {group.badgeLabel || 'Riwayat'}
-                        </span>
-                        <span className="text-xs text-[#6B7B8D]">
-                          {group.title}
-                        </span>
-                      </div>
-                      <span className="text-[10px] text-[#6B7B8D] font-semibold">
-                        {group.items.length} transaksi
+                    <div className="flex items-center gap-1.5 px-1 pt-1 pb-0.5">
+                      <span className="text-xs font-bold text-[#2C3E50]">
+                        {group.badgeLabel || 'Riwayat'}
+                      </span>
+                      <span className="text-xs text-[#6B7B8D]">
+                        {group.title}
                       </span>
                     </div>
 
-                    {/* Kartu Transaksi per Hari */}
                     <div className="space-y-2">
-                      {group.items.map((item, idx) => {
-                        const isExpanded = expandedCardId === item.inbound_id
-                        const alreadyOutbound = supplierOutboundList
-                          .filter((o) => o.inbound_id === item.inbound_id)
-                          .reduce((sum, o) => sum + (Number(o.quantity) || 0), 0)
-                        const remainingStock = Math.max(0, (Number(item.quantity) || 0) - alreadyOutbound)
-
-                        return (
-                          <div
-                            key={item.inbound_id || idx}
-                            className={`bg-white border rounded-2xl p-3 shadow-2xs transition-all ${
-                              isExpanded ? 'border-[#4685ac] ring-1 ring-[#4685ac]/30 bg-[#FBFDFE]' : 'border-[#EDE8DF] hover:border-[#D5CEBF]'
-                            }`}
-                          >
-                            {/* Baris Ringkasan Kartu - Klik untuk Toggle Tampilkan / Sembunyikan Aksi */}
-                            <div
-                              onClick={() => setExpandedCardId(isExpanded ? null : item.inbound_id)}
-                              className="flex items-start justify-between gap-2.5 cursor-pointer select-none"
-                            >
-                              <div className="space-y-1 min-w-0 flex-1">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-[#FAF7F2] text-[#4685ac] border border-[#EDE8DF]">
-                                    {item.category}
-                                  </span>
-                                  <span className="font-bold text-xs text-[#2C3E50] block truncate">
-                                    {item.item_name}
-                                  </span>
-                                </div>
-                                <span className="text-[11px] text-[#6B7B8D] block">
-                                  {formatItemTime(item.created_at) ? `${formatItemTime(item.created_at)} • ` : ''}Supplier: <span className="font-semibold text-[#2C3E50]">{item.supplier_name}</span>
-                                  {item.document_no ? ` • SJ: ${item.document_no}` : ''}
-                                </span>
-                                {item.notes && (
-                                  <span className="text-[11px] text-[#6B7B8D] italic block">
-                                    &ldquo;{item.notes}&rdquo;
-                                  </span>
-                                )}
-                              </div>
-
-                              <div className="flex items-center gap-2 shrink-0">
-                                <div className="text-right">
-                                  <span className="font-bold text-xs text-[#2C3E50] tabular-nums block">
-                                    {item.quantity} <span className="text-[11px] font-semibold text-[#6B7B8D]">{formatUnitDisplay(item.unit)}</span>
-                                  </span>
-                                  <span className="text-[10px] text-[#6B7B8D] block mt-0.5">
-                                    {item.received_by || 'PPIC'}
-                                  </span>
-                                </div>
-
-                                {/* Tombol Toggle Chevron */}
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setExpandedCardId(isExpanded ? null : item.inbound_id)
-                                  }}
-                                  className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
-                                    isExpanded
-                                      ? 'bg-[#EEF5F9] text-[#4685ac]'
-                                      : 'bg-[#FAF7F2] text-[#6B7B8D] hover:text-[#2C3E50] hover:bg-[#EDE8DF]'
-                                  }`}
-                                  title={isExpanded ? 'Tutup aksi' : 'Tampilkan aksi (Print & Keluarkan Stok)'}
-                                  aria-label="Toggle opsi aksi"
-                                >
-                                  {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                                </button>
-                              </div>
-                            </div>
-
-                            {/* Ringkasan jika sebagian stok sudah dikeluarkan */}
-                            {alreadyOutbound > 0 && (
-                              <div className="mt-2 pt-2 border-t border-[#EDE8DF]/70 flex items-center justify-between text-[11px] text-[#6B7B8D]">
-                                <span>Sudah keluar: <strong className="text-[#2C3E50]">{alreadyOutbound} {formatUnitDisplay(item.unit)}</strong></span>
-                                <span>Sisa stok: <strong className={remainingStock > 0 ? 'text-[#2F7D5B]' : 'text-rose-600'}>{remainingStock} {formatUnitDisplay(item.unit)}</strong></span>
-                              </div>
-                            )}
-
-                            {/* Panel Aksi yang Tersembunyi (Hanya Muncul saat Kartu Ditoggle) */}
-                            {isExpanded && (
-                              <div className="mt-3 pt-2.5 border-t border-[#EDE8DF] flex items-center justify-end gap-2 animate-in fade-in duration-150">
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    handleOpenPrintQrForInbound(item)
-                                  }}
-                                  className="min-h-[36px] px-3 rounded-xl border border-[#EDE8DF] bg-white hover:bg-[#FAF7F2] active:scale-95 text-[#2C3E50] text-xs font-semibold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
-                                  title="Buka / Cetak Label QR"
-                                >
-                                  <QrCode className="w-3.5 h-3.5 text-[#3A6B80]" />
-                                  <span>Cetak Label QR</span>
-                                </button>
-
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    handleOpenStockOutModal(item)
-                                  }}
-                                  className="min-h-[36px] px-3.5 rounded-xl border border-[#4685ac] bg-[#4685ac] hover:bg-[#3A6B80] active:scale-95 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
-                                  title="Keluarkan stok ke divisi produksi atau umum"
-                                >
-                                  <ArrowUpRight className="w-3.5 h-3.5" />
-                                  <span>Keluarkan Stok</span>
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        )
-                      })}
+                      {group.items.map((item, idx) => renderInboundCard(item, idx, false))}
                     </div>
                   </div>
                 )
@@ -1168,7 +1433,7 @@ export default function SupplierInboundView() {
         </>
       )}
 
-      {/* Kasus 2: Tab BARANG KELUAR */}
+      {/* Kasus 3: Tab BARANG KELUAR */}
       {activeTab === 'OUTBOUND' && (
         <>
           {isLoadingInbound ? (
@@ -1198,17 +1463,12 @@ export default function SupplierInboundView() {
                 if (group.items.length === 0) {
                   return (
                     <div key={group.dateStr} className="space-y-1.5">
-                      <div className="flex items-center justify-between px-1 pt-1 pb-0.5">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs font-bold text-[#2C3E50]">
-                            {group.badgeLabel || 'Hari Ini'}
-                          </span>
-                          <span className="text-xs text-[#6B7B8D]">
-                            {group.title}
-                          </span>
-                        </div>
-                        <span className="text-[10px] text-[#6B7B8D] font-medium">
-                          0 transaksi keluar
+                      <div className="flex items-center gap-1.5 px-1 pt-1 pb-0.5">
+                        <span className="text-xs font-bold text-[#2C3E50]">
+                          {group.badgeLabel || 'Hari Ini'}
+                        </span>
+                        <span className="text-xs text-[#6B7B8D]">
+                          {group.title}
                         </span>
                       </div>
                       <div className="bg-[#FAF7F2]/60 border border-dashed border-[#EDE8DF] rounded-xl p-3 text-center text-[11px] text-[#6B7B8D]">
@@ -1220,111 +1480,17 @@ export default function SupplierInboundView() {
 
                 return (
                   <div key={group.dateStr} className="space-y-1.5">
-                    <div className="flex items-center justify-between px-1 pt-1 pb-0.5">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-bold text-[#2C3E50]">
-                          {group.badgeLabel || 'Riwayat'}
-                        </span>
-                        <span className="text-xs text-[#6B7B8D]">
-                          {group.title}
-                        </span>
-                      </div>
-                      <span className="text-[10px] text-[#6B7B8D] font-semibold">
-                        {group.items.length} transaksi keluar
+                    <div className="flex items-center gap-1.5 px-1 pt-1 pb-0.5">
+                      <span className="text-xs font-bold text-[#2C3E50]">
+                        {group.badgeLabel || 'Riwayat'}
+                      </span>
+                      <span className="text-xs text-[#6B7B8D]">
+                        {group.title}
                       </span>
                     </div>
 
                     <div className="space-y-2">
-                      {group.items.map((item, idx) => {
-                        const isExpandedOut = expandedOutboundId === item.outbound_id
-                        return (
-                          <div
-                            key={item.outbound_id || idx}
-                            className={`bg-white border rounded-2xl p-3 shadow-2xs transition-all ${
-                              isExpandedOut ? 'border-[#4685ac] ring-1 ring-[#4685ac]/30 bg-[#FBFDFE]' : 'border-[#EDE8DF] hover:border-[#D5CEBF]'
-                            }`}
-                          >
-                            <div
-                              onClick={() => setExpandedOutboundId(isExpandedOut ? null : item.outbound_id)}
-                              className="flex items-start justify-between gap-2.5 cursor-pointer select-none"
-                            >
-                              <div className="space-y-1 min-w-0 flex-1">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-[#FAF7F2] text-[#4685ac] border border-[#EDE8DF]">
-                                    {item.category}
-                                  </span>
-                                  <span className="font-bold text-xs text-[#2C3E50] block truncate">
-                                    {item.item_name}
-                                  </span>
-                                  {item.target_station_name ? (
-                                    <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-[#EEF5F9] text-[#3A6B80] border border-[#C5DFEA]">
-                                      → {item.target_station_name}
-                                    </span>
-                                  ) : (
-                                    <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-gray-100 text-gray-600 border border-gray-200">
-                                      Keluar Umum
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="flex items-center gap-2 flex-wrap text-[11px] text-[#6B7B8D]">
-                                  {formatItemTime(item.created_at) && <span>{formatItemTime(item.created_at)}</span>}
-                                  <span className="font-mono text-[10px] bg-[#FAF7F2] px-1.5 py-0.5 rounded border border-[#EDE8DF] text-[#2C3E50]">
-                                    {item.lot_qr_code}
-                                  </span>
-                                  <span>Petugas: <strong className="text-[#2C3E50]">{item.dispatched_by || 'PPIC'}</strong></span>
-                                </div>
-                                {item.notes && (
-                                  <span className="text-[11px] text-[#6B7B8D] italic block">
-                                    &ldquo;{item.notes}&rdquo;
-                                  </span>
-                                )}
-                              </div>
-
-                              <div className="flex items-center gap-2 shrink-0">
-                                <div className="text-right">
-                                  <span className="font-bold text-xs text-rose-600 tabular-nums block">
-                                    -{item.quantity} <span className="text-[11px] font-semibold text-[#6B7B8D]">{formatUnitDisplay(item.unit)}</span>
-                                  </span>
-                                </div>
-
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setExpandedOutboundId(isExpandedOut ? null : item.outbound_id)
-                                  }}
-                                  className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
-                                    isExpandedOut
-                                      ? 'bg-[#EEF5F9] text-[#4685ac]'
-                                      : 'bg-[#FAF7F2] text-[#6B7B8D] hover:text-[#2C3E50] hover:bg-[#EDE8DF]'
-                                  }`}
-                                  title={isExpandedOut ? 'Tutup aksi' : 'Tampilkan aksi cetak ulang QR'}
-                                  aria-label="Toggle opsi aksi"
-                                >
-                                  {isExpandedOut ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                                </button>
-                              </div>
-                            </div>
-
-                            {isExpandedOut && (
-                              <div className="mt-3 pt-2.5 border-t border-[#EDE8DF] flex items-center justify-end gap-2 animate-in fade-in duration-150">
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    handleOpenPrintQrForOutbound(item)
-                                  }}
-                                  className="min-h-[36px] px-3.5 rounded-xl border border-[#4685ac] bg-[#4685ac] hover:bg-[#3A6B80] active:scale-95 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
-                                  title="Cetak ulang label QR pengeluaran ini"
-                                >
-                                  <QrCode className="w-3.5 h-3.5" />
-                                  <span>Cetak Ulang QR Outbound</span>
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        )
-                      })}
+                      {group.items.map((item, idx) => renderOutboundCard(item, idx, false))}
                     </div>
                   </div>
                 )
@@ -1334,7 +1500,7 @@ export default function SupplierInboundView() {
         </>
       )}
 
-      {/* Kasus 3: Tab INVENTORY */}
+      {/* Kasus 4: Tab INVENTORY */}
       {activeTab === 'INVENTORY' && (
         <>
           {inventoryItems.length === 0 ? (
@@ -1773,29 +1939,51 @@ export default function SupplierInboundView() {
               )}
 
               {/* Input Jumlah Dikeluarkan */}
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-[#2C3E50] uppercase tracking-wide">
-                  Jumlah Dikeluarkan ({formatUnitDisplay(stockOutItem.unit)})
-                </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={stockOutQty}
-                    disabled={isSubmittingStockOut}
-                    onChange={(e) => {
-                      setStockOutError('')
-                      setStockOutQty(e.target.value.replace(/[^0-9.]/g, ''))
-                    }}
-                    placeholder="Masukkan jumlah..."
-                    className="flex-1 h-11 px-3.5 bg-white border border-[#EDE8DF] rounded-xl text-sm font-bold text-[#2C3E50] placeholder-[#6B7B8D] focus-visible:outline-none focus-visible:border-[#4685ac] focus-visible:ring-2 focus-visible:ring-[#4685ac]/20 shadow-2xs tabular-nums"
-                    required
-                  />
-                  <span className="px-3 py-2.5 bg-[#FAF7F2] border border-[#EDE8DF] rounded-xl text-xs font-bold text-[#6B7B8D]">
-                    {formatUnitDisplay(stockOutItem.unit)}
-                  </span>
-                </div>
-              </div>
+              {(() => {
+                const already = supplierOutboundList
+                  .filter((o) => o.inbound_id === stockOutItem.inbound_id)
+                  .reduce((sum, o) => sum + (Number(o.quantity) || 0), 0)
+                const currentRemaining = Math.max(0, (Number(stockOutItem.quantity) || 0) - already)
+
+                return (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-bold text-[#2C3E50] uppercase tracking-wide">
+                        Jumlah Dikeluarkan ({formatUnitDisplay(stockOutItem.unit)})
+                      </label>
+                      <span className="text-[11px] font-semibold text-emerald-700">
+                        Sisa: <strong>{currentRemaining} {formatUnitDisplay(stockOutItem.unit)}</strong>
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={stockOutQty}
+                        disabled={isSubmittingStockOut}
+                        onChange={(e) => {
+                          setStockOutError('')
+                          setStockOutQty(e.target.value.replace(/[^0-9.]/g, ''))
+                        }}
+                        placeholder={`Maks ${currentRemaining}`}
+                        className="flex-1 h-11 px-3.5 bg-white border border-[#EDE8DF] rounded-xl text-sm font-bold text-[#2C3E50] placeholder-[#6B7B8D] focus-visible:outline-none focus-visible:border-[#4685ac] focus-visible:ring-2 focus-visible:ring-[#4685ac]/20 shadow-2xs tabular-nums"
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setStockOutQty(String(currentRemaining))}
+                        className="px-2.5 h-11 bg-[#FAF7F2] hover:bg-[#EDE8DF] border border-[#EDE8DF] rounded-xl text-xs font-bold text-[#4685ac] cursor-pointer transition active:scale-95"
+                        title="Isi jumlah maksimal sisa stok"
+                      >
+                        Maks
+                      </button>
+                      <span className="px-3 h-11 flex items-center bg-[#FAF7F2] border border-[#EDE8DF] rounded-xl text-xs font-bold text-[#6B7B8D]">
+                        {formatUnitDisplay(stockOutItem.unit)}
+                      </span>
+                    </div>
+                  </div>
+                )
+              })()}
 
               {/* Pilihan Tujuan Pengiriman (Opsional Dropdown) */}
               <div className="space-y-1.5">
@@ -1828,45 +2016,6 @@ export default function SupplierInboundView() {
                 />
               </div>
 
-              {/* Toggle Cetak QR Outbound */}
-              <div className="p-3 bg-[#F5F1EB]/70 border border-[#EDE8DF] rounded-xl flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div
-                    className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
-                      stockOutNeedPrintQr ? 'bg-[#3A6B80] text-white shadow-2xs' : 'bg-white text-[#6B7B8D] border border-[#EDE8DF]'
-                    }`}
-                  >
-                    <QrCode className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <span className="text-xs font-bold text-[#2C3E50] block leading-tight">
-                      Cetak Label QR Outbound
-                    </span>
-                    <span className="text-[11px] text-[#556575] block truncate">
-                      {stockOutNeedPrintQr ? 'QR akan dibuka untuk dicetak & ditempel di barang' : 'Simpan data tanpa cetak QR'}
-                    </span>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={stockOutNeedPrintQr}
-                  disabled={isSubmittingStockOut}
-                  onClick={() => setStockOutNeedPrintQr((prev) => !prev)}
-                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                    stockOutNeedPrintQr ? 'bg-[#3A6B80]' : 'bg-[#D1D5DB]'
-                  }`}
-                  aria-label="Toggle cetak QR outbound"
-                >
-                  <span
-                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
-                      stockOutNeedPrintQr ? 'translate-x-5' : 'translate-x-0'
-                    }`}
-                  />
-                </button>
-              </div>
-
               {/* Submit Button */}
               <div className="pt-1">
                 <Button
@@ -1878,7 +2027,7 @@ export default function SupplierInboundView() {
                   successText="Pengeluaran Berhasil Dicatat!"
                   className="font-bold text-xs sm:text-sm"
                 >
-                  {stockOutNeedPrintQr ? 'Konfirmasi & Buka Cetak QR' : 'Konfirmasi Pengeluaran Stok'}
+                  Konfirmasi Pengeluaran Stok
                 </Button>
               </div>
             </form>

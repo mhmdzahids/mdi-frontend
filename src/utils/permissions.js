@@ -86,3 +86,16 @@ export function canManualDispatch(userRole, currentUser = null) {
 export function isPICRole(userRole, currentUser = null) {
   return canOpenQr(userRole, currentUser)
 }
+
+/**
+ * Memeriksa apakah role saat ini berhak membuat/mengunduh report Excel.
+ * Role Karyawan/Pegawai (OPERATOR) TIDAK BERHAK membuat atau mengunduh laporan Excel.
+ * Hanya PIC / Stakeholder / Supervisor / PPIC yang berhak.
+ *
+ * @param {string} userRole
+ * @param {object|null} currentUser
+ * @returns {boolean}
+ */
+export function canExportExcel(userRole, currentUser = null) {
+  return canOpenQr(userRole, currentUser)
+}

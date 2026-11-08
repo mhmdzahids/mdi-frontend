@@ -3356,6 +3356,9 @@ export const useProduction1Store = create(
           selectedBumbuCodes: [],
           activePrintModal: null,
           lastBatchPrintModal: null,
+          supplierInboundList: [],
+          supplierOutboundList: [],
+          dailyNotesList: [],
           actionFeedback: { type: 'success', message: 'Data lokal berhasil dibersihkan.' }
         })
         try {
@@ -3406,6 +3409,9 @@ export const useProduction1Store = create(
             selectedBumbuCodes: [],
             activePrintModal: null,
             lastBatchPrintModal: null,
+            supplierInboundList: [],
+            supplierOutboundList: [],
+            dailyNotesList: [],
             activePlanId: newPlanId,
             planStatus: 'DRAFT',
             planVersion: 1,
@@ -3445,6 +3451,15 @@ export const useProduction1Store = create(
 
           if (get().fetchInitialData) {
             await get().fetchInitialData(true)
+          }
+          if (get().fetchSupplierInbound) {
+            await get().fetchSupplierInbound()
+          }
+          if (get().fetchSupplierOutbound) {
+            await get().fetchSupplierOutbound()
+          }
+          if (get().fetchDailyNotes) {
+            await get().fetchDailyNotes()
           }
 
           return { success: true, message: resData.message || 'Database berhasil di-wipe.' }
@@ -3776,7 +3791,8 @@ export const useProduction1Store = create(
               supplier_name: inboundData.supplier_name,
               document_no: inboundData.document_no || null,
               notes: inboundData.notes || null,
-              received_by: inboundData.received_by || get().operatorId || 'PPIC-AYU'
+              received_by: inboundData.received_by || get().operatorId || 'PPIC-AYU',
+              has_qr: inboundData.has_qr !== undefined ? Boolean(inboundData.has_qr) : true
             })
           })
           if (!res.ok) {
