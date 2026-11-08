@@ -2624,9 +2624,10 @@ export const useProduction1Store = create(
               navigator.vibrate([250])
             }
             const errMsg = data.detail || 'Transisi scan gagal.'
+            const isScanInReject = errMsg.toLowerCase().includes('tidak bisa di-scan in')
             get().setScanFeedbackBanner({
               type: 'danger',
-              title: 'Ditolak',
+              title: isScanInReject ? 'Tidak Bisa Scan In' : 'Ditolak',
               message: errMsg,
               code: cleanCode,
               canUndo: false
