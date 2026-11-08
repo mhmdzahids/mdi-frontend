@@ -34,36 +34,12 @@ const INBOUND_CATEGORIES = [
 ]
 
 const DESTINATION_STATIONS = [
-  {
-    id: 'ASSEMBLY_STATION',
-    label: 'Meja Cetak (Produksi 2)',
-    sublabel: 'Kulit dimsum siap scan in di meja cetak',
-    badge: 'Cetak'
-  },
-  {
-    id: 'MEAT_STATION',
-    label: 'Giling & Mix (Produksi 1)',
-    sublabel: 'Daging mentah & bumbu siap scan in di giling',
-    badge: 'Giling'
-  },
-  {
-    id: 'FINISHING_STATION',
-    label: 'Meja Packing / Finishing',
-    sublabel: 'Kemasan mika/vakum & saos kemasan',
-    badge: 'Packing'
-  },
-  {
-    id: 'SPICE_STATION',
-    label: 'Racik Bumbu',
-    sublabel: 'Persiapan racik bumbu & minyak',
-    badge: 'Racik'
-  },
-  {
-    id: 'UMUM',
-    label: 'Keluar Umum / Pemakaian Lain',
-    sublabel: 'Pengeluaran logistik tanpa antrean scan in',
-    badge: 'Umum'
-  }
+  { value: 'NONE', label: 'None (Tanpa Tujuan Khusus)' },
+  { value: 'ASSEMBLY_STATION', label: 'Meja Cetak (Produksi 2)' },
+  { value: 'MEAT_STATION', label: 'Giling & Mix (Produksi 1)' },
+  { value: 'FINISHING_STATION', label: 'Meja Packing / Finishing' },
+  { value: 'SPICE_STATION', label: 'Racik Bumbu' },
+  { value: 'UMUM', label: 'Keluar Umum / Pemakaian Lain' }
 ]
 
 function getInboundLotCode(item) {
@@ -172,7 +148,7 @@ export default function SupplierInboundView() {
   // Form State Modal Keluarkan Stok (Barang Keluar)
   const [stockOutItem, setStockOutItem] = useState(null)
   const [stockOutQty, setStockOutQty] = useState('')
-  const [stockOutStation, setStockOutStation] = useState('ASSEMBLY_STATION')
+  const [stockOutStation, setStockOutStation] = useState('NONE')
   const [stockOutNotes, setStockOutNotes] = useState('')
   const [stockOutNeedPrintQr, setStockOutNeedPrintQr] = useState(true)
   const [isSubmittingStockOut, setIsSubmittingStockOut] = useState(false)
@@ -579,16 +555,8 @@ export default function SupplierInboundView() {
     const remaining = Math.max(0, (Number(item.quantity) || 0) - alreadyOutbound)
     setStockOutQty(remaining > 0 ? String(remaining) : String(item.quantity))
 
-    const cat = (item.category || '').toUpperCase()
-    if (cat === 'KULIT') {
-      setStockOutStation('ASSEMBLY_STATION')
-    } else if (cat === 'DAGING' || cat === 'BUMBU') {
-      setStockOutStation('MEAT_STATION')
-    } else if (cat === 'SAOS' || cat === 'KEMASAN') {
-      setStockOutStation('FINISHING_STATION')
-    } else {
-      setStockOutStation('UMUM')
-    }
+    // Default ketika dibuka adalah 'NONE' sesuai permintaan user
+    setStockOutStation('NONE')
 
     setStockOutNotes('')
     setStockOutNeedPrintQr(true)
@@ -607,9 +575,10 @@ export default function SupplierInboundView() {
       return
     }
 
-    const stationMeta = DESTINATION_STATIONS.find((s) => s.id === stockOutStation)
-    const targetStation = stockOutStation === 'UMUM' ? null : stockOutStation
-    const targetStationName = stationMeta ? stationMeta.label : null
+    const isSpecialStation = stockOutStation && stockOutStation !== 'NONE' && stockOutStation !== 'UMUM'
+    const targetStation = isSpecialStation ? stockOutStation : null
+    const stationMeta = DESTINATION_STATIONS.find((s) => s.value === stockOutStation || s.id === stockOutStation)
+    const targetStationName = isSpecialStation && stationMeta ? stationMeta.label : null
 
     setIsSubmittingStockOut(true)
     try {
@@ -1783,7 +1752,12 @@ export default function SupplierInboundView() {
                   {stockOutItem.item_name}
                 </div>
                 <div className="text-[11px] text-[#6B7B8D]">
-                  Total Diterima: {stockOutItem.quantity} {formatUnitDisplay(stockOutItem.unit)}
+                  Stok: <strong className="text-[#2C3E50] font-semibold">{(() => {
+                    const already = supplierOutboundList
+                      .filter((o) => o.inbound_id === stockOutItem.inbound_id)
+                      .reduce((sum, o) => sum + (Number(o.quantity) || 0), 0)
+                    return Math.max(0, (Number(stockOutItem.quantity) || 0) - already)
+                  })()} {formatUnitDisplay(stockOutItem.unit)}</strong>
                 </div>
               </div>
 
@@ -1823,43 +1797,20 @@ export default function SupplierInboundView() {
                 </div>
               </div>
 
-              {/* Pilihan Tujuan Pengiriman (Opsional) */}
+              {/* Pilihan Tujuan Pengiriman (Opsional Dropdown) */}
               <div className="space-y-1.5">
                 <label className="block text-xs font-bold text-[#2C3E50] uppercase tracking-wide">
                   Tujuan Pengiriman (Opsional)
                 </label>
-                <div className="space-y-1.5">
-                  {DESTINATION_STATIONS.map((st) => {
-                    const isSelected = stockOutStation === st.id
-                    return (
-                      <button
-                        key={st.id}
-                        type="button"
-                        disabled={isSubmittingStockOut}
-                        onClick={() => setStockOutStation(st.id)}
-                        className={`w-full p-2.5 rounded-xl border text-left flex items-center justify-between gap-2 transition cursor-pointer ${
-                          isSelected
-                            ? 'bg-[#EEF5F9] border-[#4685ac] ring-1 ring-[#4685ac]/30 shadow-2xs'
-                            : 'bg-white border-[#EDE8DF] hover:bg-[#FAF7F2]'
-                        }`}
-                      >
-                        <div className="min-w-0">
-                          <span className={`text-xs font-bold block ${isSelected ? 'text-[#3A6B80]' : 'text-[#2C3E50]'}`}>
-                            {st.label}
-                          </span>
-                          <span className="text-[11px] text-[#6B7B8D] block truncate">
-                            {st.sublabel}
-                          </span>
-                        </div>
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold shrink-0 ${
-                          isSelected ? 'bg-[#4685ac] text-white' : 'bg-[#FAF7F2] text-[#6B7B8D] border border-[#EDE8DF]'
-                        }`}>
-                          {st.badge}
-                        </span>
-                      </button>
-                    )
-                  })}
-                </div>
+                <CustomSelect
+                  id="stockout-target-station"
+                  ariaLabel="Tujuan Pengiriman"
+                  value={stockOutStation}
+                  disabled={isSubmittingStockOut}
+                  onChange={(val) => setStockOutStation(val)}
+                  options={DESTINATION_STATIONS}
+                  placeholder="Pilih Tujuan Pengiriman (Opsional)"
+                />
               </div>
 
               {/* Catatan Tambahan (Opsional) */}
