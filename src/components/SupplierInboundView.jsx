@@ -66,7 +66,7 @@ const DESTINATION_STATIONS = [
   }
 ]
 
-export function getInboundLotCode(item) {
+function getInboundLotCode(item) {
   if (!item) return ''
   const dateStr = item.inbound_date || (item.created_at ? String(item.created_at).slice(0, 10) : getTodayStr())
   const todayCode = dateStr.replace(/-/g, '')
