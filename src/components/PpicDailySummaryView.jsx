@@ -510,7 +510,7 @@ export default function PpicDailySummaryView() {
 
                   {/* Metrik Satu Baris */}
                   {divConfig.id === 'CETAK' ? (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 px-4 py-3">
+                    <div className="grid grid-cols-2 gap-3 px-4 py-3">
                       <div>
                         <div className="text-xs uppercase text-text-secondary leading-tight truncate">
                           Adonan Diterima
@@ -532,18 +532,6 @@ export default function PpicDailySummaryView() {
                         </div>
                         <div className="text-[11px] text-text-secondary mt-0.5 truncate">
                           {divData.kulit_received_qty || 0} BAL {(divData.kulit_transit_count || 0) > 0 && <span className="text-amber-600 font-medium">({divData.kulit_transit_count} transit)</span>}
-                        </div>
-                      </div>
-
-                      <div className="col-span-2 sm:col-span-1">
-                        <div className="text-xs uppercase text-text-secondary leading-tight truncate">
-                          Estimasi Hasil Cetak
-                        </div>
-                        <div className="text-lg font-semibold text-brand-blue tabular-nums mt-0.5">
-                          {divData.total_pcs_cetak || 0} <span className="text-xs font-normal text-text-secondary">PCS</span>
-                        </div>
-                        <div className="text-[11px] text-text-secondary mt-0.5 truncate">
-                          Hasil Cetak Fisik
                         </div>
                       </div>
                     </div>
