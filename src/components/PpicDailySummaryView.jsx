@@ -509,23 +509,97 @@ export default function PpicDailySummaryView() {
                   </div>
 
                   {/* Metrik Satu Baris */}
-                  {isProd2 ? (
-                    <div className="grid grid-cols-2 gap-3 px-4 py-3">
+                  {divConfig.id === 'CETAK' ? (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 px-4 py-3">
                       <div>
                         <div className="text-xs uppercase text-text-secondary leading-tight truncate">
-                          Status
+                          Adonan Diterima
                         </div>
-                        <div className="text-lg font-semibold text-text-primary mt-0.5">
-                          Aktif
+                        <div className="text-lg font-semibold text-text-primary tabular-nums mt-0.5">
+                          {divData.adonan_received_count || 0} <span className="text-xs font-normal text-text-secondary">lot</span>
+                        </div>
+                        <div className="text-[11px] text-text-secondary mt-0.5 truncate">
+                          {divData.adonan_received_qty || 0} KG {(divData.adonan_transit_count || 0) > 0 && <span className="text-amber-600 font-medium">({divData.adonan_transit_count} transit)</span>}
                         </div>
                       </div>
 
                       <div>
                         <div className="text-xs uppercase text-text-secondary leading-tight truncate">
-                          Total Kuantitas
+                          Kulit Diterima
                         </div>
                         <div className="text-lg font-semibold text-text-primary tabular-nums mt-0.5">
-                          {divData.total_quantity || 0} <span className="text-xs font-normal text-text-secondary">{divConfig.defaultUnit}</span>
+                          {divData.kulit_received_count || 0} <span className="text-xs font-normal text-text-secondary">lot</span>
+                        </div>
+                        <div className="text-[11px] text-text-secondary mt-0.5 truncate">
+                          {divData.kulit_received_qty || 0} BAL {(divData.kulit_transit_count || 0) > 0 && <span className="text-amber-600 font-medium">({divData.kulit_transit_count} transit)</span>}
+                        </div>
+                      </div>
+
+                      <div className="col-span-2 sm:col-span-1">
+                        <div className="text-xs uppercase text-text-secondary leading-tight truncate">
+                          Estimasi Hasil Cetak
+                        </div>
+                        <div className="text-lg font-semibold text-brand-blue tabular-nums mt-0.5">
+                          {divData.total_pcs_cetak || 0} <span className="text-xs font-normal text-text-secondary">PCS</span>
+                        </div>
+                        <div className="text-[11px] text-text-secondary mt-0.5 truncate">
+                          Hasil Cetak Fisik
+                        </div>
+                      </div>
+                    </div>
+                  ) : divConfig.id === 'PACKING' ? (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 px-4 py-3">
+                      <div>
+                        <div className="text-xs uppercase text-text-secondary leading-tight truncate">
+                          Target Rencana
+                        </div>
+                        <div className="text-lg font-semibold text-text-primary tabular-nums mt-0.5">
+                          {divData.target_pack || 0} <span className="text-xs font-normal text-text-secondary">pack</span>
+                        </div>
+                        <div className="text-[11px] text-text-secondary mt-0.5 truncate">
+                          Mika: {divData.target_mika || 0} · Vakum: {divData.target_vakum || 0}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="text-xs uppercase text-text-secondary leading-tight truncate">
+                          Sudah Scan (Packing)
+                        </div>
+                        <div className="text-lg font-semibold text-brand-blue-dark tabular-nums mt-0.5">
+                          {divData.scan_pack || 0} <span className="text-xs font-normal text-text-secondary">pack</span>
+                        </div>
+                        <div className="text-[11px] text-text-secondary mt-0.5 truncate">
+                          Mika: {divData.scan_mika || 0} · Vakum: {divData.scan_vakum || 0}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="text-xs uppercase text-text-secondary leading-tight truncate">
+                          Audit Penjualan
+                        </div>
+                        <div className="text-lg font-semibold text-brand-green-dark tabular-nums mt-0.5">
+                          {divData.sales_pack || 0} <span className="text-xs font-normal text-text-secondary">pack</span>
+                        </div>
+                        <div className="text-[11px] text-text-secondary mt-0.5 truncate">
+                          Mika: {divData.sales_mika || 0} · Vakum: {divData.sales_vakum || 0}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="text-xs uppercase text-text-secondary leading-tight truncate">
+                          Selisih (Audit)
+                        </div>
+                        <div className={`text-lg font-semibold tabular-nums mt-0.5 ${
+                          (divData.selisih_sales || 0) === 0
+                            ? 'text-brand-green-dark'
+                            : (divData.selisih_sales || 0) > 0
+                            ? 'text-amber-600'
+                            : 'text-rose-600'
+                        }`}>
+                          {(divData.selisih_sales || 0) > 0 ? `+${divData.selisih_sales}` : (divData.selisih_sales || 0)} <span className="text-xs font-normal text-text-secondary">pack</span>
+                        </div>
+                        <div className="text-[11px] text-text-secondary mt-0.5 truncate">
+                          {(divData.selisih_sales || 0) === 0 ? 'Sesuai (Balance)' : (divData.selisih_sales || 0) > 0 ? 'Stok di Freezer' : 'Selisih Kurang'}
                         </div>
                       </div>
                     </div>

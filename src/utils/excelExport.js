@@ -279,26 +279,26 @@ export function exportPpicRecapExcel({ dateStr, recapData, operatorName }) {
     {
       divisi: 'Meja Cetak',
       satuan: 'PCS',
-      diterbitkan: '-',
-      total_qty: '-',
-      terkirim: '-',
+      diterbitkan: divisions.CETAK?.adonan_received_count ? `${divisions.CETAK.adonan_received_count} Adonan` : '-',
+      total_qty: divisions.CETAK?.total_pcs_cetak || 0,
+      terkirim: divisions.CETAK?.kulit_received_count ? `${divisions.CETAK.kulit_received_count} Kulit` : '-',
       sisa_qr: '-',
       void_qr: '-',
       reject: divisions.CETAK?.reject_count || 0,
       reject_notes: divisions.CETAK?.reject_notes || '-',
-      catatan: divisions.CETAK?.operational_notes || '-'
+      catatan: `Adonan: ${divisions.CETAK?.adonan_received_count || 0} lot (${divisions.CETAK?.adonan_received_qty || 0} kg), Kulit: ${divisions.CETAK?.kulit_received_count || 0} lot (${divisions.CETAK?.kulit_received_qty || 0} bal). ${divisions.CETAK?.operational_notes || ''}`.trim()
     },
     {
       divisi: 'Meja Packing',
       satuan: 'PACK',
-      diterbitkan: '-',
-      total_qty: '-',
-      terkirim: '-',
-      sisa_qr: '-',
+      diterbitkan: divisions.PACKING?.target_pack || 0,
+      total_qty: divisions.PACKING?.scan_pack || 0,
+      terkirim: divisions.PACKING?.sales_pack || 0,
+      sisa_qr: divisions.PACKING?.selisih_sales || 0,
       void_qr: '-',
       reject: divisions.PACKING?.reject_count || 0,
       reject_notes: divisions.PACKING?.reject_notes || '-',
-      catatan: divisions.PACKING?.operational_notes || '-'
+      catatan: `Target: ${divisions.PACKING?.target_pack || 0} pk, Scan: ${divisions.PACKING?.scan_pack || 0} pk, Audit Sales: ${divisions.PACKING?.sales_pack || 0} pk (Selisih: ${divisions.PACKING?.selisih_sales || 0} pk). ${divisions.PACKING?.operational_notes || ''}`.trim()
     }
   ]
 
