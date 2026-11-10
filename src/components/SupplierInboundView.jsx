@@ -1333,7 +1333,7 @@ export default function SupplierInboundView() {
                           {group.title}
                         </span>
                       </div>
-                      <div className="bg-white border border-dashed border-[#B7C3CE] rounded-2xl p-3.5 text-center text-xs text-[#556575] font-medium shadow-2xs">
+                      <div className="bg-white border border-[#EDE8DF] rounded-2xl p-4 text-center text-xs text-[#556575] font-medium shadow-2xs">
                         Belum ada barang masuk atau keluar tercatat hari ini.
                       </div>
                     </div>
@@ -1404,7 +1404,7 @@ export default function SupplierInboundView() {
                           {group.title}
                         </span>
                       </div>
-                      <div className="bg-white border border-dashed border-[#B7C3CE] rounded-2xl p-3.5 text-center text-xs text-[#556575] font-medium shadow-2xs">
+                      <div className="bg-white border border-[#EDE8DF] rounded-2xl p-4 text-center text-xs text-[#556575] font-medium shadow-2xs">
                         Belum ada barang masuk tercatat hari ini.
                       </div>
                     </div>
@@ -1471,7 +1471,7 @@ export default function SupplierInboundView() {
                           {group.title}
                         </span>
                       </div>
-                      <div className="bg-white border border-dashed border-[#B7C3CE] rounded-2xl p-3.5 text-center text-xs text-[#556575] font-medium shadow-2xs">
+                      <div className="bg-white border border-[#EDE8DF] rounded-2xl p-4 text-center text-xs text-[#556575] font-medium shadow-2xs">
                         Belum ada barang keluar tercatat hari ini.
                       </div>
                     </div>
