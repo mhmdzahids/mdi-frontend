@@ -38,11 +38,11 @@
   }
 
   :root {
-    /* Canvas & Permukaan (Palet Dapur Brand Dimsum) */
-    --canvas: #F5F1EB;
+    /* Canvas & Permukaan */
+    --canvas: #FFFFFF;
     --surface-card: #FFFFFF;
-    --surface-subtle: #EDE8DF;
-    --surface-hover: #E5DFD4;
+    --surface-subtle: #F5F1EB;
+    --surface-hover: #EDE8DF;
     
     /* Garis & Batas */
     --border-subtle: #EDE8DF;

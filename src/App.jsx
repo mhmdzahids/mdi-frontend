@@ -147,7 +147,7 @@ export default function App() {
         className={`sticky top-0 z-30 transition-[background-color,border-color,box-shadow] duration-200 ease-out motion-reduce:transition-none ${
           isScrolled
             ? 'bg-white border-b border-[#EDE8DF] shadow-2xs'
-            : 'bg-[#F5F1EB] border-b border-transparent shadow-none'
+            : 'bg-white border-b border-transparent shadow-none'
         }`}
       >
         {/* Header Ramping & Bersih Dapur Dimsum */}
