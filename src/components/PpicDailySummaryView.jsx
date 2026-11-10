@@ -7,12 +7,12 @@ import { SummaryCardSkeleton, DivisionCardSkeleton } from './ui/Skeleton'
 import { SquarePen, Lock, AlertTriangle, CheckCircle2 } from 'lucide-react'
 
 const DIVISION_CONFIG = [
-  { id: 'DAGING', name: 'Daging (Giling & Mix)', defaultUnit: 'KG' },
-  { id: 'BUMBU', name: 'Bumbu Sparta', defaultUnit: 'PORSI' },
-  { id: 'KULIT', name: 'Kulit Dimsum', defaultUnit: 'BAL' },
-  { id: 'SAOS', name: 'Saos Dimsum', defaultUnit: 'BAL' },
-  { id: 'CETAK', name: 'Meja Cetak', defaultUnit: 'PCS' },
-  { id: 'PACKING', name: 'Meja Packing', defaultUnit: 'PACK' }
+  { id: 'DAGING', name: 'Daging (Giling & Mix)', defaultUnit: 'Gilingan', unitLabel: 'gilingan' },
+  { id: 'BUMBU', name: 'Bumbu Sparta', defaultUnit: 'Karung', unitLabel: 'karung' },
+  { id: 'KULIT', name: 'Kulit Dimsum', defaultUnit: 'BAL', unitLabel: 'bal' },
+  { id: 'SAOS', name: 'Saos Dimsum', defaultUnit: 'BAL', unitLabel: 'bal' },
+  { id: 'CETAK', name: 'Meja Cetak', defaultUnit: 'PCS', unitLabel: 'pcs' },
+  { id: 'PACKING', name: 'Meja Packing', defaultUnit: 'PACK', unitLabel: 'pack' }
 ]
 
 const getTodayStr = () => new Date().toISOString().slice(0, 10)
@@ -516,10 +516,7 @@ export default function PpicDailySummaryView() {
                           Adonan Diterima
                         </div>
                         <div className="text-lg font-semibold text-text-primary tabular-nums mt-0.5">
-                          {divData.adonan_received_count || 0} <span className="text-xs font-normal text-text-secondary">lot</span>
-                        </div>
-                        <div className="text-[11px] text-text-secondary mt-0.5 truncate">
-                          {divData.adonan_received_qty || 0} KG {(divData.adonan_transit_count || 0) > 0 && <span className="text-amber-600 font-medium">({divData.adonan_transit_count} transit)</span>}
+                          {divData.adonan_received_count || 0} <span className="text-xs font-normal text-text-secondary">gilingan</span>
                         </div>
                       </div>
 
@@ -528,10 +525,7 @@ export default function PpicDailySummaryView() {
                           Kulit Diterima
                         </div>
                         <div className="text-lg font-semibold text-text-primary tabular-nums mt-0.5">
-                          {divData.kulit_received_count || 0} <span className="text-xs font-normal text-text-secondary">lot</span>
-                        </div>
-                        <div className="text-[11px] text-text-secondary mt-0.5 truncate">
-                          {divData.kulit_received_qty || 0} BAL {(divData.kulit_transit_count || 0) > 0 && <span className="text-amber-600 font-medium">({divData.kulit_transit_count} transit)</span>}
+                          {divData.kulit_received_count || 0} <span className="text-xs font-normal text-text-secondary">bal</span>
                         </div>
                       </div>
                     </div>
@@ -544,9 +538,6 @@ export default function PpicDailySummaryView() {
                         <div className="text-lg font-semibold text-text-primary tabular-nums mt-0.5">
                           {divData.target_pack || 0} <span className="text-xs font-normal text-text-secondary">pack</span>
                         </div>
-                        <div className="text-[11px] text-text-secondary mt-0.5 truncate">
-                          Mika: {divData.target_mika || 0} · Vakum: {divData.target_vakum || 0}
-                        </div>
                       </div>
 
                       <div>
@@ -556,9 +547,6 @@ export default function PpicDailySummaryView() {
                         <div className="text-lg font-semibold text-brand-blue-dark tabular-nums mt-0.5">
                           {divData.scan_pack || 0} <span className="text-xs font-normal text-text-secondary">pack</span>
                         </div>
-                        <div className="text-[11px] text-text-secondary mt-0.5 truncate">
-                          Mika: {divData.scan_mika || 0} · Vakum: {divData.scan_vakum || 0}
-                        </div>
                       </div>
 
                       <div>
@@ -567,9 +555,6 @@ export default function PpicDailySummaryView() {
                         </div>
                         <div className="text-lg font-semibold text-brand-green-dark tabular-nums mt-0.5">
                           {divData.sales_pack || 0} <span className="text-xs font-normal text-text-secondary">pack</span>
-                        </div>
-                        <div className="text-[11px] text-text-secondary mt-0.5 truncate">
-                          Mika: {divData.sales_mika || 0} · Vakum: {divData.sales_vakum || 0}
                         </div>
                       </div>
 
@@ -586,22 +571,16 @@ export default function PpicDailySummaryView() {
                         }`}>
                           {(divData.selisih_sales || 0) > 0 ? `+${divData.selisih_sales}` : (divData.selisih_sales || 0)} <span className="text-xs font-normal text-text-secondary">pack</span>
                         </div>
-                        <div className="text-[11px] text-text-secondary mt-0.5 truncate">
-                          {(divData.selisih_sales || 0) === 0 ? 'Sesuai (Balance)' : (divData.selisih_sales || 0) > 0 ? 'Stok di Freezer' : 'Selisih Kurang'}
-                        </div>
                       </div>
                     </div>
                   ) : (
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 px-4 py-3">
                       <div>
                         <div className="text-xs uppercase text-text-secondary leading-tight truncate">
-                          Terbit (Rencana)
+                          Target
                         </div>
                         <div className="text-lg font-semibold text-text-primary tabular-nums mt-0.5">
-                          {divData.total_lots || 0} <span className="text-xs font-normal text-text-secondary">lot</span>
-                        </div>
-                        <div className="text-[11px] text-text-secondary mt-0.5 truncate">
-                          {divData.total_quantity || 0} {divConfig.defaultUnit}
+                          {divData.total_lots || 0} <span className="text-xs font-normal text-text-secondary">{divConfig.unitLabel || 'lot'}</span>
                         </div>
                       </div>
 
@@ -610,10 +589,7 @@ export default function PpicDailySummaryView() {
                           Realisasi Selesai
                         </div>
                         <div className="text-lg font-semibold text-brand-green-dark tabular-nums mt-0.5">
-                          {divData.completed_count || 0} <span className="text-xs font-normal text-text-secondary">lot</span>
-                        </div>
-                        <div className="text-[11px] text-text-secondary mt-0.5 truncate">
-                          {divData.completed_quantity ?? divData.total_quantity ?? 0} {divConfig.defaultUnit}
+                          {divData.completed_count || 0} <span className="text-xs font-normal text-text-secondary">{divConfig.unitLabel || 'lot'}</span>
                         </div>
                       </div>
 
@@ -622,10 +598,7 @@ export default function PpicDailySummaryView() {
                           Sisa Belum Dibuat
                         </div>
                         <div className={`text-lg font-semibold tabular-nums mt-0.5 ${(divData.printed_count || 0) > 0 ? 'text-amber-600' : 'text-text-secondary'}`}>
-                          {divData.printed_count || 0} <span className="text-xs font-normal text-text-secondary">lot</span>
-                        </div>
-                        <div className="text-[11px] text-text-secondary mt-0.5 truncate">
-                          {(divData.printed_count || 0) > 0 ? 'Stiker fisik aktif' : 'Nihil'}
+                          {divData.printed_count || 0} <span className="text-xs font-normal text-text-secondary">{divConfig.unitLabel || 'lot'}</span>
                         </div>
                       </div>
 
@@ -634,10 +607,7 @@ export default function PpicDailySummaryView() {
                           Batal (VOID)
                         </div>
                         <div className={`text-lg font-semibold tabular-nums mt-0.5 ${(divData.void_count || 0) > 0 ? 'text-rose-600' : 'text-text-secondary'}`}>
-                          {divData.void_count || 0} <span className="text-xs font-normal text-text-secondary">lot</span>
-                        </div>
-                        <div className="text-[11px] text-text-secondary mt-0.5 truncate">
-                          {(divData.void_count || 0) > 0 ? 'Stiker mati' : 'Nihil'}
+                          {divData.void_count || 0} <span className="text-xs font-normal text-text-secondary">{divConfig.unitLabel || 'lot'}</span>
                         </div>
                       </div>
                     </div>

@@ -230,7 +230,7 @@ export function exportPpicRecapExcel({ dateStr, recapData, operatorName }) {
   const divRows = [
     {
       divisi: 'Daging (Giling & Mix)',
-      satuan: divisions.DAGING?.unit || 'KG',
+      satuan: divisions.DAGING?.unit || 'Gilingan',
       diterbitkan: divisions.DAGING?.total_lots || 0,
       total_qty: divisions.DAGING?.total_quantity || 0,
       terkirim: divisions.DAGING?.completed_count || 0,
@@ -242,7 +242,7 @@ export function exportPpicRecapExcel({ dateStr, recapData, operatorName }) {
     },
     {
       divisi: 'Bumbu Sparta',
-      satuan: divisions.BUMBU?.unit || 'PORSI',
+      satuan: divisions.BUMBU?.unit || 'Karung',
       diterbitkan: divisions.BUMBU?.total_lots || 0,
       total_qty: divisions.BUMBU?.total_quantity || 0,
       terkirim: divisions.BUMBU?.completed_count || 0,
@@ -321,7 +321,7 @@ export function exportPpicRecapExcel({ dateStr, recapData, operatorName }) {
     columns: [
       { header: 'Divisi', key: 'divisi', width: 170, align: 'left' },
       { header: 'Satuan', key: 'satuan', width: 70, align: 'center' },
-      { header: 'Lot Dibuat', key: 'diterbitkan', width: 85, align: 'right' },
+      { header: 'Target', key: 'diterbitkan', width: 85, align: 'right' },
       { header: 'Total Kuantitas', key: 'total_qty', width: 95, align: 'right' },
       { header: 'Terkirim / Selesai', key: 'terkirim', width: 110, align: 'right' },
       { header: 'Sisa Belum Dibuat', key: 'sisa_qr', width: 110, align: 'right' },
