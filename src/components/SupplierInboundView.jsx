@@ -1054,10 +1054,10 @@ export default function SupplierInboundView() {
                   handleOpenPrintQrForInbound(item)
                 }}
                 className="min-h-[36px] px-3 rounded-xl border border-[#EDE8DF] bg-white hover:bg-[#FAF7F2] active:scale-95 text-[#2C3E50] text-xs font-semibold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
-                title="Buka / Cetak Label QR"
+                title="Buka QR"
               >
                 <QrCode className="w-3.5 h-3.5 text-[#3A6B80]" />
-                <span>Cetak Label QR</span>
+                <span>Buka QR</span>
               </button>
             ) : (
               <div className="relative inline-flex">
@@ -1069,10 +1069,10 @@ export default function SupplierInboundView() {
                   }}
                   className="min-h-[36px] px-3 rounded-xl border border-[#EDE8DF] bg-[#F5F1EB] text-[#8C9BA8] hover:bg-[#EDE8DF] active:scale-95 text-xs font-semibold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer opacity-70"
                   title="Tips: Barang ini tidak memiliki label QR"
-                  aria-label="Cetak Label QR (Dinonaktifkan: Barang tidak memiliki QR)"
+                  aria-label="Buka QR (Dinonaktifkan: Barang tidak memiliki QR)"
                 >
                   <QrCode className="w-3.5 h-3.5 text-[#8C9BA8]" />
-                  <span>Cetak Label QR</span>
+                  <span>Buka QR</span>
                 </button>
 
                 {qrTipInboundId === item.inbound_id && (
@@ -1813,10 +1813,10 @@ export default function SupplierInboundView() {
                   </div>
                   <div className="min-w-0">
                     <span className="text-xs font-bold text-[#2C3E50] block leading-tight">
-                      Cetak Label QR
+                      Buka QR
                     </span>
                     <span className="text-[11px] text-[#556575] block truncate">
-                      {needPrintQr ? 'Label QR akan langsung dibuka untuk dicetak' : 'Hanya simpan data tanpa cetak QR'}
+                      {needPrintQr ? 'Label QR akan langsung dibuka setelah disimpan' : 'Hanya simpan data tanpa buka QR'}
                     </span>
                   </div>
                 </div>
