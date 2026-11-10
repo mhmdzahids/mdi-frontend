@@ -968,7 +968,7 @@ export default function SupplierInboundView() {
       <div
         key={`in-${item.inbound_id || idx}`}
         className={`bg-white border rounded-2xl p-3 shadow-2xs transition-all ${
-          isExpanded ? 'border-[#4685ac] ring-1 ring-[#4685ac]/30 bg-white' : 'border-[#EDE8DF] hover:border-[#D5CEBF]'
+          isExpanded ? 'border-[#4685ac] ring-1 ring-[#4685ac]/30 bg-[#FBFDFE]' : 'border-[#EDE8DF] hover:border-[#D5CEBF]'
         }`}
       >
         {/* Baris Ringkasan Kartu - Klik untuk Toggle Tampilkan / Sembunyikan Aksi */}
@@ -1033,7 +1033,7 @@ export default function SupplierInboundView() {
               className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
                 isExpanded
                   ? 'bg-[#EEF5F9] text-[#4685ac]'
-                  : 'bg-stone-50 text-[#6B7B8D] hover:text-[#2C3E50] hover:bg-[#EDE8DF]'
+                  : 'bg-[#FAF7F2] text-[#6B7B8D] hover:text-[#2C3E50] hover:bg-[#EDE8DF]'
               }`}
               title={isExpanded ? 'Tutup aksi' : 'Tampilkan opsi aksi'}
               aria-label="Toggle opsi aksi"
@@ -1053,7 +1053,7 @@ export default function SupplierInboundView() {
                   e.stopPropagation()
                   handleOpenPrintQrForInbound(item)
                 }}
-                className="min-h-[36px] px-3 rounded-xl border border-[#EDE8DF] bg-white hover:bg-stone-50 active:scale-95 text-[#2C3E50] text-xs font-semibold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
+                className="min-h-[36px] px-3 rounded-xl border border-[#EDE8DF] bg-white hover:bg-[#FAF7F2] active:scale-95 text-[#2C3E50] text-xs font-semibold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
                 title="Buka QR"
               >
                 <QrCode className="w-3.5 h-3.5 text-[#3A6B80]" />
@@ -1067,7 +1067,7 @@ export default function SupplierInboundView() {
                     e.stopPropagation()
                     handleNoQrButtonClick(item)
                   }}
-                  className="min-h-[36px] px-3 rounded-xl border border-[#EDE8DF] bg-stone-50 text-[#8C9BA8] hover:bg-[#EDE8DF] active:scale-95 text-xs font-semibold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer opacity-70"
+                  className="min-h-[36px] px-3 rounded-xl border border-[#EDE8DF] bg-[#F5F1EB] text-[#8C9BA8] hover:bg-[#EDE8DF] active:scale-95 text-xs font-semibold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer opacity-70"
                   title="Tips: Barang ini tidak memiliki label QR"
                   aria-label="Buka QR (Dinonaktifkan: Barang tidak memiliki QR)"
                 >
@@ -1256,7 +1256,7 @@ export default function SupplierInboundView() {
       {isFilterActive && (
         <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
           {filterCategory !== 'ALL' && (
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-stone-50 border border-[#EDE8DF] text-[11px] text-[#2C3E50] font-medium">
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#FAF7F2] border border-[#EDE8DF] text-[11px] text-[#2C3E50] font-medium">
               <span>Kategori: {INBOUND_CATEGORIES.find((c) => c.id === filterCategory)?.label || filterCategory}</span>
               <button
                 type="button"
@@ -1270,7 +1270,7 @@ export default function SupplierInboundView() {
           )}
 
           {filterPreset !== 'recent' && (
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-stone-50 border border-[#EDE8DF] text-[11px] text-[#2C3E50] font-medium">
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#FAF7F2] border border-[#EDE8DF] text-[11px] text-[#2C3E50] font-medium">
               <span>Waktu: {activePeriodLabel}</span>
               <button
                 type="button"
@@ -1333,7 +1333,7 @@ export default function SupplierInboundView() {
                           {group.title}
                         </span>
                       </div>
-                      <div className="bg-stone-50/70 border border-dashed border-[#EDE8DF] rounded-xl p-3 text-center text-[11px] text-[#6B7B8D]">
+                      <div className="bg-[#FAF7F2]/60 border border-dashed border-[#EDE8DF] rounded-xl p-3 text-center text-[11px] text-[#6B7B8D]">
                         Belum ada barang masuk atau keluar tercatat hari ini.
                       </div>
                     </div>
@@ -1404,7 +1404,7 @@ export default function SupplierInboundView() {
                           {group.title}
                         </span>
                       </div>
-                      <div className="bg-stone-50/70 border border-dashed border-[#EDE8DF] rounded-xl p-3 text-center text-[11px] text-[#6B7B8D]">
+                      <div className="bg-[#FAF7F2]/60 border border-dashed border-[#EDE8DF] rounded-xl p-3 text-center text-[11px] text-[#6B7B8D]">
                         Belum ada barang masuk tercatat hari ini.
                       </div>
                     </div>
@@ -1471,7 +1471,7 @@ export default function SupplierInboundView() {
                           {group.title}
                         </span>
                       </div>
-                      <div className="bg-stone-50/70 border border-dashed border-[#EDE8DF] rounded-xl p-3 text-center text-[11px] text-[#6B7B8D]">
+                      <div className="bg-[#FAF7F2]/60 border border-dashed border-[#EDE8DF] rounded-xl p-3 text-center text-[11px] text-[#6B7B8D]">
                         Belum ada barang keluar tercatat hari ini.
                       </div>
                     </div>
