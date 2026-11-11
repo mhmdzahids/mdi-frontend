@@ -25,6 +25,7 @@ import {
 import { QRCodeSVG } from 'qrcode.react'
 import { useProduction1Store } from '../../store/production1Store'
 import { apiGet, apiPost } from '../../utils/api'
+import { canAccess } from '../../utils/rbac'
 import { playSuccessBeep, playErrorBeep, playOrderCompleteChime } from '../../utils/soundFx'
 import POSCameraScannerModal from './POSCameraScannerModal'
 import POSNewOjolOrderModal from './POSNewOjolOrderModal'
@@ -43,6 +44,8 @@ export default function POSView() {
   const storeCatalog = useProduction1Store((s) => s.catalogProducts)
   const fetchCatalogProducts = useProduction1Store((s) => s.fetchCatalogProducts)
   const currentUser = useProduction1Store((s) => s.currentUser)
+  const isDevMode = useProduction1Store((s) => s.isDevMode)
+  const canViewRevenue = canAccess('pos:view_revenue', currentUser, isDevMode)
 
   // 1. Sub-Tab State: DIRECT (Kasir Indomaret) | QUEUE (Ojol & Web) | HISTORY (Rekap Omzet)
   const [activeTab, setActiveTab] = useState('DIRECT')
@@ -943,7 +946,9 @@ export default function POSView() {
 
                     <div className="pt-2 flex items-center justify-between border-t border-[#EDE8DF]">
                       <span className="text-xs font-bold text-[#2C3E50] tabular-nums font-mono">
-                        {formatRupiah(ord.total_amount)}
+                        {canViewRevenue && ord.total_amount != null
+                          ? formatRupiah(ord.total_amount)
+                          : `${ord.total_items} pack`}
                       </span>
 
                       <motion.button
@@ -978,23 +983,25 @@ export default function POSView() {
       )}
 
       {/* ===================================================================== */}
-      {/* TAB 3: RIWAYAT & REKAP OMZET HARI INI */}
+      {/* TAB 3: RIWAYAT & REKAP TRANSAKSI */}
       {/* ===================================================================== */}
       {activeTab === 'HISTORY' && (
         <div className="space-y-3.5">
           {/* Stat Cards */}
-          <div className="grid grid-cols-3 gap-2 text-center bg-[#F5F1EB] border border-[#EDE8DF] rounded-2xl p-2.5">
-            <div className="bg-white border border-[#EDE8DF] rounded-xl p-2.5 shadow-2xs">
-              <span className="text-[10px] text-[#556575] block font-semibold">Omzet</span>
-              <span className="text-base font-extrabold text-[#2F7D5B] tabular-nums block my-0.5 font-heading">
-                {formatRupiah(dailySummary?.total_revenue || 0)}
-              </span>
-            </div>
+          <div className={`grid ${canViewRevenue ? 'grid-cols-3' : 'grid-cols-2'} gap-2 text-center bg-[#F5F1EB] border border-[#EDE8DF] rounded-2xl p-2.5`}>
+            {canViewRevenue && (
+              <div className="bg-white border border-[#EDE8DF] rounded-xl p-2.5 shadow-2xs">
+                <span className="text-[10px] text-[#556575] block font-semibold">Omzet</span>
+                <span className="text-base font-extrabold text-[#2F7D5B] tabular-nums block my-0.5 font-heading">
+                  {formatRupiah(dailySummary?.total_revenue || 0)}
+                </span>
+              </div>
+            )}
 
             <div className="bg-white border border-[#EDE8DF] rounded-xl p-2.5 shadow-2xs">
               <span className="text-[10px] text-[#556575] block font-semibold">Terjual</span>
               <span className="text-base font-extrabold text-[#2C3E50] tabular-nums block my-0.5 font-heading">
-                {dailySummary?.total_packs_sold || 0}
+                {dailySummary?.total_packs_sold || 0} pack
               </span>
             </div>
 
@@ -1006,8 +1013,8 @@ export default function POSView() {
             </div>
           </div>
 
-          {/* Channel Revenue Chips */}
-          {dailySummary?.by_channel && (
+          {/* Channel Revenue Chips (Khusus Supervisor / PIC) */}
+          {canViewRevenue && dailySummary?.by_channel && (
             <div className="flex flex-wrap gap-1.5 px-1">
               {Object.entries(dailySummary.by_channel).map(([ch, rev]) => {
                 if (rev <= 0) return null
@@ -1052,15 +1059,18 @@ export default function POSView() {
                 {filteredHistoryOrders.map((ord) => (
                   <motion.div
                     key={ord.id}
-                    whileTap={{ scale: 0.98 }}
+                    whileTap={{ scale: canViewRevenue ? 0.98 : 1 }}
                     onClick={() => {
+                      if (!canViewRevenue) return
                       setLastCompletedOrder({
                         ...ord,
                         cashier_name: ord.cashier_name || 'Kasir'
                       })
                       setIsReceiptModalOpen(true)
                     }}
-                    className="bg-white border border-[#EDE8DF] hover:border-[#3A6B80] rounded-xl p-3 shadow-2xs flex items-center justify-between text-xs cursor-pointer transition-colors"
+                    className={`bg-white border border-[#EDE8DF] rounded-xl p-3 shadow-2xs flex items-center justify-between text-xs transition-colors ${
+                      canViewRevenue ? 'hover:border-[#3A6B80] cursor-pointer' : 'cursor-default'
+                    }`}
                   >
                     <div>
                       <div className="flex items-center gap-2">
@@ -1075,12 +1085,20 @@ export default function POSView() {
                     </div>
 
                     <div className="text-right">
-                      <span className="font-bold text-[#2C3E50] tabular-nums block">
-                        {formatRupiah(ord.total_amount)}
-                      </span>
-                      <span className="text-[10px] text-[#3A6B80] hover:underline flex items-center justify-end gap-0.5">
-                        <span>Lihat Struk</span>
-                      </span>
+                      {canViewRevenue && ord.total_amount != null ? (
+                        <span className="font-bold text-[#2C3E50] tabular-nums block">
+                          {formatRupiah(ord.total_amount)}
+                        </span>
+                      ) : (
+                        <span className="text-[11px] font-bold text-[#2F7D5B] block">
+                          Selesai
+                        </span>
+                      )}
+                      {canViewRevenue && (
+                        <span className="text-[10px] text-[#3A6B80] hover:underline flex items-center justify-end gap-0.5">
+                          <span>Lihat Struk</span>
+                        </span>
+                      )}
                     </div>
                   </motion.div>
                 ))}
