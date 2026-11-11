@@ -5,6 +5,7 @@ import { Avatar } from './ui/Avatar'
 import { useLockBodyScroll } from '../utils/useLockBodyScroll'
 import BarcodeCalibrationStudio from './BarcodeCalibrationStudio'
 import OperationalSettingsCard from './OperationalSettingsCard'
+import ChangePasswordCard from './ChangePasswordCard'
 
 function formatIndonesianDate(dateString) {
   if (!dateString) return '-'
@@ -142,6 +143,9 @@ export default function ProfileView() {
               </div>
             </div>
           </div>
+
+          {/* Form Ganti Password */}
+          <ChangePasswordCard />
 
           {/* Tombol Keluar */}
           <button

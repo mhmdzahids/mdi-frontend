@@ -3267,6 +3267,38 @@ export const useProduction1Store = create(
         }
       },
 
+      changePassword: async ({ currentPassword, newPassword, confirmPassword }) => {
+        try {
+          const res = await apiFetch('/api/v1/auth/change-password', {
+            method: 'POST',
+            body: JSON.stringify({
+              current_password: currentPassword,
+              new_password: newPassword,
+              confirm_password: confirmPassword
+            })
+          })
+          const data = await res.json().catch(() => ({}))
+          if (!res.ok) {
+            throw new Error(data.detail || 'Gagal mengubah password.')
+          }
+          set({
+            actionFeedback: {
+              type: 'success',
+              message: data.message || 'Password berhasil diperbarui!'
+            }
+          })
+          return { success: true, message: data.message }
+        } catch (err) {
+          set({
+            actionFeedback: {
+              type: 'error',
+              message: err.message
+            }
+          })
+          return { success: false, error: err.message }
+        }
+      },
+
       quickSwitchUser: async (username) => {
         try {
           const res = await apiFetch('/api/v1/auth/quick-switch', {

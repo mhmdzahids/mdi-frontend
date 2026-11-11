@@ -15,6 +15,7 @@ export const Input = forwardRef(function Input(
     inputClassName = '',
     fullWidth = true,
     icon: Icon,
+    rightElement,
     ...props
   },
   ref
@@ -46,6 +47,7 @@ export const Input = forwardRef(function Input(
           className={
             'h-12 w-full rounded-xl border bg-white px-3.5 text-xs text-[#2C3E50] transition-colors ' +
             (Icon ? 'pl-10 ' : '') +
+            (rightElement ? 'pr-11 ' : '') +
             (error
               ? 'border-rose-400 focus:border-rose-600 focus-visible:ring-2 focus-visible:ring-rose-500/20 '
               : 'border-[#EDE8DF] hover:border-[#D5CEBF] focus:border-[#4685ac] focus-visible:ring-2 focus-visible:ring-[#4685ac]/20 ') +
@@ -54,6 +56,12 @@ export const Input = forwardRef(function Input(
           }
           {...props}
         />
+
+        {rightElement && (
+          <div className="absolute inset-y-0 right-0 pr-1.5 flex items-center">
+            {rightElement}
+          </div>
+        )}
       </div>
 
       {error ? (
