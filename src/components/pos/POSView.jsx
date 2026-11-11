@@ -389,11 +389,11 @@ export default function POSView() {
         </div>
 
         {/* Animated Sub-Tabs Pill Navigation */}
-        <div className="grid grid-cols-3 gap-1.5 pt-2 relative">
+        <div className="grid grid-cols-3 gap-1 pt-2 relative">
           {[
-            { id: 'DIRECT', label: 'Kasir Langsung', icon: Scan },
-            { id: 'QUEUE', label: 'Antrean Ojol & Web', icon: ListOrdered, badge: ordersQueue.length },
-            { id: 'HISTORY', label: 'Riwayat Omzet', icon: History }
+            { id: 'DIRECT', label: 'Kasir', icon: Scan },
+            { id: 'QUEUE', label: 'Antrean', icon: ListOrdered, badge: ordersQueue.length },
+            { id: 'HISTORY', label: 'Riwayat', icon: History }
           ].map((tab) => {
             const Icon = tab.icon
             const active = activeTab === tab.id
@@ -402,7 +402,7 @@ export default function POSView() {
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
-                className={`relative h-11 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer z-10 ${
+                className={`relative h-10 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer z-10 px-1 ${
                   active ? 'text-[#2C3E50]' : 'text-[#6B7B8D] hover:text-[#2C3E50]'
                 }`}
               >
@@ -413,12 +413,12 @@ export default function POSView() {
                     transition={{ type: 'spring', damping: 25, stiffness: 350 }}
                   />
                 )}
-                <Icon className="w-4 h-4 stroke-[2.2]" />
-                <span className="truncate">{tab.label}</span>
+                <Icon className="w-4 h-4 shrink-0 stroke-[2.2]" />
+                <span className="whitespace-nowrap">{tab.label}</span>
 
                 {/* Badge count for pending queue */}
                 {tab.badge > 0 && (
-                  <span className="ml-1 px-1.5 py-0.2 rounded-full bg-[#E8352D] text-white text-[10px] font-mono font-bold animate-pulse">
+                  <span className="ml-1 px-1.5 py-0.2 rounded-full bg-[#E8352D] text-white text-[10px] font-mono font-bold animate-pulse shrink-0">
                     {tab.badge}
                   </span>
                 )}
@@ -442,12 +442,9 @@ export default function POSView() {
                   <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#2F7D5B]" />
                 </span>
                 <span className="text-[11px] font-extrabold text-[#2F7D5B] tracking-tight uppercase">
-                  Scanner Tembak Siap
+                  Scanner Siap
                 </span>
               </div>
-              <span className="text-[10px] text-[#556575] font-mono">
-                Hands-Free Gun Listener
-              </span>
             </div>
 
             <div className="flex items-center gap-2">
@@ -464,7 +461,7 @@ export default function POSView() {
                       handleScanBarcode(barcodeInput)
                     }
                   }}
-                  placeholder="Tembak barcode kemasan di sini..."
+                  placeholder="Scan barcode..."
                   className="w-full h-12 bg-[#F5F1EB] rounded-xl pl-11 pr-8 font-mono text-sm font-bold uppercase text-[#2C3E50] border border-[#B7C3CE] focus:bg-white focus:outline-none focus:border-[#2F7D5B] transition-colors shadow-inner"
                 />
                 {barcodeInput && (
@@ -494,10 +491,7 @@ export default function POSView() {
             </div>
 
             {/* Quick Catalog Chips jika barcode fisik rusak/basah */}
-            <div className="pt-2.5 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
-              <span className="text-[10px] font-bold text-[#556575] uppercase shrink-0">
-                Manual jika barcode rusak:
-              </span>
+            <div className="pt-2 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
               {products.map((p) => (
                 <motion.button
                   key={p.id}
@@ -548,7 +542,7 @@ export default function POSView() {
               <div className="flex items-center gap-2">
                 <Receipt className="w-4 h-4 text-[#3A6B80]" />
                 <span className="text-xs font-extrabold uppercase tracking-wider text-[#2C3E50] font-heading">
-                  Struk Belanja Kemasan
+                  Keranjang
                 </span>
                 <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-full bg-[#2C3E50] text-white tabular-nums">
                   {totalItems} pack
@@ -563,25 +557,22 @@ export default function POSView() {
                   className="text-[11px] font-bold text-rose-600 flex items-center gap-1 hover:underline cursor-pointer"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
-                  <span>Reset Keranjang</span>
+                  <span>Reset</span>
                 </motion.button>
               )}
             </div>
 
             {/* List Baris Struk with AnimatePresence */}
             {scannedList.length === 0 ? (
-              <div className="text-center py-8 text-[#556575] space-y-2">
+              <div className="text-center py-6 text-[#556575] space-y-1.5">
                 <motion.div
-                  animate={{ y: [0, -6, 0] }}
+                  animate={{ y: [0, -5, 0] }}
                   transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-                  className="w-12 h-12 mx-auto rounded-2xl bg-[#F5F1EB] flex items-center justify-center text-[#B7C3CE]"
+                  className="w-10 h-10 mx-auto rounded-2xl bg-[#F5F1EB] flex items-center justify-center text-[#B7C3CE]"
                 >
-                  <Scan className="w-6 h-6 stroke-[1.8] text-[#3A6B80]" />
+                  <Scan className="w-5 h-5 stroke-[1.8] text-[#3A6B80]" />
                 </motion.div>
-                <span className="text-xs font-bold text-[#2C3E50] block">Struk Masih Kosong</span>
-                <span className="text-[11px] text-[#556575] block max-w-xs mx-auto">
-                  Ambil kemasan dimsum beku dari freezer lalu tembak barcode ke scanner tembak.
-                </span>
+                <span className="text-xs font-bold text-[#556575] block">Keranjang Kosong</span>
               </div>
             ) : (
               <div className="divide-y divide-[#EDE8DF] max-h-56 overflow-y-auto pr-1">
@@ -640,10 +631,10 @@ export default function POSView() {
               <div className="flex items-baseline justify-between">
                 <div>
                   <span className="text-[10px] font-bold uppercase tracking-widest text-[#94A3B8] block">
-                    Total Pembayaran
+                    TOTAL
                   </span>
                   <span className="text-xs text-[#94A3B8]">
-                    {totalItems} kemasan dimsum
+                    {totalItems} pack
                   </span>
                 </div>
                 <div className="text-right">
@@ -670,7 +661,7 @@ export default function POSView() {
             {/* Segmented Selector: Tunai, QRIS, Transfer */}
             <div className="space-y-1.5">
               <span className="text-[10px] font-bold uppercase tracking-wider text-[#94A3B8] block">
-                Pilih Metode Pembayaran
+                Metode Bayar
               </span>
               <div className="grid grid-cols-3 gap-2">
                 {[
@@ -690,7 +681,7 @@ export default function POSView() {
                         if (m.id !== 'CASH') setCustomPaid(null)
                         setTimeout(() => barcodeInputRef.current?.focus(), 50)
                       }}
-                      className={`h-12 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                      className={`h-11 rounded-2xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                         active
                           ? 'bg-[#10B981] text-white shadow-lg ring-2 ring-[#10B981]/40'
                           : 'bg-white/10 text-white/80 hover:bg-white/15'
@@ -712,7 +703,7 @@ export default function POSView() {
                 className="space-y-2.5 bg-black/25 rounded-2xl p-3.5 border border-white/10"
               >
                 <div className="flex items-center justify-between gap-3">
-                  <span className="text-xs font-bold text-[#94A3B8] shrink-0">Uang Diterima:</span>
+                  <span className="text-xs font-bold text-[#94A3B8] shrink-0">Bayar:</span>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-[#64748B]">Rp</span>
                     <input
@@ -766,7 +757,7 @@ export default function POSView() {
               <motion.div
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-black/25 rounded-2xl p-4 border border-white/10 text-center space-y-3"
+                className="bg-black/25 rounded-2xl p-4 border border-white/10 text-center space-y-2.5"
               >
                 <div className="inline-block p-3 bg-white rounded-2xl shadow-md">
                   <QRCodeSVG
@@ -775,12 +766,7 @@ export default function POSView() {
                     level="M"
                   />
                 </div>
-                <div className="space-y-0.5">
-                  <span className="text-xs font-bold text-white block">QRIS PABRIK DIMSUM MDI</span>
-                  <span className="text-[11px] text-[#94A3B8] block">
-                    Pelanggan scan melalui BCA / Mandiri / GoPay / OVO / Dana
-                  </span>
-                </div>
+                <span className="text-xs font-bold text-white block">QRIS MDI</span>
               </motion.div>
             )}
 
@@ -790,14 +776,10 @@ export default function POSView() {
                 animate={{ opacity: 1, y: 0 }}
                 className="bg-black/25 rounded-2xl p-3.5 border border-white/10 space-y-2 text-xs"
               >
-                <span className="text-[10px] font-bold uppercase text-[#94A3B8] block">
-                  Rekening Resmi Pabrik Dimsum
-                </span>
-
                 <div className="flex items-center justify-between bg-white/10 p-2.5 rounded-xl border border-white/10">
                   <div>
                     <span className="font-extrabold text-white block">BCA: 8820-1928-1120</span>
-                    <span className="text-[10px] text-[#94A3B8]">a/n PT Dimsum Manufaktur</span>
+                    <span className="text-[10px] text-[#94A3B8]">PT Dimsum Manufaktur</span>
                   </div>
                   <motion.button
                     type="button"
@@ -813,7 +795,7 @@ export default function POSView() {
                 <div className="flex items-center justify-between bg-white/10 p-2.5 rounded-xl border border-white/10">
                   <div>
                     <span className="font-extrabold text-white block">Mandiri: 1320-0012-9981</span>
-                    <span className="text-[10px] text-[#94A3B8]">a/n PT Dimsum Manufaktur</span>
+                    <span className="text-[10px] text-[#94A3B8]">PT Dimsum Manufaktur</span>
                   </div>
                   <motion.button
                     type="button"
@@ -850,34 +832,29 @@ export default function POSView() {
         <div className="space-y-3.5">
           {/* Header Action Bar */}
           <div className="flex items-center justify-between px-1">
-            <div>
-              <span className="text-xs font-bold text-[#2C3E50] font-heading block">
-                Antrean Pesanan Masuk ({ordersQueue.length})
-              </span>
-              <span className="text-[11px] text-[#556575]">
-                Ambil kemasan dari freezer lalu scan pemenuhan sebelum diserahkan
-              </span>
-            </div>
+            <span className="text-xs font-bold text-[#2C3E50] font-heading">
+              Antrean Pesanan ({ordersQueue.length})
+            </span>
 
             <motion.button
               type="button"
               whileTap={{ scale: 0.95 }}
               onClick={() => setIsNewOjolModalOpen(true)}
-              className="h-10 px-3.5 rounded-xl bg-[#3A6B80] text-white text-xs font-bold flex items-center gap-1.5 shadow-sm hover:bg-[#2F586B] cursor-pointer transition-colors"
+              className="h-9 px-3 rounded-xl bg-[#3A6B80] hover:bg-[#2F586B] text-white text-xs font-bold flex items-center gap-1.5 shrink-0 whitespace-nowrap cursor-pointer shadow-xs"
             >
-              <Plus className="w-4 h-4 stroke-[2.5]" />
-              <span>+ Pesanan Ojol</span>
+              <Plus className="w-3.5 h-3.5" />
+              <span>Order Ojol</span>
             </motion.button>
           </div>
 
           {/* Filter Channels Chips */}
-          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar px-1">
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar px-1 py-0.5">
             {[
               { id: 'ALL', label: 'Semua' },
-              { id: 'SHOPEEFOOD', label: 'ShopeeFood' },
-              { id: 'GRABFOOD', label: 'GrabFood' },
-              { id: 'GOFOOD', label: 'GoFood' },
-              { id: 'WEBSITE', label: 'Website' }
+              { id: 'SHOPEEFOOD', label: 'Shopee' },
+              { id: 'GRABFOOD', label: 'Grab' },
+              { id: 'GOFOOD', label: 'Gojek' },
+              { id: 'WEBSITE', label: 'Web' }
             ].map((f) => {
               const active = queueChannelFilter === f.id
               return (
@@ -899,14 +876,11 @@ export default function POSView() {
 
           {/* List Antrean */}
           {isLoadingQueue ? (
-            <div className="text-center py-12 text-xs text-[#556575]">Memuat antrean...</div>
+            <div className="text-center py-8 text-xs text-[#556575]">Memuat antrean...</div>
           ) : filteredQueueOrders.length === 0 ? (
-            <div className="bg-white border border-[#EDE8DF] rounded-3xl p-10 text-center text-[#556575] space-y-2 shadow-2xs">
-              <Clock className="w-10 h-10 mx-auto text-[#B7C3CE] mb-1" />
-              <span className="text-xs font-bold block text-[#2C3E50]">Tidak Ada Pesanan Tertunda</span>
-              <span className="text-[11px] block max-w-xs mx-auto">
-                Pesanan dari ShopeeFood atau Toko Online akan tampil di sini untuk verifikasi kemasan.
-              </span>
+            <div className="bg-white border border-[#EDE8DF] rounded-2xl p-6 text-center text-[#556575] space-y-1 shadow-2xs">
+              <Clock className="w-8 h-8 mx-auto text-[#B7C3CE] mb-1" />
+              <span className="text-xs font-bold block text-[#2C3E50]">Tidak Ada Antrean</span>
             </div>
           ) : (
             <div className="space-y-3">
@@ -1011,14 +985,14 @@ export default function POSView() {
           {/* Stat Cards */}
           <div className="grid grid-cols-3 gap-2 text-center bg-[#F5F1EB] border border-[#EDE8DF] rounded-2xl p-2.5">
             <div className="bg-white border border-[#EDE8DF] rounded-xl p-2.5 shadow-2xs">
-              <span className="text-[10px] text-[#556575] block font-semibold">Omzet Hari Ini</span>
+              <span className="text-[10px] text-[#556575] block font-semibold">Omzet</span>
               <span className="text-base font-extrabold text-[#2F7D5B] tabular-nums block my-0.5 font-heading">
                 {formatRupiah(dailySummary?.total_revenue || 0)}
               </span>
             </div>
 
             <div className="bg-white border border-[#EDE8DF] rounded-xl p-2.5 shadow-2xs">
-              <span className="text-[10px] text-[#556575] block font-semibold">Pack Terjual</span>
+              <span className="text-[10px] text-[#556575] block font-semibold">Terjual</span>
               <span className="text-base font-extrabold text-[#2C3E50] tabular-nums block my-0.5 font-heading">
                 {dailySummary?.total_packs_sold || 0}
               </span>
@@ -1056,7 +1030,7 @@ export default function POSView() {
               type="text"
               value={searchHistory}
               onChange={(e) => setSearchHistory(e.target.value)}
-              placeholder="Cari transaksi berdasarkan No. Order atau Pelanggan..."
+              placeholder="Cari order / nama..."
               className="w-full h-10 bg-white rounded-xl pl-9 pr-3 text-xs border border-[#EDE8DF] text-[#2C3E50] focus:outline-none focus:border-[#3A6B80]"
             />
           </div>
@@ -1064,14 +1038,14 @@ export default function POSView() {
           {/* List Riwayat Transaksi */}
           <div className="space-y-2">
             <span className="text-xs font-bold text-[#556575] block px-1">
-              Transaksi Terakhir Hari Ini
+              Riwayat Transaksi
             </span>
 
             {isLoadingHistory ? (
-              <div className="text-center py-8 text-xs text-[#556575]">Memuat data transaksi...</div>
+              <div className="text-center py-6 text-xs text-[#556575]">Memuat data...</div>
             ) : filteredHistoryOrders.length === 0 ? (
-              <div className="bg-white border border-[#EDE8DF] rounded-2xl p-8 text-center text-xs text-[#556575]">
-                Belum ada transaksi selesai yang cocok.
+              <div className="bg-white border border-[#EDE8DF] rounded-2xl p-6 text-center text-xs text-[#556575]">
+                Belum ada transaksi.
               </div>
             ) : (
               <div className="space-y-2">

@@ -158,10 +158,10 @@ export default function POSOrderFulfillmentModal({
           </div>
 
           {/* Progress Bar Pemenuhan */}
-          <div className="bg-[#F5F1EB] rounded-2xl p-3.5 border border-[#EDE8DF] space-y-2">
+          <div className="bg-[#F5F1EB] rounded-2xl p-3 border border-[#EDE8DF] space-y-2">
             <div className="flex items-center justify-between text-xs">
               <span className="font-bold text-[#2C3E50] flex items-center gap-1.5">
-                <span>Status Pemenuhan Kemasan</span>
+                <span>Progress</span>
                 {isComplete && (
                   <span className="inline-flex items-center px-1.5 py-0.2 rounded-md bg-[#2F7D5B] text-white text-[10px] font-bold">
                     Lengkap
@@ -188,14 +188,14 @@ export default function POSOrderFulfillmentModal({
 
           {/* Scanner Input Cockpit */}
           {!isComplete && (
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <div className="flex items-center justify-between px-1">
                 <span className="text-xs font-bold text-[#556575] uppercase tracking-wider">
-                  Tembak Barcode Kemasan
+                  Scan Kemasan
                 </span>
                 <span className="text-[10px] text-[#2F7D5B] font-bold flex items-center gap-1">
                   <span className="w-2 h-2 rounded-full bg-[#2F7D5B] animate-pulse" />
-                  Scanner Siap
+                  Siap
                 </span>
               </div>
 
@@ -214,8 +214,8 @@ export default function POSOrderFulfillmentModal({
                         handleScanCode(barcodeInput)
                       }
                     }}
-                    placeholder="Scan lot kemasan dari freezer..."
-                    className="w-full h-12 bg-[#F5F1EB] rounded-2xl pl-10 pr-3 font-mono text-sm font-bold uppercase text-[#2C3E50] border border-[#B7C3CE] focus:bg-white focus:outline-none focus:border-[#2F7D5B] transition-colors"
+                    placeholder="Scan barcode..."
+                    className="w-full h-11 bg-[#F5F1EB] rounded-2xl pl-10 pr-3 font-mono text-sm font-bold uppercase text-[#2C3E50] border border-[#B7C3CE] focus:bg-white focus:outline-none focus:border-[#2F7D5B] transition-colors"
                   />
                 </div>
 
@@ -345,7 +345,7 @@ export default function POSOrderFulfillmentModal({
               }`}
             >
               <Check className="w-4 h-4 stroke-[3]" />
-              <span>{isCompleting ? 'Menyimpan...' : 'Serahkan ke Driver & Selesai'}</span>
+              <span>{isCompleting ? 'Menyimpan...' : 'Serahkan & Selesai'}</span>
             </motion.button>
           </div>
         </motion.div>

@@ -126,17 +126,12 @@ export default function POSNewOjolOrderModal({
           {/* Header */}
           <div className="flex items-center justify-between border-b border-[#EDE8DF] pb-3">
             <div className="flex items-center gap-2.5">
-              <div className="w-10 h-10 rounded-2xl bg-[#EDE8DF] flex items-center justify-center text-[#2C3E50]">
+              <div className="w-9 h-9 rounded-xl bg-[#EDE8DF] flex items-center justify-center text-[#2C3E50]">
                 <Bike className="w-5 h-5 text-[#3A6B80]" />
               </div>
-              <div>
-                <span className="text-sm font-bold text-[#2C3E50] font-heading block leading-tight">
-                  Pesanan Ojek Online
-                </span>
-                <span className="text-[11px] text-[#556575]">
-                  Buat antrean scan kemasan untuk driver pick-up
-                </span>
-              </div>
+              <span className="text-sm font-bold text-[#2C3E50] font-heading block">
+                Pesanan Ojol
+              </span>
             </div>
             <motion.button
               type="button"
@@ -148,11 +143,11 @@ export default function POSNewOjolOrderModal({
             </motion.button>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-3.5">
             {/* Platform Selector */}
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-[#556575] uppercase tracking-wider block">
-                Platform Delivery
+                Platform
               </label>
               <div className="grid grid-cols-3 gap-2">
                 {CHANNELS.map((c) => {
@@ -166,7 +161,7 @@ export default function POSNewOjolOrderModal({
                         setChannel(c.id)
                         handleApplyPrefix(c.prefix)
                       }}
-                      className={`h-12 rounded-2xl border text-xs font-bold transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 ${
+                      className={`h-11 rounded-xl border text-xs font-bold transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 ${
                         active
                           ? c.activeBorder
                           : 'border-[#EDE8DF] bg-[#F5F1EB]/50 text-[#556575] hover:bg-[#F5F1EB]'
@@ -184,14 +179,14 @@ export default function POSNewOjolOrderModal({
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold text-[#556575] uppercase tracking-wider block">
-                  Nomor Order / Kode Pick-up <span className="text-rose-500">*</span>
+                  No. Order / Resi <span className="text-rose-500">*</span>
                 </label>
                 <button
                   type="button"
                   onClick={() => handleApplyPrefix(selectedChannel.prefix)}
                   className="text-[10px] font-bold text-[#3A6B80] hover:underline"
                 >
-                  Gunakan {selectedChannel.prefix}
+                  {selectedChannel.prefix}
                 </button>
               </div>
               <input
@@ -207,13 +202,13 @@ export default function POSNewOjolOrderModal({
             {/* Nama Driver / Catatan */}
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-[#556575] uppercase tracking-wider block">
-                Nama Driver / Pelanggan (Opsional)
+                Driver / Pemesan (Opsional)
               </label>
               <input
                 type="text"
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
-                placeholder="Contoh: Pak Anton (Driver Shopee)"
+                placeholder="Nama driver atau catatan..."
                 className="w-full h-11 bg-[#F5F1EB] rounded-xl px-3.5 text-xs text-[#2C3E50] border border-[#B7C3CE] focus:bg-white focus:outline-none focus:border-[#3A6B80] transition-colors"
               />
             </div>
@@ -222,10 +217,10 @@ export default function POSNewOjolOrderModal({
             <div className="space-y-2 pt-1">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold text-[#556575] uppercase tracking-wider block">
-                  Daftar Kemasan yang Dipesan
+                  Pilih Produk
                 </label>
                 <span className="text-[11px] font-bold text-[#3A6B80] tabular-nums">
-                  {totalPacks} pack dipilih
+                  {totalPacks} pack
                 </span>
               </div>
 
@@ -280,13 +275,13 @@ export default function POSNewOjolOrderModal({
             </div>
 
             {/* Total Footer Banner */}
-            <div className="bg-[#2C3E50] rounded-2xl p-3.5 text-white flex items-center justify-between shadow-md">
+            <div className="bg-[#2C3E50] rounded-2xl p-3 text-white flex items-center justify-between shadow-md">
               <div>
                 <span className="text-[10px] uppercase font-bold text-[#B7C3CE] block">
-                  Total Estimasi Pesanan
+                  TOTAL
                 </span>
                 <span className="text-xs font-medium text-white/80">
-                  {totalPacks} pack kemasan
+                  {totalPacks} pack
                 </span>
               </div>
               <span className="text-xl font-extrabold font-heading text-white tabular-nums">
@@ -300,7 +295,7 @@ export default function POSNewOjolOrderModal({
                 type="button"
                 whileTap={{ scale: 0.96 }}
                 onClick={onClose}
-                className="h-12 px-4 rounded-xl border border-[#EDE8DF] bg-white text-[#556575] hover:text-[#2C3E50] text-xs font-bold transition-colors cursor-pointer"
+                className="h-11 px-4 rounded-xl border border-[#EDE8DF] bg-white text-[#556575] hover:text-[#2C3E50] text-xs font-bold transition-colors cursor-pointer"
               >
                 Batal
               </motion.button>
@@ -309,10 +304,10 @@ export default function POSNewOjolOrderModal({
                 type="submit"
                 whileTap={{ scale: 0.97 }}
                 disabled={!orderNo.trim() || totalPacks === 0 || isSubmitting}
-                className="flex-1 h-12 rounded-xl bg-[#3A6B80] hover:bg-[#2F586B] text-white text-xs font-bold flex items-center justify-center gap-2 shadow-md active:scale-98 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all"
+                className="flex-1 h-11 rounded-xl bg-[#3A6B80] hover:bg-[#2F586B] text-white text-xs font-bold flex items-center justify-center gap-2 shadow-md active:scale-98 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all"
               >
                 <ShoppingBag className="w-4 h-4" />
-                <span>{isSubmitting ? 'Menyimpan...' : 'Masuk Antrean Scan'}</span>
+                <span>{isSubmitting ? 'Menyimpan...' : 'Simpan Order'}</span>
               </motion.button>
             </div>
           </form>
