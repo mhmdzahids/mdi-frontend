@@ -71,6 +71,36 @@ export function playErrorBeep() {
   vibrateError()
 }
 
+export function playOrderCompleteChime() {
+  try {
+    const ctx = getAudioContext()
+    if (!ctx) return
+
+    const now = ctx.currentTime
+    const notes = [523.25, 659.25, 783.99, 1046.5] // C5, E5, G5, C6 arpeggio
+
+    notes.forEach((freq, idx) => {
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.type = 'triangle'
+      osc.frequency.setValueAtTime(freq, now + idx * 0.07)
+
+      gain.gain.setValueAtTime(0.12, now + idx * 0.07)
+      gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.07 + 0.28)
+
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+
+      osc.start(now + idx * 0.07)
+      osc.stop(now + idx * 0.07 + 0.28)
+    })
+  } catch {
+    // ignore
+  }
+
+  vibrateSuccess()
+}
+
 export function vibrateSuccess() {
   try {
     if (typeof navigator !== 'undefined' && navigator.vibrate) {

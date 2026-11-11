@@ -38,9 +38,14 @@ const DIVISION_PRESETS = [
     pic: 'pic_packing'
   },
   {
-    name: 'Gudang & Sales',
+    name: 'Gudang & Stok',
     karyawan: 'opr_gudang',
     pic: 'pic_gudang'
+  },
+  {
+    name: 'Kasir & POS',
+    karyawan: 'opr_kasir',
+    pic: 'pic_kasir'
   }
 ]
 

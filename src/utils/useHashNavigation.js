@@ -45,6 +45,8 @@ export function getHashFromState(
         return '#/prod2/packing'
       case 'PRODUCTS':
         return '#/prod2/products'
+      case 'POS':
+        return '#/pos'
       case 'LOGS':
         return '#/prod2/logs'
       default:
@@ -147,6 +149,9 @@ export function getStateFromHash(hash) {
     if (sub.includes('product') || sub.includes('produk')) {
       return { stage: 'PROD_2', prod2Tab: 'PRODUCTS' }
     }
+    if (sub.includes('pos') || sub.includes('kasir')) {
+      return { stage: 'PROD_2', prod2Tab: 'POS' }
+    }
     if (sub.includes('log') || sub.includes('riwayat')) {
       return { stage: 'PROD_2', prod2Tab: 'LOGS' }
     }
@@ -157,6 +162,9 @@ export function getStateFromHash(hash) {
   }
 
   // Rute Produksi 1 & Navigasi Umum
+  if (clean === 'pos' || clean === 'kasir') {
+    return { stage: 'PROD_2', prod2Tab: 'POS' }
+  }
   if (clean === 'plan' || clean === 'rencana') {
     return { stage: 'PROD_1', station: 'PLAN' }
   }

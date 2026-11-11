@@ -1,4 +1,4 @@
-import { FileText, ShieldCheck } from 'lucide-react'
+import { FileText, ShieldCheck, ShoppingBag } from 'lucide-react'
 import { motion } from 'motion/react'
 import { useProduction1Store } from '../../store/production1Store'
 import { Avatar } from '../ui/Avatar'
@@ -138,10 +138,19 @@ export default function BottomNav() {
     if (canAccess('freezer_sales:view', currentUser)) {
       candidateTabs.push({
         key: 'PRODUCTS',
-        label: 'Produk',
+        label: 'Gudang',
         icon: ProductIcon,
         isActive: !isProfileActive && activeProd2Tab === 'PRODUCTS',
         onClick: () => setProd2Tab('PRODUCTS')
+      })
+    }
+    if (canAccess('pos:view', currentUser)) {
+      candidateTabs.push({
+        key: 'POS',
+        label: 'Kasir',
+        icon: ShoppingBag,
+        isActive: !isProfileActive && activeProd2Tab === 'POS',
+        onClick: () => setProd2Tab('POS')
       })
     }
     if (canAccess('logs:view', currentUser)) {

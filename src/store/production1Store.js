@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { playSuccessBeep, playErrorBeep } from '../utils/soundFx.js'
-import { apiFetch, apiGet, apiPut, apiPost, apiDelete, apiUpload } from '../utils/api.js'
+import { apiFetch, apiGet, apiPut, apiDelete, apiUpload } from '../utils/api.js'
 
 let autoSyncInterval = null
 let lastTransitBumbuCount = 0
@@ -350,14 +350,7 @@ export const useProduction1Store = create(
       },
       setProd2Tab: (tab) => {
         if (get().currentUser?.is_superadmin) return
-        if (tab !== 'LOGS' && !get().isSupervisorUser()) {
-          const user = get().currentUser
-          let expectedTab = user?.default_prod2_tab || 'INBOUND'
-          if (expectedTab === 'PACKING') expectedTab = 'FREEZER'
-          if (expectedTab === 'SALES') expectedTab = 'PRODUCTS'
-          if (tab !== expectedTab) return
-        }
-        set({ activeProd2Tab: tab, isProfileActive: false, isAdminActive: false, adminForm: null })
+        set({ activeProductionStage: 'PROD_2', activeProd2Tab: tab, isProfileActive: false, isAdminActive: false, adminForm: null })
       },
       setPackingSubLine: (line) => {
         const val = line === 'VAKUM' ? 'VAKUM' : 'MIKA'
@@ -580,7 +573,7 @@ export const useProduction1Store = create(
               let expectedTab = user.default_prod2_tab || 'INBOUND'
               if (expectedTab === 'PACKING') expectedTab = 'FREEZER'
               if (expectedTab === 'SALES') expectedTab = 'PRODUCTS'
-              if (targetProd2Tab !== 'LOGS') {
+              if (targetProd2Tab !== 'LOGS' && targetProd2Tab !== 'POS' && targetProd2Tab !== 'PRODUCTS') {
                 targetProd2Tab = expectedTab
               }
             }
@@ -3449,6 +3442,7 @@ export const useProduction1Store = create(
             if (prod2Tab === 'ASSEMBLY') landingHash = '#/prod2/assembly'
             else if (prod2Tab === 'FREEZER') landingHash = '#/prod2/packing'
             else if (prod2Tab === 'PRODUCTS') landingHash = '#/prod2/products'
+            else if (prod2Tab === 'POS') landingHash = '#/pos'
             else landingHash = '#/prod2/inbound'
           } else {
             if (station === 'PLAN') landingHash = '#/plan'
@@ -3579,6 +3573,7 @@ export const useProduction1Store = create(
             if (prod2Tab === 'ASSEMBLY') landingHash = '#/prod2/assembly'
             else if (prod2Tab === 'FREEZER') landingHash = '#/prod2/packing'
             else if (prod2Tab === 'PRODUCTS') landingHash = '#/prod2/products'
+            else if (prod2Tab === 'POS') landingHash = '#/pos'
             else landingHash = '#/prod2/inbound'
           } else {
             if (station === 'PLAN') landingHash = '#/plan'

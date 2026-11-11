@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
-import { Users, Shield, History } from 'lucide-react'
+import { Users, Shield, History, Key } from 'lucide-react'
 import { motion } from 'motion/react'
 import { useProduction1Store } from '../../store/production1Store'
 import { apiGet } from '../../utils/api'
 import AdminUsersTab from './AdminUsersTab'
 import AdminRolesTab from './AdminRolesTab'
 import AdminAuditLogsTab from './AdminAuditLogsTab'
+import AdminApiKeysTab from './AdminApiKeysTab'
 import AdminUserFormPage from './AdminUserFormPage'
 import AdminRoleFormPage from './AdminRoleFormPage'
 
@@ -71,8 +72,8 @@ export default function AdminView() {
 
   return (
     <div className="w-full max-w-md md:max-w-xl lg:max-w-2xl mx-auto flex flex-col space-y-3 pb-8 select-text">
-      {/* 3 Tab Navigation: Akun | Role | Log (Langsung di bawah header tanpa banner duplikat) */}
-      <div className="grid grid-cols-3 gap-1 bg-[#EDE8DF]/70 p-1 rounded-xl border border-[#EDE8DF] shadow-2xs">
+      {/* 4 Tab Navigation: Akun | Role | Log | API Key */}
+      <div className="grid grid-cols-4 gap-1 bg-[#EDE8DF]/70 p-1 rounded-xl border border-[#EDE8DF] shadow-2xs">
         <button
           type="button"
           onClick={() => setActiveAdminTab('USERS')}
@@ -111,6 +112,19 @@ export default function AdminView() {
           <History className="w-4 h-4" />
           <span>Log</span>
         </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveAdminTab('API_KEYS')}
+          className={`min-h-[44px] rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+            activeAdminTab === 'API_KEYS'
+              ? 'bg-white text-[#3A6B80] shadow-2xs border border-[#6A9DB3]/30'
+              : 'text-[#64748B] hover:text-[#2C3E50]'
+          }`}
+        >
+          <Key className="w-4 h-4" />
+          <span>API Key</span>
+        </button>
       </div>
 
       {/* Tab Content */}
@@ -128,6 +142,7 @@ export default function AdminView() {
           <AdminRolesTab roles={roles} isLoading={isLoadingRoles} onReloadRoles={fetchRoles} />
         )}
         {activeAdminTab === 'LOGS' && <AdminAuditLogsTab />}
+        {activeAdminTab === 'API_KEYS' && <AdminApiKeysTab />}
       </motion.div>
     </div>
   )

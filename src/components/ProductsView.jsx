@@ -312,7 +312,6 @@ export default function ProductsView() {
           </CardContent>
         </Card>
       )}
-
       {/* LIST KATALOG PRODUK (Format Kartu Barang Masuk) */}
       <div className="space-y-2.5 pt-1">
         <span className="text-xs font-bold text-[#6B7B8D] block px-1">

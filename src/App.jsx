@@ -17,6 +17,7 @@ import SupplierInboundView from './components/SupplierInboundView'
 import ProfileView from './components/ProfileView'
 import AdminView from './components/admin/AdminView'
 import ProductEditPage from './components/ProductEditPage'
+import POSView from './components/pos/POSView'
 import ForbiddenView from './components/ForbiddenView'
 import LoginScreen from './components/LoginScreen'
 import DevModeRibbon from './components/DevModeRibbon'
@@ -354,6 +355,13 @@ export default function App() {
                   <Production2View />
                 ) : (
                   <ForbiddenView pageName="Produksi 2: Stok Produk Jadi" />
+                )
+              )}
+              {activeProd2Tab === 'POS' && (
+                canAccess('pos:view', currentUser, isDevMode) ? (
+                  <POSView />
+                ) : (
+                  <ForbiddenView pageName="Kasir & POS" />
                 )
               )}
               {activeProd2Tab === 'LOGS' && (
