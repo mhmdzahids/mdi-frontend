@@ -17,12 +17,19 @@ import {
   NotebookPen,
   QrCode,
   ArrowUpRight,
+  ArrowDownLeft,
   ChevronDown,
   ChevronUp,
   Info,
-  CheckCircle2,
   Download
 } from 'lucide-react'
+import {
+  CardShell,
+  TypeBadge,
+  QtyBlock,
+  FieldGrid,
+  StatusChip
+} from './ui/CardComponents'
 
 const INBOUND_CATEGORIES = [
   { id: 'KULIT', label: 'Kulit Dimsum' },
@@ -140,7 +147,8 @@ export default function SupplierInboundView() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isStockOutModalOpen, setIsStockOutModalOpen] = useState(false)
   const [isExportSheetOpen, setIsExportSheetOpen] = useState(false)
-  useLockBodyScroll(isModalOpen || isStockOutModalOpen || isExportSheetOpen)
+  const [isStockFormulaModalOpen, setIsStockFormulaModalOpen] = useState(false)
+  useLockBodyScroll(isModalOpen || isStockOutModalOpen || isExportSheetOpen || isStockFormulaModalOpen)
 
   // Card Action Expansion States (User harus toggle kartu dulu baru tombol aksi muncul)
   const [expandedCardId, setExpandedCardId] = useState(null)
@@ -928,8 +936,60 @@ export default function SupplierInboundView() {
           it.category?.toLowerCase().includes(q)
       )
     }
+
+    // Urutan default: stok Habis (<= 0) di atas, lalu A-Z berdasarkan nama barang
+    res.sort((a, b) => {
+      const aHabis = a.stokTersedia <= 0 ? 0 : 1
+      const bHabis = b.stokTersedia <= 0 ? 0 : 1
+      if (aHabis !== bHabis) {
+        return aHabis - bHabis
+      }
+      return (a.itemName || '').localeCompare(b.itemName || '', 'id')
+    })
+
     return res
   }, [supplierInboundList, supplierOutboundList, filterCategory, searchQuery])
+
+  // Waktu format WIB untuk header stok inventory
+  const currentStockTimeStr = useMemo(() => {
+    return new Date().toLocaleTimeString('id-ID', {
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'Asia/Jakarta'
+    }).replace('.', ':')
+  }, [])
+
+  // Mengambil 5 pergerakan mutasi terakhir untuk satu item inventory
+  const getRecentMutationsForItem = useCallback((itemName, unit) => {
+    const mutations = []
+    for (const item of supplierInboundList) {
+      if (item.item_name === itemName && item.unit === unit) {
+        const d = item.inbound_date || (item.created_at ? String(item.created_at).slice(0, 10) : '')
+        mutations.push({
+          type: 'MASUK',
+          date: d,
+          qty: item.quantity,
+          detail: item.supplier_name ? `Dari ${item.supplier_name}` : 'Penerimaan',
+          timeMs: item.created_at ? new Date(item.created_at).getTime() : 0
+        })
+      }
+    }
+    for (const item of supplierOutboundList) {
+      if (item.item_name === itemName && item.unit === unit) {
+        const d = item.outbound_date || (item.created_at ? String(item.created_at).slice(0, 10) : '')
+        const target = item.target_station_name || item.target_station || 'Keluar Umum'
+        mutations.push({
+          type: 'KELUAR',
+          date: d,
+          qty: item.quantity,
+          detail: `Ke ${target}`,
+          timeMs: item.created_at ? new Date(item.created_at).getTime() : 0
+        })
+      }
+    }
+    mutations.sort((a, b) => (b.timeMs || 0) - (a.timeMs || 0) || (b.date > a.date ? 1 : -1))
+    return mutations.slice(0, 5)
+  }, [supplierInboundList, supplierOutboundList])
 
   // Render Kartu Transaksi Barang Masuk (Inbound) - 3 Zona Berhierarki + Footer
   const renderInboundCard = (item, idx) => {
@@ -1053,14 +1113,6 @@ export default function SupplierInboundView() {
           )}
         </div>
 
-        {/* ZONA D: Footer (Garis pemisah tipis + chip Terverifikasi hijau dengan ikon centang) */}
-        <div className="pt-3 border-t border-[#EDE8DF] flex items-center justify-between gap-2">
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-[#EAF5EE] text-[#2F7D5B] border border-[#CBEAD6]">
-            <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-[#2F7D5B]" />
-            <span>Terverifikasi</span>
-          </span>
-        </div>
-
         {/* Panel Aksi Expandable (Muncul saat kartu ditoggle via chevron) */}
         {isExpanded && (
           <div className="pt-2.5 border-t border-dashed border-[#EDE8DF] flex items-center justify-end gap-2 animate-in fade-in duration-150 relative">
@@ -1136,50 +1188,254 @@ export default function SupplierInboundView() {
     )
   }
 
-  // Render Kartu Transaksi Barang Keluar (Outbound)
-  const renderOutboundCard = (item, idx, showTypeBadge = false) => {
+  // Render Kartu Transaksi Barang Keluar (Outbound) - 3 Zona Berhierarki Reusable
+  const renderOutboundCard = (item, idx) => {
+    const cardKey = `out-${item.outbound_id || idx}`
+    const isExpanded = expandedCardId === cardKey || expandedCardId === item.outbound_id
+    const timeFormatted = formatItemTime(item.created_at)
+    const targetStationName = item.target_station_name || item.target_station || 'Keluar Umum'
+
     return (
-      <div
-        key={`out-${item.outbound_id || idx}`}
-        className="bg-white border border-[#EDE8DF] hover:border-[#D5CEBF] rounded-2xl p-3 shadow-2xs transition-all select-none"
-      >
-        <div className="flex items-start justify-between gap-2.5">
-          <div className="space-y-1 min-w-0 flex-1">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {showTypeBadge && (
-                <span className="px-1.5 py-0.5 rounded-md text-[9px] font-extrabold bg-[#FDEDEC] text-[#E8352D] border border-[#FADBD8]">
-                  KELUAR
-                </span>
-              )}
-              <span className="font-bold text-xs text-[#2C3E50] block truncate">
-                {item.item_name}
-              </span>
-              {item.target_station_name && (
-                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-[#EEF5F9] text-[#3A6B80] border border-[#C5DFEA]">
-                  → {item.target_station_name}
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-2 flex-wrap text-[11px] text-[#6B7B8D]">
-              {formatItemTime(item.created_at) && <span>{formatItemTime(item.created_at)}</span>}
-              <span>Petugas: <strong className="text-[#2C3E50]">{item.dispatched_by || 'PPIC'}</strong></span>
-            </div>
-            {item.notes && (
-              <span className="text-[11px] text-[#6B7B8D] italic block">
-                &ldquo;{item.notes}&rdquo;
+      <CardShell key={cardKey} isExpanded={isExpanded} variant="outbound">
+        {/* ZONA A: Atas (Badge KELUAR + Jam di kiri, Chevron tanpa kotak di kanan min 44px tap target) */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <TypeBadge type="KELUAR" />
+            {timeFormatted && (
+              <span className="text-xs font-medium text-[#6B7B8D]">
+                {timeFormatted}
               </span>
             )}
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
-            <div className="text-right">
-              <span className="font-bold text-xs text-rose-600 tabular-nums block">
-                -{item.quantity} <span className="text-[11px] font-semibold text-[#6B7B8D]">{formatUnitDisplay(item.unit)}</span>
+          {/* Chevron tanpa kotak, min 44x44px tap area */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              setExpandedCardId(isExpanded ? null : cardKey)
+            }}
+            className="w-11 h-11 min-w-[44px] min-h-[44px] -mr-2.5 -my-2 flex items-center justify-center text-[#6B7B8D] hover:text-[#2C3E50] active:scale-95 transition-colors cursor-pointer rounded-full"
+            title={isExpanded ? 'Tutup detail' : 'Tampilkan opsi detail'}
+            aria-label="Toggle opsi detail barang keluar"
+          >
+            {isExpanded ? (
+              <ChevronUp className="w-5 h-5 text-rose-600" />
+            ) : (
+              <ChevronDown className="w-5 h-5 text-[#6B7B8D]" />
+            )}
+          </button>
+        </div>
+
+        {/* ZONA B: Tengah (Nama barang semibold maks 2 baris di kiri, Jumlah tebal & besar warna merah lembut di kanan) */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1 min-w-0 pr-1">
+            <h3 className="font-semibold text-sm sm:text-base text-[#1E293B] line-clamp-2 leading-snug break-words">
+              {item.item_name}
+            </h3>
+          </div>
+
+          <QtyBlock
+            prefix="-"
+            value={item.quantity}
+            unit={formatUnitDisplay(item.unit)}
+            colorClass="text-rose-600"
+          />
+        </div>
+
+        {/* ZONA C: Detail (FieldGrid, label abu-abu text-xs di atas, nilai text-sm di bawah) */}
+        <FieldGrid
+          items={[
+            {
+              label: 'Tujuan Distribusi',
+              value: (
+                <span className="flex items-center gap-1.5 truncate">
+                  <ArrowUpRight className="w-3.5 h-3.5 text-rose-500 shrink-0 stroke-[2.2]" />
+                  <span className="truncate">{targetStationName}</span>
+                </span>
+              ),
+              title: targetStationName
+            },
+            {
+              label: 'Kategori',
+              value: INBOUND_CATEGORIES.find((c) => c.id === item.category)?.label || item.category || '-'
+            },
+            {
+              label: 'Petugas Pengeluar',
+              value: item.dispatched_by || 'PPIC',
+              fullWidth: true
+            },
+            ...(item.notes
+              ? [
+                  {
+                    label: 'Catatan',
+                    value: item.notes,
+                    title: item.notes,
+                    fullWidth: true
+                  }
+                ]
+              : [])
+          ]}
+        />
+
+        {/* Panel Aksi / Detail Expandable (Muncul saat kartu ditoggle via chevron) */}
+        {isExpanded && item.lot_qr_code && (
+          <div className="pt-2.5 border-t border-dashed border-[#EDE8DF] flex items-center justify-between gap-2 animate-in fade-in duration-150 text-xs">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <QrCode className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+              <span className="font-mono text-xs text-[#2C3E50] font-semibold truncate">
+                {item.lot_qr_code}
               </span>
             </div>
+            <span className="text-[10px] text-[#8C9BA8] uppercase font-bold shrink-0">
+              Kode QR Lot
+            </span>
+          </div>
+        )}
+      </CardShell>
+    )
+  }
+
+  // Render Kartu Inventory - 3 Zona Berhierarki Reusable
+  const renderInventoryCard = (inv, idx) => {
+    const cardKey = `inv-${inv.itemName}__${inv.unit}`
+    const isExpanded = expandedCardId === cardKey
+    const isOutOfStock = inv.stokTersedia <= 0
+    const recentMutations = isExpanded ? getRecentMutationsForItem(inv.itemName, inv.unit) : []
+    const catLabel = INBOUND_CATEGORIES.find((c) => c.id === inv.category)?.label || inv.category || 'INVENTORY'
+
+    return (
+      <CardShell key={`inv-${idx}-${inv.itemName}`} isExpanded={isExpanded} variant="inventory">
+        {/* ZONA A: Atas (Badge Kategori di kiri, StatusChip "Stok Habis" & Chevron di kanan) */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <TypeBadge type="CATEGORY" label={catLabel} />
+          </div>
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            {isOutOfStock && <StatusChip status="habis" label="Stok Habis" />}
+
+            {/* Chevron tanpa kotak, min 44x44px tap area */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                setExpandedCardId(isExpanded ? null : cardKey)
+              }}
+              className="w-11 h-11 min-w-[44px] min-h-[44px] -mr-2.5 -my-2 flex items-center justify-center text-[#6B7B8D] hover:text-[#2C3E50] active:scale-95 transition-colors cursor-pointer rounded-full"
+              title={isExpanded ? 'Tutup riwayat mutasi' : 'Lihat 5 mutasi terakhir'}
+              aria-label="Toggle riwayat mutasi item"
+            >
+              {isExpanded ? (
+                <ChevronUp className="w-5 h-5 text-[#3A6B80]" />
+              ) : (
+                <ChevronDown className="w-5 h-5 text-[#6B7B8D]" />
+              )}
+            </button>
           </div>
         </div>
-      </div>
+
+        {/* ZONA B: Tengah (Nama barang semibold maks 2 baris di kiri, Sisa Stok besar di kanan) */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1 min-w-0 pr-1">
+            <h3 className="font-semibold text-sm sm:text-base text-[#1E293B] line-clamp-2 leading-snug break-words">
+              {inv.itemName}
+            </h3>
+          </div>
+
+          <QtyBlock
+            topLabel="Sisa Stok"
+            value={inv.stokTersedia}
+            unit={formatUnitDisplay(inv.unit)}
+            colorClass={isOutOfStock ? 'text-rose-600' : 'text-[#1E293B]'}
+          />
+        </div>
+
+        {/* ZONA C: Statistik 3 Kolom sama lebar dengan pemisah tipis (Masuk | Keluar | Terakhir bergerak) */}
+        <div className="grid grid-cols-3 divide-x divide-[#EDE8DF] border-t border-[#EDE8DF] pt-3 text-center">
+          <div className="px-1.5 space-y-0.5 text-left sm:text-center">
+            <span className="text-[11px] text-[#6B7B8D] font-medium flex items-center justify-start sm:justify-center gap-1">
+              <ArrowDownLeft className="w-3 h-3 text-emerald-600 shrink-0 stroke-[2.2]" />
+              <span>Masuk</span>
+            </span>
+            <p className="text-sm font-bold text-[#1E293B] tabular-nums">
+              +{inv.totalInbound}{' '}
+              <span className="text-[10px] font-medium text-[#6B7B8D]">
+                {formatUnitDisplay(inv.unit)}
+              </span>
+            </p>
+          </div>
+
+          <div className="px-1.5 space-y-0.5 text-left sm:text-center">
+            <span className="text-[11px] text-[#6B7B8D] font-medium flex items-center justify-start sm:justify-center gap-1">
+              <ArrowUpRight className="w-3 h-3 text-rose-500 shrink-0 stroke-[2.2]" />
+              <span>Keluar</span>
+            </span>
+            <p className="text-sm font-bold text-[#1E293B] tabular-nums">
+              -{inv.totalOutbound}{' '}
+              <span className="text-[10px] font-medium text-[#6B7B8D]">
+                {formatUnitDisplay(inv.unit)}
+              </span>
+            </p>
+          </div>
+
+          <div className="px-1.5 space-y-0.5 text-left sm:text-center">
+            <span className="text-[11px] text-[#6B7B8D] font-medium block">
+              Terakhir Bergerak
+            </span>
+            <p className="text-xs sm:text-sm font-semibold text-[#1E293B] truncate">
+              {inv.latestDate ? formatIndoDate(inv.latestDate) : '-'}
+            </p>
+          </div>
+        </div>
+
+        {/* Panel Riwayat 5 Pergerakan Terakhir (Expandable via Chevron) */}
+        {isExpanded && (
+          <div className="pt-3 border-t border-dashed border-[#EDE8DF] space-y-2 animate-in fade-in duration-150">
+            <div className="flex items-center justify-between text-[11px] font-bold text-[#6B7B8D]">
+              <span>5 Pergerakan Terakhir:</span>
+              <span>Kuantitas</span>
+            </div>
+            <div className="space-y-1.5">
+              {recentMutations.length === 0 ? (
+                <p className="text-xs text-[#8C9BA8] italic py-1">Belum ada riwayat pergerakan stok.</p>
+              ) : (
+                recentMutations.map((m, mIdx) => (
+                  <div
+                    key={mIdx}
+                    className="flex items-center justify-between text-xs py-1 border-b border-[#F5F1EB] last:border-0"
+                  >
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span
+                        className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                          m.type === 'MASUK'
+                            ? 'bg-[#EAF5EE] text-[#2F7D5B]'
+                            : 'bg-[#FDEDEC] text-[#D9383A]'
+                        }`}
+                      >
+                        {m.type}
+                      </span>
+                      <span className="text-[11px] text-[#6B7B8D]">
+                        {formatIndoDate(m.date)}
+                      </span>
+                      <span className="text-[#1E293B] font-medium truncate max-w-[120px] sm:max-w-[200px]">
+                        {m.detail}
+                      </span>
+                    </div>
+                    <span
+                      className={`font-bold tabular-nums shrink-0 ml-2 ${
+                        m.type === 'MASUK' ? 'text-emerald-700' : 'text-rose-600'
+                      }`}
+                    >
+                      {m.type === 'MASUK' ? `+${m.qty}` : `-${m.qty}`} {formatUnitDisplay(inv.unit)}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+      </CardShell>
     )
   }
 
@@ -1396,8 +1652,8 @@ export default function SupplierInboundView() {
                     <div className="space-y-3 pt-1">
                       {group.items.map((item, idx) =>
                         item._type === 'OUTBOUND'
-                          ? renderOutboundCard(item, idx, true)
-                          : renderInboundCard(item, idx, true)
+                          ? renderOutboundCard(item, idx)
+                          : renderInboundCard(item, idx)
                       )}
                     </div>
                   </div>
@@ -1497,7 +1753,7 @@ export default function SupplierInboundView() {
               <p className="font-medium text-[#2C3E50]">
                 {searchQuery
                   ? 'Tidak ada barang keluar yang sesuai dengan kata kunci pencarian.'
-                  : 'Belum ada riwayat barang keluar.'}
+                  : 'Belum ada barang keluar di periode ini'}
               </p>
               {searchQuery && (
                 <button
@@ -1514,35 +1770,45 @@ export default function SupplierInboundView() {
               {groupedOutboundByDate.map((group) => {
                 if (group.items.length === 0) {
                   return (
-                    <div key={group.dateStr} className="space-y-1.5">
-                      <div className="flex items-center gap-1.5 px-1 pt-1 pb-0.5">
-                        <span className="text-xs font-bold text-[#2C3E50]">
-                          {group.badgeLabel || 'Hari Ini'}
-                        </span>
-                        <span className="text-xs text-[#6B7B8D]">
-                          {group.title}
+                    <div key={group.dateStr} className="space-y-2.5">
+                      <div className="flex items-center justify-between gap-2 px-1 pt-2 pb-0.5">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs font-bold text-[#2C3E50]">
+                            {group.badgeLabel || 'Hari Ini'}
+                          </span>
+                          <span className="text-xs text-[#6B7B8D]">
+                            {group.title}
+                          </span>
+                        </div>
+                        <span className="text-[11px] font-semibold text-[#6B7B8D] bg-[#F5F1EB] border border-[#EDE8DF] px-2.5 py-0.5 rounded-full">
+                          0 Transaksi
                         </span>
                       </div>
                       <div className="bg-white border border-[#EDE8DF] rounded-2xl p-4 text-center text-xs text-[#556575] font-medium shadow-2xs">
-                        Belum ada barang keluar tercatat hari ini.
+                        Belum ada barang keluar di periode ini
                       </div>
                     </div>
                   )
                 }
 
                 return (
-                  <div key={group.dateStr} className="space-y-1.5">
-                    <div className="flex items-center gap-1.5 px-1 pt-1 pb-0.5">
-                      <span className="text-xs font-bold text-[#2C3E50]">
-                        {group.badgeLabel || 'Riwayat'}
-                      </span>
-                      <span className="text-xs text-[#6B7B8D]">
-                        {group.title}
+                  <div key={group.dateStr} className="space-y-2.5">
+                    <div className="flex items-center justify-between gap-2 px-1 pt-2 pb-0.5">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-bold text-[#2C3E50]">
+                          {group.badgeLabel || 'Riwayat'}
+                        </span>
+                        <span className="text-xs text-[#6B7B8D]">
+                          {group.title}
+                        </span>
+                      </div>
+                      <span className="text-[11px] font-semibold text-[#6B7B8D] bg-[#F5F1EB] border border-[#EDE8DF] px-2.5 py-0.5 rounded-full">
+                        {group.items.length} Transaksi
                       </span>
                     </div>
 
-                    <div className="space-y-2">
-                      {group.items.map((item, idx) => renderOutboundCard(item, idx, false))}
+                    <div className="space-y-3 pt-1">
+                      {group.items.map((item, idx) => renderOutboundCard(item, idx))}
                     </div>
                   </div>
                 )
@@ -1558,53 +1824,32 @@ export default function SupplierInboundView() {
           {inventoryItems.length === 0 ? (
             <div className="bg-white border border-[#EDE8DF] rounded-2xl p-8 text-center text-xs text-[#6B7B8D] shadow-2xs mt-2">
               <p className="font-medium text-[#2C3E50]">
-                Belum ada data stok barang.
+                {searchQuery
+                  ? 'Tidak ada data inventory yang sesuai dengan pencarian.'
+                  : 'Belum ada data inventory'}
               </p>
             </div>
           ) : (
-            <div className="space-y-2 pt-1">
-              <div className="flex items-center justify-between px-1 text-[11px] text-[#6B7B8D] font-medium">
-                <span>{inventoryItems.length} jenis barang terdata</span>
-                <span className="text-[10px]">Sisa Stok = Total Masuk - Total Keluar</span>
-              </div>
-              <div className="space-y-2">
-                {inventoryItems.map((inv, idx) => (
-                  <div
-                    key={idx}
-                    className="bg-white border border-[#EDE8DF] rounded-2xl p-3 shadow-2xs flex items-center justify-between gap-2.5 hover:border-[#D5CEBF] transition-all"
+            <div className="space-y-3 pt-0.5">
+              <div className="flex items-center justify-between px-1 text-[11px] text-[#6B7B8D] font-medium pb-1">
+                <span className="font-bold text-[#2C3E50]">
+                  {inventoryItems.length} jenis barang
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <span>Stok per {formatIndoDate(getTodayStr())}, {currentStockTimeStr} WIB</span>
+                  <button
+                    type="button"
+                    onClick={() => setIsStockFormulaModalOpen(true)}
+                    className="w-5 h-5 rounded-full hover:bg-[#EDE8DF] text-[#6B7B8D] hover:text-[#2C3E50] inline-flex items-center justify-center transition cursor-pointer"
+                    title="Informasi Perhitungan Sisa Stok"
+                    aria-label="Informasi Perhitungan Sisa Stok"
                   >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-[#FAF7F2] text-[#4685ac] border border-[#EDE8DF]">
-                          {inv.category}
-                        </span>
-                        <span className="font-bold text-xs text-[#2C3E50] block truncate">
-                          {inv.itemName}
-                        </span>
-                      </div>
-                      <div className="text-[11px] text-[#6B7B8D] flex items-center gap-2 mt-1 flex-wrap">
-                        <span>Masuk: <strong className="text-[#2C3E50]">{inv.totalInbound}</strong></span>
-                        <span>•</span>
-                        <span>Keluar: <strong className="text-rose-600">{inv.totalOutbound}</strong></span>
-                        {inv.latestDate && (
-                          <>
-                            <span>•</span>
-                            <span>Aktivitas: {formatIndoDate(inv.latestDate)}</span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="text-right shrink-0">
-                      <span className="text-[10px] text-[#6B7B8D] block uppercase font-bold tracking-wider">
-                        Sisa Stok
-                      </span>
-                      <span className={`font-bold text-sm tabular-nums block ${inv.stokTersedia > 0 ? 'text-[#2F7D5B]' : 'text-slate-400'}`}>
-                        {inv.stokTersedia} <span className="text-xs font-semibold">{formatUnitDisplay(inv.unit)}</span>
-                      </span>
-                    </div>
-                  </div>
-                ))}
+                    <Info className="w-3.5 h-3.5 text-[#3A6B80]" />
+                  </button>
+                </div>
+              </div>
+              <div className="space-y-3">
+                {inventoryItems.map((inv, idx) => renderInventoryCard(inv, idx))}
               </div>
             </div>
           )}
@@ -2249,6 +2494,33 @@ export default function SupplierInboundView() {
         fallbackInboundList={supplierInboundList}
         fallbackOutboundList={supplierOutboundList}
       />
+
+      {/* 6. Modal Informasi Rumus Perhitungan Sisa Stok */}
+      {isStockFormulaModalOpen && (
+        <Modal
+          isOpen={isStockFormulaModalOpen}
+          onClose={() => setIsStockFormulaModalOpen(false)}
+          title="Formula Perhitungan Sisa Stok"
+        >
+          <div className="p-4 sm:p-5 space-y-3.5 text-xs text-[#2C3E50]">
+            <div className="p-3.5 bg-[#FAF7F2] border border-[#EDE8DF] rounded-xl font-mono text-center font-bold text-[#3A6B80] text-sm">
+              Sisa Stok = Total Masuk − Total Keluar
+            </div>
+            <p className="text-[#6B7B8D] leading-relaxed">
+              Nilai sisa stok dihitung secara otomatis dan real-time dari akumulasi seluruh pencatatan transaksi barang masuk dari supplier luar dikurangi pengeluaran barang ke stasiun produksi dan pemakaian operasional lainnya.
+            </p>
+            <div className="pt-2 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setIsStockFormulaModalOpen(false)}
+                className="min-h-[40px] px-5 py-2 rounded-xl text-xs font-bold bg-[#3A6B80] text-white hover:bg-[#2C3E50] cursor-pointer shadow-xs transition active:scale-95"
+              >
+                Mengerti
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   )
 }
