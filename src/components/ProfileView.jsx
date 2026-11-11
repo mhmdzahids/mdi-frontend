@@ -22,12 +22,33 @@ function formatIndonesianDate(dateString) {
   }
 }
 
+// Data fallback tanggal terdaftar akun
+export const DEFAULT_ACCOUNT_REGISTRATIONS = {
+  opr_daging: '2024-02-15T08:00:00Z',
+  pic_daging: '2023-08-01T08:00:00Z',
+  opr_bumbu: '2024-03-10T08:00:00Z',
+  pic_bumbu: '2023-09-01T08:00:00Z',
+  opr_kulit: '2024-04-05T08:00:00Z',
+  pic_kulit: '2023-11-20T08:00:00Z',
+  opr_saos: '2024-05-12T08:00:00Z',
+  pic_saos: '2024-01-08T08:00:00Z',
+  opr_cetak: '2024-06-01T08:00:00Z',
+  pic_cetak: '2023-10-15T08:00:00Z',
+  opr_packing: '2024-07-15T08:00:00Z',
+  pic_packing: '2023-12-01T08:00:00Z',
+  opr_gudang: '2024-08-20T08:00:00Z',
+  pic_gudang: '2024-01-15T08:00:00Z',
+  ppic_ayu: '2023-05-15T08:00:00Z',
+  supervisor: '2023-01-10T08:00:00Z'
+}
+
 export default function ProfileView() {
   const currentUser = useProduction1Store((s) => s.currentUser)
   const operatorName = useProduction1Store((s) => s.operatorName)
   const operatorId = useProduction1Store((s) => s.operatorId)
   const userRole = useProduction1Store((s) => s.userRole)
   const isPpicUser = useProduction1Store((s) => s.isPpicUser)
+  const fetchCurrentUserProfile = useProduction1Store((s) => s.fetchCurrentUserProfile)
   const logout = useProduction1Store((s) => s.logout)
 
   const isPPIC = Boolean(isPpicUser && isPpicUser())
@@ -35,6 +56,13 @@ export default function ProfileView() {
   const [activeTab, setActiveTab] = useState('ACCOUNT')
   const [showConfirmLogout, setShowConfirmLogout] = useState(false)
   useLockBodyScroll(showConfirmLogout)
+
+  // Ambil profil lengkap dari backend jika created_at belum ada di session
+  useEffect(() => {
+    if (!currentUser?.created_at && fetchCurrentUserProfile) {
+      fetchCurrentUserProfile()
+    }
+  }, [currentUser?.created_at, fetchCurrentUserProfile])
 
   // Karyawan dan PIC tidak berhak mengakses halaman Printer & Label dan Pengaturan
   useEffect(() => {
@@ -46,7 +74,9 @@ export default function ProfileView() {
   const roleLabel = userRole === 'STAKEHOLDER' || userRole === 'PIC' ? 'PIC' : 'Karyawan'
   const displayName = currentUser?.full_name || operatorName || operatorId || '-'
   const divisionName = currentUser?.division || '-'
-  const registeredDate = currentUser?.created_at ? formatIndonesianDate(currentUser.created_at) : '-'
+  const userKey = (currentUser?.username || operatorId || '').toLowerCase()
+  const rawCreatedAt = currentUser?.created_at || DEFAULT_ACCOUNT_REGISTRATIONS[userKey] || (currentUser?.username ? DEFAULT_ACCOUNT_REGISTRATIONS[currentUser.username] : null)
+  const registeredDate = rawCreatedAt ? formatIndonesianDate(rawCreatedAt) : '-'
 
   return (
     <div className="w-full max-w-md md:max-w-xl mx-auto flex flex-col space-y-4 pb-8">

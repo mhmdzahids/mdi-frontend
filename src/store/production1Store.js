@@ -3299,6 +3299,26 @@ export const useProduction1Store = create(
         }
       },
 
+      fetchCurrentUserProfile: async () => {
+        try {
+          const res = await apiFetch('/api/v1/auth/me', { silent: true })
+          if (!res.ok) return null
+          const data = await res.json()
+          if (data && data.username) {
+            set((s) => ({
+              currentUser: {
+                ...(s.currentUser || {}),
+                ...data
+              }
+            }))
+            return data
+          }
+        } catch {
+          // offline fallback
+        }
+        return null
+      },
+
       quickSwitchUser: async (username) => {
         try {
           const res = await apiFetch('/api/v1/auth/quick-switch', {
