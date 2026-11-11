@@ -24,31 +24,6 @@ const getYesterdayStr = () => {
   return d.toISOString().slice(0, 10)
 }
 
-function formatIndoDate(dStr) {
-  if (!dStr) return ''
-  const parts = dStr.split('-')
-  if (parts.length !== 3) return dStr
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
-  const day = parseInt(parts[2], 10)
-  const monthIdx = parseInt(parts[1], 10) - 1
-  const year = parts[0]
-  return `${day} ${months[monthIdx] || parts[1]} ${year}`
-}
-
-function formatIndoDateFull(dStr) {
-  if (!dStr) return ''
-  const parts = dStr.split('-')
-  if (parts.length !== 3) return dStr
-  const months = [
-    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
-  ]
-  const day = parseInt(parts[2], 10)
-  const monthIdx = parseInt(parts[1], 10) - 1
-  const year = parts[0]
-  return `${day} ${months[monthIdx] || parts[1]} ${year}`
-}
-
 export default function PpicDailySummaryView() {
   const [filterPreset, setFilterPreset] = useState('today') // 'today' | 'yesterday' | 'single' | 'range'
   const [selectedDate, setSelectedDate] = useState(getTodayStr())
@@ -81,10 +56,6 @@ export default function PpicDailySummaryView() {
   const todayStr = getTodayStr()
   const isRange = filterPreset === 'range'
   const isHistorical = filterPreset === 'range' || filterPreset === 'yesterday' || (filterPreset === 'single' && selectedDate !== todayStr)
-
-  const activePeriodLabel = isRange
-    ? `${formatIndoDate(rangeStartDate)} – ${formatIndoDate(rangeEndDate)}`
-    : formatIndoDateFull(selectedDate)
 
   const activeExportDateStr = isRange
     ? `${rangeStartDate} s/d ${rangeEndDate}`
@@ -271,53 +242,25 @@ export default function PpicDailySummaryView() {
   )
 
   const containerRef = useRef(null)
+  const hasAnimatedRef = useRef(false)
 
-  // GSAP + ScrollTrigger untuk Scroll Reveal & Parallax Halus
+  // Animasi masuk ringan hanya SEKALI saat mount pertama (tanpa scroll-triggered reveal per card)
   useGSAP(
     () => {
       if (typeof window === 'undefined') return
       if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+      if (hasAnimatedRef.current) return
+      hasAnimatedRef.current = true
 
-      // 1. Reveal metric cards saat konten dimuat
-      gsap.from('.gsap-metric-card', {
+      gsap.from(containerRef.current, {
         opacity: 0,
-        y: 16,
-        duration: 0.5,
-        stagger: 0.08,
-        ease: 'power2.out',
-        clearProps: 'transform,opacity'
-      })
-
-      // 2. Reveal per Section untuk Division Cards saat di-scroll ke bawah
-      const divisionCards = gsap.utils.toArray('.gsap-division-card')
-      divisionCards.forEach((card) => {
-        gsap.from(card, {
-          scrollTrigger: {
-            trigger: card,
-            start: 'top 88%',
-            toggleActions: 'play none none none'
-          },
-          opacity: 0,
-          y: 20,
-          duration: 0.55,
-          ease: 'power2.out',
-          clearProps: 'transform,opacity'
-        })
-      })
-
-      // 3. Parallax halus pada Toolbar Header saat scrolling
-      gsap.to('.gsap-parallax-banner', {
-        scrollTrigger: {
-          trigger: '.gsap-filter-toolbar',
-          start: 'top top',
-          end: 'bottom top',
-          scrub: 0.8
-        },
         y: 8,
-        ease: 'none'
+        duration: 0.35,
+        ease: 'power2.out',
+        clearProps: 'all'
       })
     },
-    { scope: containerRef, dependencies: [dailyRecapData, loadingRecap] }
+    { scope: containerRef, dependencies: [] }
   )
 
   return (
@@ -341,8 +284,8 @@ export default function PpicDailySummaryView() {
       )}
 
       {/* Toolbar Filter Tanggal & Periode */}
-      <div className="bg-white border border-[#EDE8DF] rounded-3xl p-3 sm:p-4 shadow-xs space-y-3 gsap-filter-toolbar">
-        <div className="flex items-stretch gap-1.5 p-1 bg-[#F5F1EB] rounded-2xl w-full overflow-x-auto gsap-parallax-banner">
+      <div className="bg-white border border-[#EDE8DF] rounded-3xl p-3 sm:p-4 shadow-xs space-y-3">
+        <div className="flex items-stretch gap-1.5 p-1 bg-[#F5F1EB] rounded-2xl w-full overflow-x-auto">
           <button
             type="button"
             onClick={() => applyPreset('today')}
@@ -453,7 +396,7 @@ export default function PpicDailySummaryView() {
         <>
           {/* Ringkasan Ringkas */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="p-4 rounded-3xl bg-white border border-[#EDE8DF] shadow-xs gsap-metric-card">
+            <div className="p-4 rounded-3xl bg-white border border-[#EDE8DF] shadow-xs">
               <div className="text-[11px] font-bold text-[#6B7B8D] uppercase tracking-wider">
                 Target Gilingan
               </div>
@@ -463,7 +406,7 @@ export default function PpicDailySummaryView() {
               <div className="text-[11px] text-[#6B7B8D] mt-0.5">Target shift</div>
             </div>
 
-            <div className="p-4 rounded-3xl bg-white border border-[#EDE8DF] shadow-xs gsap-metric-card">
+            <div className="p-4 rounded-3xl bg-white border border-[#EDE8DF] shadow-xs">
               <div className="text-[11px] font-bold text-[#6B7B8D] uppercase tracking-wider">
                 Barcode Terbit
               </div>
@@ -473,7 +416,7 @@ export default function PpicDailySummaryView() {
               <div className="text-[11px] text-[#6B7B8D] mt-0.5">Total lot terbit</div>
             </div>
 
-            <div className="p-4 rounded-3xl bg-white border border-[#EDE8DF] shadow-xs gsap-metric-card">
+            <div className="p-4 rounded-3xl bg-white border border-[#EDE8DF] shadow-xs">
               <div className="text-[11px] font-bold text-[#6B7B8D] uppercase tracking-wider">
                 Total Reject
               </div>
@@ -483,7 +426,7 @@ export default function PpicDailySummaryView() {
               <div className="text-[11px] text-[#6B7B8D] mt-0.5">Semua stasiun</div>
             </div>
 
-            <div className="p-4 rounded-3xl bg-white border border-[#EDE8DF] shadow-xs gsap-metric-card">
+            <div className="p-4 rounded-3xl bg-white border border-[#EDE8DF] shadow-xs">
               <div className="text-[11px] font-bold text-[#6B7B8D] uppercase tracking-wider">
                 Barang Masuk
               </div>
@@ -512,14 +455,12 @@ export default function PpicDailySummaryView() {
           <div className="space-y-4">
             {DIVISION_CONFIG.map((divConfig) => {
               const divData = divisions[divConfig.id] || {}
-              const isProd2 = divConfig.id === 'CETAK' || divConfig.id === 'PACKING'
-
               const hasDiffOfficer = Boolean(divData.updated_by && divData.updated_by !== primaryOfficer)
 
               return (
                 <div
                   key={divConfig.id}
-                  className="border border-bg-cream-dark shadow-2xs rounded-2xl bg-white overflow-hidden gsap-division-card"
+                  className="border border-bg-cream-dark shadow-2xs rounded-2xl bg-white overflow-hidden"
                 >
                   {/* Header Card Satu Baris */}
                   <div className="px-4 py-2 flex items-center justify-between border-b border-bg-cream-dark">

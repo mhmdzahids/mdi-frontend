@@ -4,9 +4,13 @@ import { gsap } from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import { SmoothScrollContext } from './SmoothScrollContext'
 
-// Daftarkan ScrollTrigger satu kali di tingkat modul
+// Daftarkan ScrollTrigger satu kali di tingkat modul dan konfigurasi untuk mobile
 if (typeof window !== 'undefined') {
   gsap.registerPlugin(ScrollTrigger)
+  ScrollTrigger.config({
+    ignoreMobileResize: true,
+    autoRefreshEvents: 'visibilitychange,DOMContentLoaded,load'
+  })
 }
 
 export default function SmoothScroll({ children }) {
@@ -32,8 +36,15 @@ export default function SmoothScroll({ children }) {
       mediaQuery.addListener(handleMotionChange)
     }
 
-    // Jika pengguna mengaktifkan reduced motion, jangan inisialisasi Lenis
-    if (mediaQuery.matches) {
+    // Deteksi perangkat layar sentuh / mobile
+    const isTouch =
+      'ontouchstart' in window ||
+      navigator.maxTouchPoints > 0 ||
+      window.matchMedia('(pointer: coarse)').matches
+
+    // Jika pengguna mengaktifkan reduced motion atau memakai perangkat touch,
+    // biarkan browser memakai native scroll (lebih responsif, tanpa konflik momentum sentuhan).
+    if (mediaQuery.matches || isTouch) {
       return () => {
         if (mediaQuery.removeEventListener) {
           mediaQuery.removeEventListener('change', handleMotionChange)
@@ -43,7 +54,7 @@ export default function SmoothScroll({ children }) {
       }
     }
 
-    // Inisialisasi Lenis untuk smooth scroll global
+    // Inisialisasi Lenis hanya untuk desktop / pointer wheel
     const lenis = new Lenis({
       duration: 0.8,
       easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
@@ -51,7 +62,6 @@ export default function SmoothScroll({ children }) {
       gestureOrientation: 'vertical',
       smoothWheel: true,
       wheelMultiplier: 1,
-      touchMultiplier: 1.2,
       infinite: false
     })
 
@@ -86,10 +96,13 @@ export default function SmoothScroll({ children }) {
     // Cleanup saat unmount
     return () => {
       document.removeEventListener('click', handleAnchorClick)
-      lenis.off('scroll', ScrollTrigger.update)
-      gsap.ticker.remove(updateTicker)
-      lenis.destroy()
-      lenisRef.current = null
+      if (lenisRef.current) {
+        lenis.off('scroll', ScrollTrigger.update)
+        gsap.ticker.remove(updateTicker)
+        lenis.destroy()
+        lenisRef.current = null
+      }
+      ScrollTrigger.getAll().forEach((t) => t.kill())
       if (mediaQuery.removeEventListener) {
         mediaQuery.removeEventListener('change', handleMotionChange)
       } else {

@@ -142,7 +142,7 @@ export default function App() {
   }
 
   return (
-    <div className="w-full max-w-md md:max-w-xl lg:max-w-2xl mx-auto min-h-screen bg-[var(--canvas)] text-[#2C3E50] flex flex-col font-sans pb-24 sm:pb-28 relative shadow-2xs">
+    <div className="w-full max-w-md md:max-w-xl lg:max-w-2xl mx-auto min-h-screen min-h-[100dvh] bg-[var(--canvas)] text-[#2C3E50] flex flex-col font-sans pb-24 sm:pb-28 relative shadow-2xs">
       {/* Global Top Progress Bar (YouTube/GitHub Style) */}
       <TopProgressBar />
 
