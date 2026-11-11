@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
-import { ArrowLeft, Camera, Trash2, Lock, ChevronDown, ChevronUp, Package, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, Camera, Trash2, Lock, ChevronDown, ChevronUp, Package, AlertTriangle, Tag } from 'lucide-react'
 import { motion, AnimatePresence } from 'motion/react'
 import { useProduction1Store } from '../store/production1Store'
 import { canAccess } from '../utils/rbac'
 import ImageCropperModal from './ui/ImageCropperModal'
+import ProductDiscountModal from './promotions/ProductDiscountModal'
 
 function formatRupiahInput(val) {
   if (val === null || val === undefined || val === '') return ''
@@ -23,6 +24,7 @@ export default function ProductEditPage({ productId, onClose }) {
   const currentUser = useProduction1Store((s) => s.currentUser)
   const isDevMode = useProduction1Store((s) => s.isDevMode)
   const catalogProducts = useProduction1Store((s) => s.catalogProducts) || []
+  const fetchCatalogProducts = useProduction1Store((s) => s.fetchCatalogProducts)
   const saveCatalogProduct = useProduction1Store((s) => s.saveCatalogProduct)
   const uploadProductImage = useProduction1Store((s) => s.uploadProductImage)
   const deleteProductImage = useProduction1Store((s) => s.deleteProductImage)
@@ -33,6 +35,8 @@ export default function ProductEditPage({ productId, onClose }) {
   // Hak akses RBAC
   const canViewPrice = canAccess('freezer_sales:view_price', currentUser, isDevMode)
   const canEditPrice = canAccess('freezer_sales:edit_price', currentUser, isDevMode)
+
+  const [isDiscountModalOpen, setIsDiscountModalOpen] = useState(false)
 
   // Form State
   const [name, setName] = useState(product?.name || '')
@@ -346,6 +350,30 @@ export default function ProductEditPage({ productId, onClose }) {
                 <span>Hanya Super Admin / peran berizin yang dapat mengubah harga.</span>
               </p>
             )}
+
+            {/* Banner Diskon & Stok Online */}
+            {canEditPrice && (
+              <div className="mt-2.5 p-3 rounded-xl bg-[#F5F1EB] border border-[#EDE8DF] flex items-center justify-between gap-2">
+                <div>
+                  <span className="text-xs font-bold text-[#2C3E50] block">
+                    Promo Diskon & Kuota Website
+                  </span>
+                  <span className="text-[11px] text-[#556575]">
+                    {product?.is_discount
+                      ? `Sedang diskon ${product.discount_percent}% (Hemat Rp ${new Intl.NumberFormat('id-ID').format((product.original_price || product.price) - product.price)})`
+                      : 'Belum ada promo diskon aktif'}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsDiscountModalOpen(true)}
+                  className="h-8 px-3 rounded-xl bg-[#2C3E50] hover:bg-[#1E293B] text-white text-xs font-bold flex items-center gap-1.5 shrink-0 cursor-pointer shadow-2xs"
+                >
+                  <Tag className="w-3.5 h-3.5 text-amber-300" />
+                  <span>{product?.is_discount ? 'Edit Diskon' : 'Pasang Diskon'}</span>
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -487,6 +515,15 @@ export default function ProductEditPage({ productId, onClose }) {
           </div>
         )}
       </AnimatePresence>
+      {/* Modal Pasang / Edit Diskon */}
+      <ProductDiscountModal
+        isOpen={isDiscountModalOpen}
+        onClose={() => setIsDiscountModalOpen(false)}
+        product={product}
+        onUpdated={() => {
+          fetchCatalogProducts()
+        }}
+      />
     </div>
   )
 }

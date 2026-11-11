@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
 import { useProduction1Store } from '../store/production1Store'
 import { PlusIcon, MinusIcon, CheckIcon, AlertIcon } from './Icons'
-import { Package, ChevronRight } from 'lucide-react'
+import { Package, ChevronRight, Tag, Sparkles, Percent } from 'lucide-react'
 import { Card, CardContent } from './ui/Card'
 import { Badge } from './ui/Badge'
 import { SegmentedControl } from './ui/SegmentedControl'
 import { canAccess } from '../utils/rbac'
+import ProductDiscountModal from './promotions/ProductDiscountModal'
+import PromotionsManagementView from './promotions/PromotionsManagementView'
 
 const DEFAULT_PRODUCTS = [
   {
@@ -36,6 +38,11 @@ export default function ProductsView() {
   const isDevMode = useProduction1Store((s) => s.isDevMode)
 
   const canViewPrice = canAccess('freezer_sales:view_price', currentUser, isDevMode)
+  const canEditPrice = canAccess('freezer_sales:edit_price', currentUser, isDevMode)
+
+  const [activeMainTab, setActiveMainTab] = useState('INVENTORY') // 'INVENTORY' | 'PROMOTIONS'
+  const [selectedDiscountProduct, setSelectedDiscountProduct] = useState(null)
+  const [isDiscountModalOpen, setIsDiscountModalOpen] = useState(false)
 
   useEffect(() => {
     fetchCatalogProducts()
@@ -87,9 +94,42 @@ export default function ProductsView() {
 
   return (
     <div className="space-y-3.5 pb-28">
-      {/* Data Pembanding Ringkasan: Verifikasi & Stok POS */}
-      <Card className="border border-[#EDE8DF] shadow-xs">
-        <CardContent className="p-4">
+      {/* Tab Switcher: Katalog & Stok Fisik vs Voucher & Promo Website */}
+      <div className="flex items-center gap-1.5 p-1 bg-[#F5F1EB] rounded-2xl border border-[#EDE8DF]">
+        <button
+          type="button"
+          onClick={() => setActiveMainTab('INVENTORY')}
+          className={`flex-1 h-10 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+            activeMainTab === 'INVENTORY'
+              ? 'bg-[#2C3E50] text-white shadow-xs'
+              : 'text-[#556575] hover:bg-white/60'
+          }`}
+        >
+          <Package className="w-4 h-4" />
+          <span>Katalog & Stok Gudang</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveMainTab('PROMOTIONS')}
+          className={`flex-1 h-10 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+            activeMainTab === 'PROMOTIONS'
+              ? 'bg-[#2C3E50] text-white shadow-xs'
+              : 'text-[#556575] hover:bg-white/60'
+          }`}
+        >
+          <Sparkles className="w-4 h-4 text-amber-400" />
+          <span>Voucher & Promo Website</span>
+        </button>
+      </div>
+
+      {activeMainTab === 'PROMOTIONS' ? (
+        <PromotionsManagementView />
+      ) : (
+        <>
+          {/* Data Pembanding Ringkasan: Verifikasi & Stok POS */}
+          <Card className="border border-[#EDE8DF] shadow-xs">
+            <CardContent className="p-4">
           {/* DATA PEMBANDING SIDE-BY-SIDE (Produksi vs Penjualan) */}
           <div className="grid grid-cols-3 gap-2 text-center bg-[#F5F1EB] border border-[#EDE8DF] rounded-2xl p-2.5">
             <div className="bg-white border border-[#EDE8DF] rounded-xl p-2 shadow-2xs">
@@ -359,14 +399,41 @@ export default function ProductsView() {
 
                   {/* Baris 3: Harga Rupiah (Hanya jika pengguna berizin 'Lihat Harga') */}
                   {canViewPrice && (
-                    <div className="mt-1">
+                    <div className="mt-1 flex items-center gap-2 flex-wrap">
                       {!isPriceEmpty ? (
-                        <span className="text-xs sm:text-sm font-bold text-[#1E293B] tabular-nums">
-                          Rp {new Intl.NumberFormat('id-ID').format(product.price)}
-                        </span>
+                        <>
+                          {product.is_discount && (product.original_price || product.price) ? (
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-xs sm:text-sm font-extrabold text-[#2F7D5B] tabular-nums">
+                                Rp {new Intl.NumberFormat('id-ID').format(product.price)}
+                              </span>
+                              {product.original_price && product.original_price > product.price && (
+                                <span className="text-[11px] text-[#8C9BA8] line-through tabular-nums">
+                                  Rp {new Intl.NumberFormat('id-ID').format(product.original_price)}
+                                </span>
+                              )}
+                              {product.discount_percent > 0 && (
+                                <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded-md bg-red-100 text-red-700">
+                                  -{product.discount_percent}%
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-xs sm:text-sm font-bold text-[#1E293B] tabular-nums">
+                              Rp {new Intl.NumberFormat('id-ID').format(product.price)}
+                            </span>
+                          )}
+                        </>
                       ) : (
                         <span className="text-xs text-[#8C9BA8] font-normal italic">
                           Belum ada harga
+                        </span>
+                      )}
+
+                      {/* Online Stock Badge */}
+                      {product.stock_online != null && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-[#EEF5F9] text-[#3A6B80] border border-[#CBDDE6]">
+                          Web: {product.stock_online} pack
                         </span>
                       )}
                     </div>
@@ -374,8 +441,28 @@ export default function ProductsView() {
                 </div>
               </div>
 
-              {/* Kanan: Switch Status Display + Chevron Kecil */}
+              {/* Kanan: Tombol Diskon + Switch Status Display + Chevron Kecil */}
               <div className="flex items-center gap-2 shrink-0">
+                {/* Tombol Pasang / Edit Diskon (TUGAS 1.3) */}
+                {canEditPrice && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setSelectedDiscountProduct(product)
+                      setIsDiscountModalOpen(true)
+                    }}
+                    className={`h-8 px-2.5 rounded-xl text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer ${
+                      product.is_discount
+                        ? 'bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-200'
+                        : 'bg-[#F5F1EB] hover:bg-[#EDE8DF] text-[#556575] border border-[#EDE8DF]'
+                    }`}
+                  >
+                    <Tag className="w-3.5 h-3.5" />
+                    <span>{product.is_discount ? 'Edit Diskon' : 'Pasang Diskon'}</span>
+                  </button>
+                )}
+
                 <button
                   type="button"
                   disabled={isPriceEmpty}
@@ -401,6 +488,19 @@ export default function ProductsView() {
           )
         })}
       </div>
+        </>
+      )}
+
+      {/* Modal Pasang/Edit Diskon (TUGAS 1.3) */}
+      <ProductDiscountModal
+        isOpen={isDiscountModalOpen}
+        onClose={() => {
+          setIsDiscountModalOpen(false)
+          setSelectedDiscountProduct(null)
+        }}
+        product={selectedDiscountProduct}
+        onUpdated={fetchCatalogProducts}
+      />
     </div>
   )
 }
