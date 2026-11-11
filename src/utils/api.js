@@ -76,7 +76,8 @@ export async function apiFetch(url, options = {}) {
     ...(options.headers || {})
   }
 
-  const { silent: _silent, ...nativeOptions } = options
+  const nativeOptions = { ...options }
+  delete nativeOptions.silent
 
   try {
     return await fetch(url, {
@@ -89,4 +90,14 @@ export async function apiFetch(url, options = {}) {
       notifyListeners()
     }
   }
+}
+
+export async function apiGet(url, options = {}) {
+  const prefix = url.startsWith('/api/v1') ? url : `/api/v1${url.startsWith('/') ? url : `/${url}`}`
+  const res = await apiFetch(prefix, { ...options, method: 'GET' })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || `Request failed with status ${res.status}`)
+  }
+  return await res.json()
 }

@@ -220,6 +220,7 @@ export function downloadExcelXml({
   a.click()
   document.body.removeChild(a)
   URL.revokeObjectURL(url)
+  return { fileName, blob, xml }
 }
 
 /**
@@ -437,4 +438,646 @@ export function exportStationLotsExcel({ stationName, divisionCode, dateStr, lot
       }
     }
   })
+}
+
+/**
+ * Ekspor Laporan Komprehensif PPIC ke Excel (Multi-sheet: Rincian & Ringkasan)
+ * Mendukung format: Barang Masuk, Barang Keluar, Inventory (Stok), dan Semua Mutasi.
+ * Fitur:
+ * - Dua sheet terstruktur: "Rincian" & "Ringkasan"
+ * - Header tabel dibekukan (Freeze Panes)
+ * - AutoFilter aktif pada baris kolom
+ * - Tanggal asli (DateTime type) format DD/MM/YYYY & Angka asli (Number type)
+ * - Metadata lengkap (WIB, Penyusun, Filter)
+ */
+export function exportPpicCustomExcel({
+  reportType = 'INBOUND', // 'INBOUND' | 'OUTBOUND' | 'INVENTORY' | 'ALL'
+  dateFrom,
+  dateTo,
+  categoryFilter = 'ALL',
+  supplierFilter = '',
+  inboundItems = [],
+  outboundItems = [],
+  inventoryItems = [],
+  operatorName = 'Ayu (PPIC)'
+}) {
+  const isRange = dateFrom && dateTo && dateFrom !== dateTo
+  const dateFromStr = dateFrom || new Date().toISOString().slice(0, 10)
+  const dateToStr = dateTo || dateFromStr
+  const safeFrom = dateFromStr.replace(/[^0-9-]/g, '')
+  const safeTo = dateToStr.replace(/[^0-9-]/g, '')
+
+  let reportTitle
+  let filePrefix
+  if (reportType === 'INBOUND') {
+    reportTitle = 'LAPORAN BARANG MASUK (INBOUND SUPPLIER)'
+    filePrefix = 'Barang-Masuk'
+  } else if (reportType === 'OUTBOUND') {
+    reportTitle = 'LAPORAN BARANG KELUAR (OUTBOUND LOGISTIK PPIC)'
+    filePrefix = 'Barang-Keluar'
+  } else if (reportType === 'INVENTORY') {
+    reportTitle = 'LAPORAN REKONSILIASI STOK & INVENTORY'
+    filePrefix = 'Inventory-Stok'
+  } else {
+    reportTitle = 'LAPORAN MUTASI KESELURUHAN (MASUK & KELUAR)'
+    filePrefix = 'Mutasi-Semua'
+  }
+
+  const fileName = isRange
+    ? `${filePrefix}_${safeFrom}_sd_${safeTo}.xlsx`
+    : `${filePrefix}_${safeFrom}.xlsx`
+
+  const periodSubtitle = isRange
+    ? `Periode Transaksi : ${dateFromStr} s/d ${dateToStr} (WIB)`
+    : `Tanggal Transaksi : ${dateFromStr} (WIB)`
+  const catSubtitle = `Filter Kategori   : ${categoryFilter && categoryFilter !== 'ALL' ? categoryFilter : 'Semua Kategori'}`
+  const supSubtitle = supplierFilter ? `Filter Supplier   : ${supplierFilter}` : 'Filter Supplier   : Semua Supplier'
+  const timeSubtitle = `Waktu Ekspor      : ${new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'Asia/Jakarta' }).replace('.', ':')} WIB (${new Date().toLocaleDateString('id-ID', { timeZone: 'Asia/Jakarta' })})`
+  const picSubtitle = `Petugas PPIC      : ${operatorName || 'Ayu (PPIC)'}`
+
+  const subtitles = [periodSubtitle, catSubtitle, supSubtitle, picSubtitle, timeSubtitle]
+
+  // Setup Kolom Sheet Rincian
+  let detailCols = []
+  let detailRows = []
+  let totalQty = 0
+
+  if (reportType === 'INBOUND') {
+    detailCols = [
+      { header: 'No', width: 45, align: 'center' },
+      { header: 'Tanggal', width: 105, align: 'date' },
+      { header: 'Jam', width: 75, align: 'center' },
+      { header: 'Nama Barang', width: 220, align: 'left-bold' },
+      { header: 'Kategori', width: 100, align: 'center' },
+      { header: 'Qty', width: 85, align: 'number' },
+      { header: 'Satuan', width: 70, align: 'center' },
+      { header: 'Nama Supplier', width: 170, align: 'left' },
+      { header: 'No. SJ (Surat Jalan)', width: 150, align: 'left' },
+      { header: 'Kode Lot / Batch', width: 160, align: 'center' },
+      { header: 'Tanggal Kadaluwarsa', width: 130, align: 'center' },
+      { header: 'Penerima', width: 110, align: 'center' },
+      { header: 'Catatan Fisik', width: 170, align: 'left' },
+      { header: 'Status Verifikasi', width: 120, align: 'center' }
+    ]
+
+    detailRows = (inboundItems || []).map((item, idx) => {
+      const dStr = item.inbound_date || (item.created_at ? String(item.created_at).slice(0, 10) : dateFromStr)
+      let timeStr = '-'
+      if (item.created_at) {
+        try {
+          const raw = String(item.created_at)
+          const norm = raw.endsWith('Z') || raw.includes('+') ? raw : raw.replace(' ', 'T') + 'Z'
+          const d = new Date(norm)
+          if (!isNaN(d.getTime())) {
+            timeStr = d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' }).replace('.', ':') + ' WIB'
+          }
+        } catch {
+          // ignore
+        }
+      }
+      const numQty = Number(item.quantity) || 0
+      totalQty += numQty
+
+      return {
+        c0: { type: 'number', val: idx + 1, align: 'center' },
+        c1: { type: 'date', val: dStr, align: 'center' },
+        c2: { type: 'string', val: timeStr, align: 'center' },
+        c3: { type: 'string', val: item.item_name, align: 'left-bold' },
+        c4: { type: 'string', val: item.category, align: 'center' },
+        c5: { type: 'number', val: numQty, align: 'right' },
+        c6: { type: 'string', val: item.unit, align: 'center' },
+        c7: { type: 'string', val: item.supplier_name || '-', align: 'left' },
+        c8: { type: 'string', val: item.document_no || '-', align: 'left' },
+        c9: { type: 'string', val: item.lot_code || item.lot_qr_code || '-', align: 'center' },
+        c10: { type: 'string', val: '-', align: 'center' }, // DB belum ada field kadaluwarsa
+        c11: { type: 'string', val: item.received_by || 'PPIC', align: 'center' },
+        c12: { type: 'string', val: item.notes || '-', align: 'left' },
+        c13: { type: 'string', val: item.verification_status || 'Terverifikasi', align: 'center' }
+      }
+    })
+  } else if (reportType === 'OUTBOUND') {
+    detailCols = [
+      { header: 'No', width: 45, align: 'center' },
+      { header: 'Tanggal', width: 105, align: 'date' },
+      { header: 'Jam', width: 75, align: 'center' },
+      { header: 'Nama Barang', width: 220, align: 'left-bold' },
+      { header: 'Kategori', width: 100, align: 'center' },
+      { header: 'Qty Keluar', width: 95, align: 'number' },
+      { header: 'Satuan', width: 70, align: 'center' },
+      { header: 'Tujuan / Stasiun Pemakai', width: 190, align: 'left' },
+      { header: 'Kode Lot / QR Keluar', width: 160, align: 'center' },
+      { header: 'Petugas Pengeluar', width: 120, align: 'center' },
+      { header: 'Catatan Keperluan', width: 180, align: 'left' },
+      { header: 'Status Verifikasi', width: 120, align: 'center' }
+    ]
+
+    detailRows = (outboundItems || []).map((item, idx) => {
+      const dStr = item.outbound_date || (item.created_at ? String(item.created_at).slice(0, 10) : dateFromStr)
+      let timeStr = '-'
+      if (item.created_at) {
+        try {
+          const raw = String(item.created_at)
+          const norm = raw.endsWith('Z') || raw.includes('+') ? raw : raw.replace(' ', 'T') + 'Z'
+          const d = new Date(norm)
+          if (!isNaN(d.getTime())) {
+            timeStr = d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' }).replace('.', ':') + ' WIB'
+          }
+        } catch {
+          // ignore
+        }
+      }
+      const numQty = Number(item.quantity) || 0
+      totalQty += numQty
+
+      return {
+        c0: { type: 'number', val: idx + 1, align: 'center' },
+        c1: { type: 'date', val: dStr, align: 'center' },
+        c2: { type: 'string', val: timeStr, align: 'center' },
+        c3: { type: 'string', val: item.item_name, align: 'left-bold' },
+        c4: { type: 'string', val: item.category, align: 'center' },
+        c5: { type: 'number', val: numQty, align: 'right' },
+        c6: { type: 'string', val: item.unit, align: 'center' },
+        c7: { type: 'string', val: item.target_station_name || item.target_station || 'Keluar Umum', align: 'left' },
+        c8: { type: 'string', val: item.lot_qr_code || '-', align: 'center' },
+        c9: { type: 'string', val: item.dispatched_by || 'PPIC', align: 'center' },
+        c10: { type: 'string', val: item.notes || '-', align: 'left' },
+        c11: { type: 'string', val: 'Terverifikasi', align: 'center' }
+      }
+    })
+  } else if (reportType === 'INVENTORY') {
+    detailCols = [
+      { header: 'No', width: 45, align: 'center' },
+      { header: 'Kategori', width: 100, align: 'center' },
+      { header: 'Nama Barang', width: 220, align: 'left-bold' },
+      { header: 'Satuan', width: 70, align: 'center' },
+      { header: 'Stok Awal', width: 95, align: 'number' },
+      { header: 'Total Masuk', width: 95, align: 'number' },
+      { header: 'Total Keluar', width: 95, align: 'number' },
+      { header: 'Sisa Stok Akhir', width: 105, align: 'number' },
+      { header: 'Supplier Terkait', width: 200, align: 'left' }
+    ]
+
+    detailRows = (inventoryItems || []).map((inv, idx) => {
+      const akhir = Number(inv.stok_akhir) || 0
+      totalQty += akhir
+
+      return {
+        c0: { type: 'number', val: idx + 1, align: 'center' },
+        c1: { type: 'string', val: inv.category, align: 'center' },
+        c2: { type: 'string', val: inv.item_name, align: 'left-bold' },
+        c3: { type: 'string', val: inv.unit, align: 'center' },
+        c4: { type: 'number', val: Number(inv.stok_awal) || 0, align: 'right' },
+        c5: { type: 'number', val: Number(inv.masuk) || 0, align: 'right' },
+        c6: { type: 'number', val: Number(inv.keluar) || 0, align: 'right' },
+        c7: { type: 'number', val: akhir, align: 'right' },
+        c8: { type: 'string', val: inv.suppliers || '-', align: 'left' }
+      }
+    })
+  } else {
+    // ALL / SEMUA MUTASI
+    detailCols = [
+      { header: 'No', width: 45, align: 'center' },
+      { header: 'Tanggal', width: 105, align: 'date' },
+      { header: 'Jam', width: 75, align: 'center' },
+      { header: 'Mutasi', width: 85, align: 'center' },
+      { header: 'Nama Barang', width: 220, align: 'left-bold' },
+      { header: 'Kategori', width: 100, align: 'center' },
+      { header: 'Qty', width: 85, align: 'number' },
+      { header: 'Satuan', width: 70, align: 'center' },
+      { header: 'Pihak Terkait (Supplier / Stasiun)', width: 190, align: 'left' },
+      { header: 'Dokumen / Kode Lot', width: 160, align: 'center' },
+      { header: 'Petugas PIC', width: 110, align: 'center' },
+      { header: 'Catatan', width: 170, align: 'left' },
+      { header: 'Status Verifikasi', width: 120, align: 'center' }
+    ]
+
+    const combined = []
+    ;(inboundItems || []).forEach((it) => {
+      combined.push({
+        _type: 'MASUK',
+        _date: it.inbound_date || String(it.created_at).slice(0, 10),
+        _rawTime: it.created_at,
+        _item: it
+      })
+    })
+    ;(outboundItems || []).forEach((ot) => {
+      combined.push({
+        _type: 'KELUAR',
+        _date: ot.outbound_date || String(ot.created_at).slice(0, 10),
+        _rawTime: ot.created_at,
+        _item: ot
+      })
+    })
+
+    // Urutkan terbaru dulu
+    combined.sort((a, b) => {
+      const tA = new Date(a._rawTime || a._date).getTime() || 0
+      const tB = new Date(b._rawTime || b._date).getTime() || 0
+      return tB - tA
+    })
+
+    detailRows = combined.map((entry, idx) => {
+      const it = entry._item
+      const isMasuk = entry._type === 'MASUK'
+      let timeStr = '-'
+      if (it.created_at) {
+        try {
+          const raw = String(it.created_at)
+          const norm = raw.endsWith('Z') || raw.includes('+') ? raw : raw.replace(' ', 'T') + 'Z'
+          const d = new Date(norm)
+          if (!isNaN(d.getTime())) {
+            timeStr = d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' }).replace('.', ':') + ' WIB'
+          }
+        } catch {
+          // ignore
+        }
+      }
+      const numQty = Number(it.quantity) || 0
+      totalQty += isMasuk ? numQty : -numQty
+
+      return {
+        c0: { type: 'number', val: idx + 1, align: 'center' },
+        c1: { type: 'date', val: entry._date, align: 'center' },
+        c2: { type: 'string', val: timeStr, align: 'center' },
+        c3: { type: 'string', val: entry._type, align: 'center' },
+        c4: { type: 'string', val: it.item_name, align: 'left-bold' },
+        c5: { type: 'string', val: it.category, align: 'center' },
+        c6: { type: 'number', val: numQty, align: 'right' },
+        c7: { type: 'string', val: it.unit, align: 'center' },
+        c8: { type: 'string', val: isMasuk ? (it.supplier_name || '-') : (it.target_station_name || it.target_station || 'Keluar Umum'), align: 'left' },
+        c9: { type: 'string', val: isMasuk ? (it.document_no || it.lot_code || '-') : (it.lot_qr_code || '-'), align: 'center' },
+        c10: { type: 'string', val: isMasuk ? (it.received_by || 'PPIC') : (it.dispatched_by || 'PPIC'), align: 'center' },
+        c11: { type: 'string', val: it.notes || '-', align: 'left' },
+        c12: { type: 'string', val: 'Terverifikasi', align: 'center' }
+      }
+    })
+  }
+
+  // Siapkan Agregasi Ringkasan
+  const bySupplier = {}
+  ;(inboundItems || []).forEach((it) => {
+    const s = it.supplier_name || 'Tanpa Supplier'
+    if (!bySupplier[s]) bySupplier[s] = { count: 0, total_qty: 0 }
+    bySupplier[s].count += 1
+    bySupplier[s].total_qty += Number(it.quantity) || 0
+  })
+
+  const byItem = {}
+  const allSource = reportType === 'INBOUND' ? inboundItems : reportType === 'OUTBOUND' ? outboundItems : reportType === 'INVENTORY' ? inventoryItems : [...inboundItems, ...outboundItems]
+  allSource.forEach((it) => {
+    const name = it.item_name
+    const unit = it.unit
+    const k = `${name} (${unit})`
+    if (!byItem[k]) {
+      byItem[k] = { name, unit, category: it.category, total_qty: 0, count: 0 }
+    }
+    const q = Number(reportType === 'INVENTORY' ? it.stok_akhir : it.quantity) || 0
+    byItem[k].total_qty += q
+    byItem[k].count += 1
+  })
+
+  // Bangun XML SpreadsheetML Multi-sheet
+  const totalCols = Math.max(detailCols.length, 6)
+  const headerRowIdx = 3 + subtitles.length + 1 // 1 title + subtitles.length + 1 empty space + 1 = baris header
+
+  let xml = `<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:html="http://www.w3.org/TR/REC-html40">
+ <Styles>
+  <Style ss:ID="Default" ss:Name="Normal">
+   <Alignment ss:Vertical="Center"/>
+   <Borders/>
+   <Font ss:FontName="Calibri" ss:Size="11" ss:Color="#000000"/>
+  </Style>
+  <Style ss:ID="CompanyKop">
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
+   <Font ss:FontName="Calibri" ss:Size="14" ss:Color="#1E3A5F" ss:Bold="1"/>
+   <Interior ss:Color="#E9ECEF" ss:Pattern="Solid"/>
+  </Style>
+  <Style ss:ID="ReportTitle">
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
+   <Font ss:FontName="Calibri" ss:Size="12" ss:Color="#2C3E50" ss:Bold="1"/>
+   <Interior ss:Color="#F5F1EB" ss:Pattern="Solid"/>
+  </Style>
+  <Style ss:ID="MetaLabel">
+   <Alignment ss:Horizontal="Left" ss:Vertical="Center"/>
+   <Font ss:FontName="Calibri" ss:Size="10" ss:Color="#495057" ss:Italic="1"/>
+  </Style>
+  <Style ss:ID="TableHeader">
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/>
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#2C3E50"/>
+    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#2C3E50"/>
+    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#2C3E50"/>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#2C3E50"/>
+   </Borders>
+   <Font ss:FontName="Calibri" ss:Size="11" ss:Color="#FFFFFF" ss:Bold="1"/>
+   <Interior ss:Color="#3A6B80" ss:Pattern="Solid"/>
+  </Style>
+  <Style ss:ID="DataLeft">
+   <Alignment ss:Horizontal="Left" ss:Vertical="Center"/>
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E0E0E0"/>
+    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E0E0E0"/>
+    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E0E0E0"/>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E0E0E0"/>
+   </Borders>
+   <Font ss:FontName="Calibri" ss:Size="10" ss:Color="#212529"/>
+  </Style>
+  <Style ss:ID="DataLeftBold">
+   <Alignment ss:Horizontal="Left" ss:Vertical="Center"/>
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E0E0E0"/>
+    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E0E0E0"/>
+    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E0E0E0"/>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E0E0E0"/>
+   </Borders>
+   <Font ss:FontName="Calibri" ss:Size="10" ss:Color="#1E293B" ss:Bold="1"/>
+  </Style>
+  <Style ss:ID="DataCenter">
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E0E0E0"/>
+    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E0E0E0"/>
+    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E0E0E0"/>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E0E0E0"/>
+   </Borders>
+   <Font ss:FontName="Calibri" ss:Size="10" ss:Color="#212529"/>
+  </Style>
+  <Style ss:ID="DataDate">
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E0E0E0"/>
+    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E0E0E0"/>
+    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E0E0E0"/>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E0E0E0"/>
+   </Borders>
+   <Font ss:FontName="Calibri" ss:Size="10" ss:Color="#212529"/>
+   <NumberFormat ss:Format="dd/mm/yyyy"/>
+  </Style>
+  <Style ss:ID="DataNumber">
+   <Alignment ss:Horizontal="Right" ss:Vertical="Center"/>
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E0E0E0"/>
+    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E0E0E0"/>
+    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E0E0E0"/>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E0E0E0"/>
+   </Borders>
+   <Font ss:FontName="Calibri" ss:Size="10" ss:Color="#212529"/>
+   <NumberFormat ss:Format="#,##0.##"/>
+  </Style>
+  <Style ss:ID="TotalRowLeft">
+   <Alignment ss:Horizontal="Left" ss:Vertical="Center"/>
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Double" ss:Weight="3" ss:Color="#3A6B80"/>
+    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#3A6B80"/>
+    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#3A6B80"/>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#3A6B80"/>
+   </Borders>
+   <Font ss:FontName="Calibri" ss:Size="11" ss:Color="#1E3A5F" ss:Bold="1"/>
+   <Interior ss:Color="#F5F1EB" ss:Pattern="Solid"/>
+  </Style>
+  <Style ss:ID="TotalRowNumber">
+   <Alignment ss:Horizontal="Right" ss:Vertical="Center"/>
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Double" ss:Weight="3" ss:Color="#3A6B80"/>
+    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#3A6B80"/>
+    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#3A6B80"/>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#3A6B80"/>
+   </Borders>
+   <Font ss:FontName="Calibri" ss:Size="11" ss:Color="#1E3A5F" ss:Bold="1"/>
+   <Interior ss:Color="#F5F1EB" ss:Pattern="Solid"/>
+   <NumberFormat ss:Format="#,##0.##"/>
+  </Style>
+  <Style ss:ID="SummarySectionHeader">
+   <Alignment ss:Horizontal="Left" ss:Vertical="Center"/>
+   <Font ss:FontName="Calibri" ss:Size="11" ss:Color="#FFFFFF" ss:Bold="1"/>
+   <Interior ss:Color="#3A6B80" ss:Pattern="Solid"/>
+  </Style>
+ </Styles>
+`
+
+  // 1. SHEET 1: RINCIAN
+  xml += ` <Worksheet ss:Name="Rincian">
+  <Table ss:DefaultRowHeight="20">
+`
+  // Lebar kolom
+  detailCols.forEach((col) => {
+    xml += `   <Column ss:AutoFitWidth="0" ss:Width="${col.width || 120}"/>\n`
+  })
+
+  // Kop PT & Judul Laporan
+  xml += `   <Row ss:Height="26">
+    <Cell ss:MergeAcross="${totalCols - 1}" ss:StyleID="CompanyKop">
+     <Data ss:Type="String">PT MAKAN DIMSUM INDONESIA</Data>
+    </Cell>
+   </Row>
+   <Row ss:Height="24">
+    <Cell ss:MergeAcross="${totalCols - 1}" ss:StyleID="ReportTitle">
+     <Data ss:Type="String">${escapeXml(reportTitle)}</Data>
+    </Cell>
+   </Row>\n`
+
+  // Subtitle Metadata
+  subtitles.forEach((sub) => {
+    xml += `   <Row ss:Height="18">
+    <Cell ss:MergeAcross="${totalCols - 1}" ss:StyleID="MetaLabel">
+     <Data ss:Type="String">${escapeXml(sub)}</Data>
+    </Cell>
+   </Row>\n`
+  })
+
+  // Jarak Baris Kosong
+  xml += `   <Row ss:Height="10"/>\n`
+
+  // Baris Header Tabel
+  xml += `   <Row ss:Height="26">\n`
+  detailCols.forEach((col) => {
+    xml += `    <Cell ss:StyleID="TableHeader"><Data ss:Type="String">${escapeXml(col.header)}</Data></Cell>\n`
+  })
+  xml += `   </Row>\n`
+
+  // Baris Data Transaksi Rincian
+  detailRows.forEach((row) => {
+    xml += `   <Row ss:Height="22">\n`
+    detailCols.forEach((_, cIdx) => {
+      const cellObj = row[`c${cIdx}`]
+      if (!cellObj) {
+        xml += `    <Cell ss:StyleID="DataCenter"><Data ss:Type="String">-</Data></Cell>\n`
+        return
+      }
+
+      if (cellObj.type === 'date') {
+        const valStr = String(cellObj.val || '')
+        // Simpan sebagai DateTime ISO untuk Excel Date formatting asli
+        const iso = valStr ? `${valStr}T00:00:00.000` : ''
+        if (iso) {
+          xml += `    <Cell ss:StyleID="DataDate"><Data ss:Type="DateTime">${iso}</Data></Cell>\n`
+        } else {
+          xml += `    <Cell ss:StyleID="DataCenter"><Data ss:Type="String">-</Data></Cell>\n`
+        }
+      } else if (cellObj.type === 'number') {
+        xml += `    <Cell ss:StyleID="DataNumber"><Data ss:Type="Number">${cellObj.val}</Data></Cell>\n`
+      } else {
+        const styleId = cellObj.align === 'left-bold' ? 'DataLeftBold' : cellObj.align === 'left' ? 'DataLeft' : 'DataCenter'
+        xml += `    <Cell ss:StyleID="${styleId}"><Data ss:Type="String">${escapeXml(cellObj.val !== undefined && cellObj.val !== null ? cellObj.val : '-')}</Data></Cell>\n`
+      }
+    })
+    xml += `   </Row>\n`
+  })
+
+  // Baris Total di Bawah Rincian
+  if (detailRows.length > 0) {
+    xml += `   <Row ss:Height="24">\n`
+    detailCols.forEach((col, cIdx) => {
+      if (cIdx === 0) {
+        xml += `    <Cell ss:StyleID="TotalRowLeft"><Data ss:Type="String">TOTAL (${detailRows.length} Baris)</Data></Cell>\n`
+      } else if (col.align === 'number' && (col.header.includes('Qty') || col.header.includes('Akhir'))) {
+        xml += `    <Cell ss:StyleID="TotalRowNumber"><Data ss:Type="Number">${totalQty}</Data></Cell>\n`
+      } else {
+        xml += `    <Cell ss:StyleID="TotalRowLeft"><Data ss:Type="String"></Data></Cell>\n`
+      }
+    })
+    xml += `   </Row>\n`
+  }
+
+  xml += `  </Table>
+  <WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel">
+   <Selected/>
+   <FreezePanes/>
+   <FrozenNoSplit/>
+   <SplitHorizontal>${headerRowIdx}</SplitHorizontal>
+   <TopRowBottomPane>${headerRowIdx}</TopRowBottomPane>
+   <ActivePane>2</ActivePane>
+  </WorksheetOptions>
+  <AutoFilter x:Range="R${headerRowIdx}C1:R${headerRowIdx}C${detailCols.length}" xmlns="urn:schemas-microsoft-com:office:excel"/>
+ </Worksheet>\n`
+
+  // 2. SHEET 2: RINGKASAN
+  xml += ` <Worksheet ss:Name="Ringkasan">
+  <Table ss:DefaultRowHeight="20">
+   <Column ss:Width="45"/>
+   <Column ss:Width="110"/>
+   <Column ss:Width="230"/>
+   <Column ss:Width="105"/>
+   <Column ss:Width="75"/>
+   <Column ss:Width="105"/>
+
+   <Row ss:Height="26">
+    <Cell ss:MergeAcross="5" ss:StyleID="CompanyKop">
+     <Data ss:Type="String">PT MAKAN DIMSUM INDONESIA</Data>
+    </Cell>
+   </Row>
+   <Row ss:Height="22">
+    <Cell ss:MergeAcross="5" ss:StyleID="ReportTitle">
+     <Data ss:Type="String">RINGKASAN EKSEKUTIF &amp; AKUMULASI TRANSAKSI</Data>
+    </Cell>
+   </Row>
+   <Row ss:Height="18">
+    <Cell ss:MergeAcross="5" ss:StyleID="MetaLabel">
+     <Data ss:Type="String">${escapeXml(periodSubtitle)}</Data>
+    </Cell>
+   </Row>
+   <Row ss:Height="18">
+    <Cell ss:MergeAcross="5" ss:StyleID="MetaLabel">
+     <Data ss:Type="String">${escapeXml(timeSubtitle)}</Data>
+    </Cell>
+   </Row>
+   <Row ss:Height="12"/>
+
+   <!-- Seksi 1: Akumulasi Per Barang -->
+   <Row ss:Height="24">
+    <Cell ss:MergeAcross="5" ss:StyleID="SummarySectionHeader">
+     <Data ss:Type="String">A. RINGKASAN TOTAL KUANTITAS PER BARANG</Data>
+    </Cell>
+   </Row>
+   <Row ss:Height="24">
+    <Cell ss:StyleID="TableHeader"><Data ss:Type="String">No</Data></Cell>
+    <Cell ss:StyleID="TableHeader"><Data ss:Type="String">Kategori</Data></Cell>
+    <Cell ss:StyleID="TableHeader"><Data ss:Type="String">Nama Barang</Data></Cell>
+    <Cell ss:StyleID="TableHeader"><Data ss:Type="String">Total Kuantitas</Data></Cell>
+    <Cell ss:StyleID="TableHeader"><Data ss:Type="String">Satuan</Data></Cell>
+    <Cell ss:StyleID="TableHeader"><Data ss:Type="String">Frekuensi</Data></Cell>
+   </Row>\n`
+
+  const itemList = Object.values(byItem)
+  let sumItemQty = 0
+  itemList.forEach((item, idx) => {
+    sumItemQty += item.total_qty
+    xml += `   <Row ss:Height="22">
+    <Cell ss:StyleID="DataCenter"><Data ss:Type="Number">${idx + 1}</Data></Cell>
+    <Cell ss:StyleID="DataCenter"><Data ss:Type="String">${escapeXml(item.category || '-')}</Data></Cell>
+    <Cell ss:StyleID="DataLeftBold"><Data ss:Type="String">${escapeXml(item.name)}</Data></Cell>
+    <Cell ss:StyleID="DataNumber"><Data ss:Type="Number">${item.total_qty}</Data></Cell>
+    <Cell ss:StyleID="DataCenter"><Data ss:Type="String">${escapeXml(item.unit)}</Data></Cell>
+    <Cell ss:StyleID="DataNumber"><Data ss:Type="Number">${item.count}</Data></Cell>
+   </Row>\n`
+  })
+
+  xml += `   <Row ss:Height="24">
+    <Cell ss:StyleID="TotalRowLeft"><Data ss:Type="String">TOTAL</Data></Cell>
+    <Cell ss:StyleID="TotalRowLeft"><Data ss:Type="String"></Data></Cell>
+    <Cell ss:StyleID="TotalRowLeft"><Data ss:Type="String">${itemList.length} Jenis Barang</Data></Cell>
+    <Cell ss:StyleID="TotalRowNumber"><Data ss:Type="Number">${sumItemQty}</Data></Cell>
+    <Cell ss:StyleID="TotalRowLeft"><Data ss:Type="String"></Data></Cell>
+    <Cell ss:StyleID="TotalRowNumber"><Data ss:Type="Number">${detailRows.length}</Data></Cell>
+   </Row>
+   <Row ss:Height="14"/>\n`
+
+  // Seksi 2: Akumulasi Per Supplier (jika ada data supplier)
+  const supList = Object.entries(bySupplier)
+  if (supList.length > 0) {
+    let sumSupQty = 0
+    xml += `   <Row ss:Height="24">
+    <Cell ss:MergeAcross="5" ss:StyleID="SummarySectionHeader">
+     <Data ss:Type="String">B. RINGKASAN PENERIMAAN PER SUPPLIER</Data>
+    </Cell>
+   </Row>
+   <Row ss:Height="24">
+    <Cell ss:StyleID="TableHeader"><Data ss:Type="String">No</Data></Cell>
+    <Cell ss:MergeAcross="2" ss:StyleID="TableHeader"><Data ss:Type="String">Nama Supplier</Data></Cell>
+    <Cell ss:StyleID="TableHeader"><Data ss:Type="String">Total Kuantitas</Data></Cell>
+    <Cell ss:StyleID="TableHeader"><Data ss:Type="String">Jumlah Surat Jalan</Data></Cell>
+   </Row>\n`
+
+    supList.forEach(([supName, stat], idx) => {
+      sumSupQty += stat.total_qty
+      xml += `   <Row ss:Height="22">
+    <Cell ss:StyleID="DataCenter"><Data ss:Type="Number">${idx + 1}</Data></Cell>
+    <Cell ss:MergeAcross="2" ss:StyleID="DataLeftBold"><Data ss:Type="String">${escapeXml(supName)}</Data></Cell>
+    <Cell ss:StyleID="DataNumber"><Data ss:Type="Number">${stat.total_qty}</Data></Cell>
+    <Cell ss:StyleID="DataNumber"><Data ss:Type="Number">${stat.count}</Data></Cell>
+   </Row>\n`
+    })
+
+    xml += `   <Row ss:Height="24">
+    <Cell ss:StyleID="TotalRowLeft"><Data ss:Type="String">TOTAL</Data></Cell>
+    <Cell ss:MergeAcross="2" ss:StyleID="TotalRowLeft"><Data ss:Type="String">${supList.length} Supplier</Data></Cell>
+    <Cell ss:StyleID="TotalRowNumber"><Data ss:Type="Number">${sumSupQty}</Data></Cell>
+    <Cell ss:StyleID="TotalRowNumber"><Data ss:Type="Number">${detailRows.length}</Data></Cell>
+   </Row>\n`
+  }
+
+  xml += `  </Table>
+  <WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel">
+   <ProtectObjects>False</ProtectObjects>
+  </WorksheetOptions>
+ </Worksheet>
+</Workbook>`
+
+  // Trigger Download
+  const blob = new Blob([xml], { type: 'application/vnd.ms-excel;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = fileName
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+  return { fileName, blob, xml }
 }

@@ -1,29 +1,27 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useProduction1Store } from '../store/production1Store'
-import { exportSupplierInboundExcel } from '../utils/excelExport'
+import { canExportExcel } from '../utils/permissions'
 import { useLockBodyScroll } from '../utils/useLockBodyScroll'
 import { CustomSelect } from './ui/CustomSelect'
 import { Modal } from './ui/Modal'
 import { Button } from './ui/Button'
 import { ListRowSkeleton } from './ui/Skeleton'
+import ExportReportBottomSheet from './ExportReportBottomSheet'
 import {
   SearchIcon,
   FilterIcon,
   XIcon,
-  RefreshIcon,
-  CheckIcon,
   AlertIcon
 } from './Icons'
 import {
-  FileSpreadsheet,
   NotebookPen,
   QrCode,
   ArrowUpRight,
   ChevronDown,
   ChevronUp,
-  Send,
   Info,
-  CheckCircle2
+  CheckCircle2,
+  Download
 } from 'lucide-react'
 
 const INBOUND_CATEGORIES = [
@@ -141,7 +139,8 @@ export default function SupplierInboundView() {
   // Modal Pop up State & Scroll Lock
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isStockOutModalOpen, setIsStockOutModalOpen] = useState(false)
-  useLockBodyScroll(isModalOpen || isStockOutModalOpen)
+  const [isExportSheetOpen, setIsExportSheetOpen] = useState(false)
+  useLockBodyScroll(isModalOpen || isStockOutModalOpen || isExportSheetOpen)
 
   // Card Action Expansion States (User harus toggle kartu dulu baru tombol aksi muncul)
   const [expandedCardId, setExpandedCardId] = useState(null)
@@ -201,6 +200,9 @@ export default function SupplierInboundView() {
   const openBatchPrintModal = useProduction1Store((s) => s.openBatchPrintModal)
   const operatorName = useProduction1Store((s) => s.operatorName)
   const operatorId = useProduction1Store((s) => s.operatorId)
+  const userRole = useProduction1Store((s) => s.userRole)
+  const currentUser = useProduction1Store((s) => s.currentUser)
+  const canExport = canExportExcel(userRole, currentUser)
 
   const isRange = filterPreset === 'range'
 
@@ -215,14 +217,6 @@ export default function SupplierInboundView() {
           : filterPreset === 'all'
             ? 'Semua Waktu'
             : formatIndoDateFull(selectedDate)
-
-  const activeExportDateStr = isRange
-    ? `${rangeStartDate} s/d ${rangeEndDate}`
-    : filterPreset === 'recent'
-      ? `${getYesterdayStr()} s/d ${getTodayStr()}`
-      : filterPreset === 'all'
-        ? 'Semua'
-        : selectedDate
 
   const isFilterActive = filterCategory !== 'ALL' || filterPreset !== 'recent'
   const activeFilterCount = (filterCategory !== 'ALL' ? 1 : 0) + (filterPreset !== 'recent' ? 1 : 0)
@@ -258,7 +252,10 @@ export default function SupplierInboundView() {
   }, [fetchSupplierInbound, fetchSupplierOutbound, filterPreset, filterCategory, rangeStartDate, rangeEndDate, selectedDate])
 
   useEffect(() => {
-    loadAllData()
+    const timer = setTimeout(() => {
+      loadAllData()
+    }, 0)
+    return () => clearTimeout(timer)
   }, [loadAllData])
 
   const applyPreset = (preset) => {
@@ -492,13 +489,13 @@ export default function SupplierInboundView() {
       // Buka modal cetak QR jika toggle aktif
       if (needPrintQr) {
         handleOpenPrintQrForInbound(created || {
-          inbound_id: Math.floor(Date.now() / 1000) % 1000,
+          inbound_id: 1,
           category,
           item_name: cleanName,
           quantity: numQty,
           unit,
           supplier_name: cleanSupplier,
-          created_at: new Date().toISOString()
+          created_at: ''
         })
       }
     } catch (err) {
@@ -556,21 +553,6 @@ export default function SupplierInboundView() {
       })
     }
     openBatchPrintModal(printItems, `BARANG MASUK: ${(item.item_name || '').toUpperCase()}`)
-  }
-
-  // Handler Cetak Ulang Label QR Barang Keluar
-  const handleOpenPrintQrForOutbound = (item) => {
-    if (!item) return
-    const targetName = item.target_station_name || item.target_station || 'Keluar Umum'
-    const printItems = [{
-      lotCode: item.lot_qr_code,
-      title: `BARANG KELUAR: ${(item.item_name || '').toUpperCase()}`,
-      detail: `Tujuan: ${targetName} · ${item.quantity} ${formatUnitDisplay(item.unit)}`,
-      weight: `${item.quantity} ${formatUnitDisplay(item.unit)}`,
-      supplierName: 'Gudang Logistik PPIC',
-      createdAt: item.created_at || new Date().toISOString()
-    }]
-    openBatchPrintModal(printItems, `BARANG KELUAR: ${(item.item_name || '').toUpperCase()}`)
   }
 
   // Buka Modal Keluarkan Stok
@@ -669,14 +651,6 @@ export default function SupplierInboundView() {
     }
   }
 
-  const handleExportExcel = () => {
-    exportSupplierInboundExcel({
-      dateStr: activeExportDateStr,
-      inboundList: supplierInboundList,
-      operatorName: operatorName || 'Ayu (PPIC)'
-    })
-  }
-
   // Filter daftar transaksi barang masuk berdasarkan query pencarian, kategori, dan tab
   const filteredInboundList = useMemo(() => {
     let list = supplierInboundList
@@ -741,8 +715,8 @@ export default function SupplierInboundView() {
       const isToday = dateStr === today
       const isYesterday = dateStr === yesterday
 
-      let badgeLabel = ''
-      let title = ''
+      let badgeLabel
+      let title
 
       if (isToday) {
         badgeLabel = 'Hari Ini'
@@ -794,8 +768,8 @@ export default function SupplierInboundView() {
       const isToday = dateStr === today
       const isYesterday = dateStr === yesterday
 
-      let badgeLabel = ''
-      let title = ''
+      let badgeLabel
+      let title
 
       if (isToday) {
         badgeLabel = 'Hari Ini'
@@ -867,8 +841,8 @@ export default function SupplierInboundView() {
       const isToday = dateStr === today
       const isYesterday = dateStr === yesterday
 
-      let badgeLabel = ''
-      let title = ''
+      let badgeLabel
+      let title
 
       if (isToday) {
         badgeLabel = 'Hari Ini'
@@ -1269,6 +1243,20 @@ export default function SupplierInboundView() {
             </span>
           )}
         </button>
+
+        {/* Tombol Ekspor Excel Cepat (PPIC / Supervisor) */}
+        {canExport && (
+          <button
+            type="button"
+            onClick={() => setIsExportSheetOpen(true)}
+            className="min-h-[40px] px-3 py-2 rounded-xl text-xs font-bold border border-[#3A6B80] bg-[#EEF5F9] text-[#3A6B80] hover:bg-[#D1E4EF] active:bg-[#C5DFEA] flex items-center gap-1.5 cursor-pointer transition active:scale-95 shrink-0 shadow-2xs"
+            title="Buka dialog ekspor laporan Excel"
+            aria-label="Buka dialog ekspor laporan Excel"
+          >
+            <Download className="w-3.5 h-3.5 text-[#3A6B80] stroke-[2.2]" />
+            <span>Ekspor</span>
+          </button>
+        )}
       </div>
 
       {/* 3. Baris Chip Jalan Pintas (Persis seperti Riwayat / Logs: h-8, px-3, text-xs font-semibold, gap-1.5) */}
@@ -2233,24 +2221,13 @@ export default function SupplierInboundView() {
 
           {/* Tombol Aksi Modal */}
           <div className="flex items-center justify-between pt-3 border-t border-[#EDE8DF] gap-2">
-            <div className="flex items-center gap-1 sm:gap-2">
-              <button
-                type="button"
-                onClick={handleResetFilter}
-                className="min-h-[44px] px-3 py-2 text-xs font-semibold text-[#6B7B8D] hover:text-[#2C3E50] cursor-pointer transition rounded-xl"
-              >
-                Reset default
-              </button>
-              <button
-                type="button"
-                onClick={handleExportExcel}
-                className="min-h-[44px] px-2.5 py-2 text-xs font-semibold text-[#4685ac] hover:text-[#3A6B80] hover:underline flex items-center gap-1 cursor-pointer transition rounded-xl"
-                title="Ekspor data ke format Excel"
-              >
-                <FileSpreadsheet className="w-3.5 h-3.5" />
-                <span>Ekspor Excel</span>
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={handleResetFilter}
+              className="min-h-[44px] px-3 py-2 text-xs font-semibold text-[#6B7B8D] hover:text-[#2C3E50] cursor-pointer transition rounded-xl"
+            >
+              Reset default
+            </button>
             <button
               type="button"
               onClick={() => setIsFilterModalOpen(false)}
@@ -2261,6 +2238,17 @@ export default function SupplierInboundView() {
           </div>
         </div>
       </Modal>
+
+      {/* 5. Bottom Sheet Ekspor Laporan PPIC (Barang Masuk, Keluar, Inventory, Mutasi) */}
+      <ExportReportBottomSheet
+        isOpen={isExportSheetOpen}
+        onClose={() => setIsExportSheetOpen(false)}
+        activeTab={activeTab}
+        initialCategory={filterCategory}
+        operatorName={operatorName || 'Ayu (PPIC)'}
+        fallbackInboundList={supplierInboundList}
+        fallbackOutboundList={supplierOutboundList}
+      />
     </div>
   )
 }
