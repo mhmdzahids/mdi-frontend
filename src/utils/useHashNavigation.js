@@ -4,9 +4,35 @@ import { useProduction1Store } from '../store/production1Store'
 /**
  * Mengonversi kombinasi stage, station, dan prod2Tab ke representasi URL Hash kanonikal.
  */
-export function getHashFromState(stage, station, prod2Tab, isProfileActive = false) {
+export function getHashFromState(
+  stage,
+  station,
+  prod2Tab,
+  isProfileActive = false,
+  isAdminActive = false,
+  activeAdminTab = 'USERS',
+  adminForm = null,
+  isSuperAdmin = false
+) {
   if (isProfileActive) {
     return '#/profile'
+  }
+
+  if (isSuperAdmin || isAdminActive) {
+    if (adminForm?.type === 'USER') {
+      if (adminForm.mode === 'create') return '#/admin/akun/baru'
+      if (adminForm.mode === 'edit' && adminForm.id) return `#/admin/akun/${adminForm.id}`
+      return '#/admin/akun/baru'
+    }
+    if (adminForm?.type === 'ROLE') {
+      if (adminForm.mode === 'create') return '#/admin/role/baru'
+      if (adminForm.mode === 'duplicate' && adminForm.id) return `#/admin/role/${adminForm.id}/duplikat`
+      if (adminForm.mode === 'edit' && adminForm.id) return `#/admin/role/${adminForm.id}`
+      return '#/admin/role/baru'
+    }
+    if (activeAdminTab === 'ROLES') return '#/admin/roles'
+    if (activeAdminTab === 'LOGS') return '#/admin/logs'
+    return '#/admin'
   }
 
   if (stage === 'PROD_2') {
@@ -69,6 +95,41 @@ export function getStateFromHash(hash) {
   // Rute Profil Pengguna Terpadu
   if (clean === 'profile' || clean === 'profil') {
     return { isProfile: true }
+  }
+
+  // Rute Super Admin & RBAC
+  if (clean === 'admin' || clean.startsWith('admin/')) {
+    const sub = clean.replace(/^admin\/?/, '')
+
+    // Form Akun: /admin/akun/baru atau /admin/akun/:id
+    if (sub === 'akun/baru' || sub === 'users/baru' || sub === 'user/baru') {
+      return { isAdmin: true, adminTab: 'USERS', adminForm: { type: 'USER', mode: 'create', id: null } }
+    }
+    const userEditMatch = sub.match(/^(?:akun|users|user)\/(\d+)$/)
+    if (userEditMatch) {
+      return { isAdmin: true, adminTab: 'USERS', adminForm: { type: 'USER', mode: 'edit', id: Number(userEditMatch[1]) } }
+    }
+
+    // Form Role: /admin/role/baru, /admin/role/:id/duplikat, atau /admin/role/:id
+    if (sub === 'role/baru' || sub === 'roles/baru') {
+      return { isAdmin: true, adminTab: 'ROLES', adminForm: { type: 'ROLE', mode: 'create', id: null } }
+    }
+    const roleDupMatch = sub.match(/^(?:role|roles)\/(\d+)\/duplikat$/)
+    if (roleDupMatch) {
+      return { isAdmin: true, adminTab: 'ROLES', adminForm: { type: 'ROLE', mode: 'duplicate', id: Number(roleDupMatch[1]) } }
+    }
+    const roleEditMatch = sub.match(/^(?:role|roles)\/(\d+)$/)
+    if (roleEditMatch) {
+      return { isAdmin: true, adminTab: 'ROLES', adminForm: { type: 'ROLE', mode: 'edit', id: Number(roleEditMatch[1]) } }
+    }
+
+    if (sub.includes('role')) {
+      return { isAdmin: true, adminTab: 'ROLES', adminForm: null }
+    }
+    if (sub.includes('log')) {
+      return { isAdmin: true, adminTab: 'LOGS', adminForm: null }
+    }
+    return { isAdmin: true, adminTab: 'USERS', adminForm: null }
   }
 
   // Rute Produksi 2
@@ -155,7 +216,12 @@ export function useHashNavigation() {
   const activeStation = useProduction1Store((s) => s.activeStation)
   const activeProd2Tab = useProduction1Store((s) => s.activeProd2Tab)
   const isProfileActive = useProduction1Store((s) => s.isProfileActive)
+  const isAdminActive = useProduction1Store((s) => s.isAdminActive)
+  const activeAdminTab = useProduction1Store((s) => s.activeAdminTab)
+  const adminForm = useProduction1Store((s) => s.adminForm)
   const navigateToRoute = useProduction1Store((s) => s.navigateToRoute)
+  const currentUser = useProduction1Store((s) => s.currentUser)
+  const isSuperAdmin = Boolean(currentUser?.is_superadmin)
 
   const authToken = useProduction1Store((s) => s.authToken)
   const isDevMode = useProduction1Store((s) => s.isDevMode)
@@ -175,15 +241,53 @@ export function useHashNavigation() {
       return
     }
 
+    const state = useProduction1Store.getState()
+    const isSuper = Boolean(state.currentUser?.is_superadmin)
     const currentHash = window.location.hash
     const initialRoute = getStateFromHash(currentHash)
+
+    if (isSuper) {
+      if (initialRoute?.isProfile) {
+        navigateToRoute({ isProfile: true })
+        if (window.location.hash !== '#/profile') {
+          window.history.replaceState({ isInitial: true }, '', '#/profile')
+        }
+      } else if (initialRoute?.isAdmin) {
+        navigateToRoute(initialRoute)
+      } else {
+        navigateToRoute({ isAdmin: true, adminTab: 'USERS' })
+        const adminHash = getHashFromState(
+          state.activeProductionStage,
+          state.activeStation,
+          state.activeProd2Tab,
+          false,
+          true,
+          'USERS',
+          null,
+          true
+        )
+        if (window.location.hash !== adminHash) {
+          window.history.replaceState({ isInitial: true }, '', adminHash)
+        }
+      }
+      return
+    }
 
     if (initialRoute && !initialRoute.isLogin) {
       // Jika refresh pada link stasiun tertentu, pulihkan stasiun tersebut
       navigateToRoute(initialRoute)
     } else {
       // Jika baru login (sebelumnya #/login atau kosong), setel ke stasiun default pengguna
-      const defaultHash = getHashFromState(activeProductionStage, activeStation, activeProd2Tab, isProfileActive)
+      const defaultHash = getHashFromState(
+        activeProductionStage,
+        activeStation,
+        activeProd2Tab,
+        isProfileActive,
+        isAdminActive,
+        activeAdminTab,
+        adminForm,
+        isSuper
+      )
       if (window.location.hash !== defaultHash) {
         window.history.replaceState({ isInitial: true }, '', defaultHash)
       }
@@ -195,11 +299,30 @@ export function useHashNavigation() {
   useEffect(() => {
     if (!isAuthenticated) return
 
-    const expectedHash = getHashFromState(activeProductionStage, activeStation, activeProd2Tab, isProfileActive)
+    const expectedHash = getHashFromState(
+      activeProductionStage,
+      activeStation,
+      activeProd2Tab,
+      isProfileActive,
+      isAdminActive,
+      activeAdminTab,
+      adminForm,
+      isSuperAdmin
+    )
     if (window.location.hash !== expectedHash) {
       window.history.pushState(null, '', expectedHash)
     }
-  }, [isAuthenticated, activeProductionStage, activeStation, activeProd2Tab, isProfileActive])
+  }, [
+    isAuthenticated,
+    activeProductionStage,
+    activeStation,
+    activeProd2Tab,
+    isProfileActive,
+    isAdminActive,
+    activeAdminTab,
+    adminForm,
+    isSuperAdmin
+  ])
 
   // 3. Modal History Sync: Jika modal aktif dibuka, push riwayat agar tombol Back menutup modal
   const isAnyModalOpen = Boolean(activePrintModal || isCameraScannerOpen)
@@ -227,6 +350,7 @@ export function useHashNavigation() {
     const handlePopState = () => {
       const state = useProduction1Store.getState()
       const isAuth = Boolean(state.authToken || state.isDevMode)
+      const isSuper = Boolean(state.currentUser?.is_superadmin)
 
       // A. Jika ada modal yang sedang terbuka saat Back ditekan, tutup modal tersebut
       if (state.activePrintModal || state.isCameraScannerOpen) {
@@ -247,6 +371,24 @@ export function useHashNavigation() {
         return
       }
 
+      // Jika Super Admin mencoba mengakses stasiun operasional atau route kosong
+      if (isAuth && isSuper) {
+        if (route?.isProfile) {
+          state.navigateToRoute({ isProfile: true })
+          return
+        }
+        if (route?.isAdmin) {
+          state.navigateToRoute(route)
+          return
+        }
+        // Redirect operational station to admin
+        state.navigateToRoute({ isAdmin: true, adminTab: 'USERS' })
+        if (window.location.hash !== '#/admin') {
+          window.history.replaceState(null, '', '#/admin')
+        }
+        return
+      }
+
       // Jika hash tidak dikenali atau kosong, jangan logout! Pulihkan hash kanonikal dari state saat ini
       if (!route) {
         if (isAuth) {
@@ -254,7 +396,11 @@ export function useHashNavigation() {
             state.activeProductionStage,
             state.activeStation,
             state.activeProd2Tab,
-            state.isProfileActive
+            state.isProfileActive,
+            state.isAdminActive,
+            state.activeAdminTab,
+            state.adminForm,
+            isSuper
           )
           if (window.location.hash !== canonicalHash) {
             window.history.replaceState(null, '', canonicalHash)
@@ -271,7 +417,11 @@ export function useHashNavigation() {
           updated.activeProductionStage,
           updated.activeStation,
           updated.activeProd2Tab,
-          updated.isProfileActive
+          updated.isProfileActive,
+          updated.isAdminActive,
+          updated.activeAdminTab,
+          updated.adminForm,
+          isSuper
         )
         if (window.location.hash !== canonicalHash) {
           window.history.replaceState(null, '', canonicalHash)

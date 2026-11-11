@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { User, Building2, Calendar, LogOut, KeyRound, ChevronRight } from 'lucide-react'
+import { User, Building2, Calendar, LogOut, KeyRound, ChevronRight, ShieldCheck } from 'lucide-react'
 import { motion } from 'motion/react'
 import { useProduction1Store } from '../store/production1Store'
 import { Avatar } from './ui/Avatar'
@@ -184,6 +184,42 @@ export default function ProfileView() {
               </div>
             </div>
           </motion.div>
+
+          {/* Menu Khusus Super Admin */}
+          {currentUser?.is_superadmin && (
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.45, delay: 0.12, ease: [0.22, 1, 0.36, 1] }}
+              className="bg-white border border-[#F3DFC9] rounded-2xl p-4 shadow-2xs"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-8 h-8 rounded-xl bg-[#FFF6EE] border border-[#F3DFC9] flex items-center justify-center shrink-0 text-[#B25E09]">
+                    <ShieldCheck className="w-4 h-4 stroke-[2]" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-xs font-bold text-[#2C3E50] block">Panel Super Admin</span>
+                    <span className="text-[11px] text-[#6B7B8D] block leading-tight mt-0.5">
+                      Kelola akun pegawai, peran & log aktivitas
+                    </span>
+                  </div>
+                </div>
+
+                <motion.button
+                  type="button"
+                  whileTap={{ scale: 0.96 }}
+                  onClick={() => {
+                    useProduction1Store.getState().openAdmin()
+                  }}
+                  className="min-h-[38px] px-3.5 rounded-xl border border-[#F3DFC9] bg-[#FFF6EE] hover:bg-[#FDEBD0] text-[#B25E09] font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+                >
+                  <span>Buka</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </motion.button>
+              </div>
+            </motion.div>
+          )}
 
           {/* Bagian Keamanan Akun (Standar Industri: Tenang, Rapi, & Tanpa Kepanikan) */}
           <motion.div

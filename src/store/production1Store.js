@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { playSuccessBeep, playErrorBeep } from '../utils/soundFx.js'
-import { apiFetch } from '../utils/api.js'
+import { apiFetch, apiGet, apiPut, apiPost, apiDelete, apiUpload } from '../utils/api.js'
 
 let autoSyncInterval = null
 let lastTransitBumbuCount = 0
@@ -254,6 +254,7 @@ export const useProduction1Store = create(
           isDisplayActive: true
         }
       ],
+      editingProduct: null,
 
       // 6. RIWAYAT LOG AUDIT (Chain of Custody)
       custodyLogs: [],
@@ -269,14 +270,26 @@ export const useProduction1Store = create(
       activeProductionStage: 'PROD_1',
       activeProd2Tab: 'INBOUND', // 'INBOUND' | 'ASSEMBLY' | 'FREEZER' | 'PRODUCTS' | 'LOGS'
       isProfileActive: false,
-      openProfile: () => set({ isProfileActive: true, actionFeedback: null }),
+      openProfile: () => set({ isProfileActive: true, isAdminActive: false, adminForm: null, actionFeedback: null }),
       closeProfile: () => set({ isProfileActive: false, actionFeedback: null }),
+      isAdminActive: false,
+      activeAdminTab: 'USERS', // 'USERS' | 'ROLES' | 'LOGS'
+      adminForm: null, // null | { type: 'USER' | 'ROLE', mode: 'create' | 'edit' | 'duplicate', id: number | null }
+      openAdmin: (tab = 'USERS') => set({ isAdminActive: true, isProfileActive: false, activeAdminTab: tab, adminForm: null, actionFeedback: null }),
+      closeAdmin: () => set({ isAdminActive: false, adminForm: null, actionFeedback: null }),
+      setActiveAdminTab: (tab) => set({ activeAdminTab: tab }),
+      openUserForm: (mode = 'create', id = null) =>
+        set({ isAdminActive: true, isProfileActive: false, activeAdminTab: 'USERS', adminForm: { type: 'USER', mode, id: id ? Number(id) : null }, actionFeedback: null }),
+      openRoleForm: (mode = 'create', id = null) =>
+        set({ isAdminActive: true, isProfileActive: false, activeAdminTab: 'ROLES', adminForm: { type: 'ROLE', mode, id: id ? Number(id) : null }, actionFeedback: null }),
+      closeAdminForm: () => set({ adminForm: null }),
       packingSubLine: typeof window !== 'undefined' ? (localStorage.getItem('mdi_packing_line') || 'MIKA') : 'MIKA', // 'MIKA' | 'VAKUM'
       dispatchScanMode: 'DISTRIBUTION', // 'DISTRIBUTION' (Kirim Langsung) | 'FREEZER' (Simpan Freezer)
 
       isSupervisorUser: () => {
         const s = get()
         const user = s.currentUser
+        if (user?.is_superadmin) return false
         const role = (user?.role || s.userRole || '').toUpperCase()
         if (role === 'OPERATOR') return false
 
@@ -298,6 +311,7 @@ export const useProduction1Store = create(
       isPpicUser: () => {
         const s = get()
         const user = s.currentUser
+        if (user?.is_superadmin) return false
         const role = (user?.role || s.userRole || '').toUpperCase()
         if (role === 'OPERATOR') return false
 
@@ -321,17 +335,21 @@ export const useProduction1Store = create(
 
       // Setters dengan proteksi wewenang divisi
       setProductionStage: (stage) => {
+        if (get().currentUser?.is_superadmin) return
         if (!get().isSupervisorUser()) return
-        set({ activeProductionStage: stage, isProfileActive: false })
+        set({ activeProductionStage: stage, isProfileActive: false, isAdminActive: false })
       },
       toggleProductionStage: () => {
+        if (get().currentUser?.is_superadmin) return
         if (!get().isSupervisorUser()) return
         set((s) => ({
           activeProductionStage: s.activeProductionStage === 'PROD_1' ? 'PROD_2' : 'PROD_1',
-          isProfileActive: false
+          isProfileActive: false,
+          isAdminActive: false
         }))
       },
       setProd2Tab: (tab) => {
+        if (get().currentUser?.is_superadmin) return
         if (tab !== 'LOGS' && !get().isSupervisorUser()) {
           const user = get().currentUser
           let expectedTab = user?.default_prod2_tab || 'INBOUND'
@@ -339,7 +357,7 @@ export const useProduction1Store = create(
           if (expectedTab === 'SALES') expectedTab = 'PRODUCTS'
           if (tab !== expectedTab) return
         }
-        set({ activeProd2Tab: tab, isProfileActive: false })
+        set({ activeProd2Tab: tab, isProfileActive: false, isAdminActive: false, adminForm: null })
       },
       setPackingSubLine: (line) => {
         const val = line === 'VAKUM' ? 'VAKUM' : 'MIKA'
@@ -351,6 +369,154 @@ export const useProduction1Store = create(
         set({ packingSubLine: val })
       },
       setDispatchScanMode: (mode) => set({ dispatchScanMode: mode }),
+      openProductEdit: (id) => set({ editingProduct: id }),
+      closeProductEdit: () => set({ editingProduct: null }),
+
+      fetchCatalogProducts: async () => {
+        try {
+          const data = await apiGet('/products', { silent: true })
+          if (Array.isArray(data) && data.length > 0) {
+            set({
+              catalogProducts: data.map((p) => ({
+                id: p.id,
+                name: p.name,
+                description: p.description || '',
+                spec: p.spec || '',
+                price: p.price,
+                image_url: p.image_url,
+                thumbnail_url: p.thumbnail_url,
+                is_active: Boolean(p.is_active),
+                isDisplayActive: Boolean(p.is_active)
+              }))
+            })
+          }
+        } catch (err) {
+          console.warn('[CATALOG] fetchCatalogProducts notice:', err?.message)
+        }
+      },
+
+      saveCatalogProduct: async (id, updates) => {
+        try {
+          const payload = {}
+          if (updates.name !== undefined) payload.name = updates.name
+          if (updates.description !== undefined) payload.description = updates.description
+          if (updates.spec !== undefined) payload.spec = updates.spec
+          if (updates.price !== undefined) payload.price = updates.price
+          if (updates.is_active !== undefined) payload.is_active = updates.is_active
+
+          const updated = await apiPut(`/products/${id}`, payload)
+          set((s) => ({
+            catalogProducts: (s.catalogProducts || []).map((p) =>
+              p.id === id
+                ? {
+                    ...p,
+                    name: updated.name,
+                    description: updated.description,
+                    spec: updated.spec,
+                    price: updated.price,
+                    image_url: updated.image_url,
+                    thumbnail_url: updated.thumbnail_url,
+                    is_active: updated.is_active,
+                    isDisplayActive: updated.is_active
+                  }
+                : p
+            ),
+            actionFeedback: { type: 'success', message: 'Data produk berhasil disimpan.' }
+          }))
+          return updated
+        } catch (err) {
+          playErrorBeep()
+          set({ actionFeedback: { type: 'error', message: err.message || 'Gagal menyimpan produk.' } })
+          throw err
+        }
+      },
+
+      uploadProductImage: async (id, fileBlob) => {
+        try {
+          const formData = new FormData()
+          formData.append('file', fileBlob, 'product.webp')
+          const updated = await apiUpload(`/products/${id}/image`, formData)
+          set((s) => ({
+            catalogProducts: (s.catalogProducts || []).map((p) =>
+              p.id === id
+                ? {
+                    ...p,
+                    image_url: updated.image_url,
+                    thumbnail_url: updated.thumbnail_url
+                  }
+                : p
+            ),
+            actionFeedback: { type: 'success', message: 'Foto produk berhasil diperbarui.' }
+          }))
+          return updated
+        } catch (err) {
+          playErrorBeep()
+          set({ actionFeedback: { type: 'error', message: err.message || 'Gagal upload foto produk.' } })
+          throw err
+        }
+      },
+
+      deleteProductImage: async (id) => {
+        try {
+          await apiDelete(`/products/${id}/image`)
+          set((s) => ({
+            catalogProducts: (s.catalogProducts || []).map((p) =>
+              p.id === id
+                ? {
+                    ...p,
+                    image_url: null,
+                    thumbnail_url: null
+                  }
+                : p
+            ),
+            actionFeedback: { type: 'success', message: 'Foto produk berhasil dihapus.' }
+          }))
+        } catch (err) {
+          playErrorBeep()
+          set({ actionFeedback: { type: 'error', message: err.message || 'Gagal menghapus foto.' } })
+          throw err
+        }
+      },
+
+      toggleCatalogProductDisplay: async (id) => {
+        const s = get()
+        const prod = (s.catalogProducts || []).find((p) => p.id === id)
+        if (!prod) return
+        const nextActive = !prod.is_active && !prod.isDisplayActive
+
+        if (nextActive && (!prod.price || prod.price <= 0)) {
+          set({
+            actionFeedback: {
+              type: 'error',
+              message: 'Isi harga dulu untuk mengaktifkan'
+            }
+          })
+          return
+        }
+
+        try {
+          const updated = await apiPut(`/products/${id}`, { is_active: nextActive })
+          set((state) => ({
+            catalogProducts: (state.catalogProducts || []).map((p) =>
+              p.id === id
+                ? { ...p, is_active: updated.is_active, isDisplayActive: updated.is_active }
+                : p
+            ),
+            actionFeedback: {
+              type: 'success',
+              message: updated.is_active ? 'Produk diaktifkan.' : 'Produk dinonaktifkan.'
+            }
+          }))
+        } catch (err) {
+          set({
+            actionFeedback: {
+              type: 'error',
+              message: err.message || 'Gagal mengubah status aktif produk.'
+            }
+          })
+        }
+      },
+
       updateCatalogProduct: (id, updates) =>
         set((s) => ({
           catalogProducts: (s.catalogProducts || []).map((p) =>
@@ -358,16 +524,43 @@ export const useProduction1Store = create(
           ),
           actionFeedback: { type: 'success', message: 'Data produk berhasil diperbarui.' }
         })),
-      toggleCatalogProductDisplay: (id) =>
-        set((s) => ({
-          catalogProducts: (s.catalogProducts || []).map((p) =>
-            p.id === id ? { ...p, isDisplayActive: !p.isDisplayActive } : p
-          )
-        })),
-      navigateToRoute: ({ stage, station, prod2Tab, isProfile }) => {
+      navigateToRoute: ({ stage, station, prod2Tab, isProfile, isAdmin, adminTab, adminForm }) => {
         const s = get()
+        const isSuperAdmin = Boolean(s.currentUser?.is_superadmin)
+
         if (isProfile) {
-          set({ isProfileActive: true, actionFeedback: null })
+          set({ isProfileActive: true, isAdminActive: false, adminForm: null, actionFeedback: null })
+          return
+        }
+
+        if (isSuperAdmin) {
+          // Super Admin tidak memiliki izin ke stasiun operasional pabrik.
+          // Semua rute non-profil diarahkan ke panel admin.
+          set({
+            isAdminActive: true,
+            isProfileActive: false,
+            activeAdminTab: adminTab || s.activeAdminTab || 'USERS',
+            adminForm: adminForm || null,
+            actionFeedback: null
+          })
+          try {
+            if (!window.location.hash.startsWith('#/admin')) {
+              window.location.hash = '#/admin'
+            }
+          } catch {
+            // ignore
+          }
+          return
+        }
+
+        if (isAdmin) {
+          set({
+            isAdminActive: true,
+            isProfileActive: false,
+            activeAdminTab: adminTab || 'USERS',
+            adminForm: adminForm || null,
+            actionFeedback: null
+          })
           return
         }
 
@@ -398,15 +591,18 @@ export const useProduction1Store = create(
           activeProductionStage: targetStage,
           activeStation: targetStation,
           activeProd2Tab: targetProd2Tab,
-          isProfileActive: false
+          isProfileActive: false,
+          isAdminActive: false,
+          adminForm: null
         })
       },
       setStation: (station) => {
+        if (get().currentUser?.is_superadmin) return
         if (station !== 'LOGS' && !get().isSupervisorUser()) {
           const user = get().currentUser
           if (user?.default_station && station !== user.default_station) return
         }
-        set({ activeStation: station, isProfileActive: false })
+        set({ activeStation: station, isProfileActive: false, isAdminActive: false, adminForm: null })
       },
       setOperator: (id, name) => set({ operatorId: id, operatorName: name }),
       setUserRole: (role) => set({ userRole: role === 'PIC' ? 'STAKEHOLDER' : role }),
@@ -3227,6 +3423,27 @@ export const useProduction1Store = create(
           if (prod2Tab === 'PACKING') prod2Tab = 'FREEZER'
           if (prod2Tab === 'SALES') prod2Tab = 'PRODUCTS'
 
+          if (data.user.is_superadmin) {
+            set({
+              authToken: data.access_token,
+              currentUser: data.user,
+              operatorId: data.user.operator_id,
+              operatorName: data.user.full_name,
+              userRole: 'SUPERADMIN',
+              activeProductionStage: 'PROD_1',
+              isProfileActive: false,
+              isAdminActive: true,
+              activeAdminTab: 'USERS',
+              actionFeedback: { type: 'success', message: `Selamat datang, Super Administrator ${data.user.full_name}!` }
+            })
+            try {
+              window.location.hash = '#/admin'
+            } catch {
+              // ignore
+            }
+            return { success: true, user: data.user }
+          }
+
           let landingHash = '#/meat'
           if (stage === 'PROD_2') {
             if (prod2Tab === 'ASSEMBLY') landingHash = '#/prod2/assembly'
@@ -3336,6 +3553,27 @@ export const useProduction1Store = create(
           if (prod2Tab === 'PACKING') prod2Tab = 'FREEZER'
           if (prod2Tab === 'SALES') prod2Tab = 'PRODUCTS'
 
+          if (data.user.is_superadmin) {
+            set({
+              authToken: data.access_token,
+              currentUser: data.user,
+              operatorId: data.user.operator_id,
+              operatorName: data.user.full_name,
+              userRole: 'SUPERADMIN',
+              activeProductionStage: 'PROD_1',
+              isProfileActive: false,
+              isAdminActive: true,
+              activeAdminTab: 'USERS',
+              actionFeedback: { type: 'success', message: `Selamat datang, Super Administrator ${data.user.full_name}!` }
+            })
+            try {
+              window.location.hash = '#/admin'
+            } catch {
+              // ignore
+            }
+            return { success: true, user: data.user }
+          }
+
           let landingHash = '#/meat'
           if (stage === 'PROD_2') {
             if (prod2Tab === 'ASSEMBLY') landingHash = '#/prod2/assembly'
@@ -3381,6 +3619,7 @@ export const useProduction1Store = create(
           authToken: null,
           currentUser: null,
           isProfileActive: false,
+          isAdminActive: false,
           actionFeedback: { type: 'info', message: 'Anda telah logout dari sistem.' }
         })
         try {
@@ -4063,6 +4302,9 @@ export const useProduction1Store = create(
         userRole: state.userRole,
         authToken: state.authToken,
         currentUser: state.currentUser,
+        isAdminActive: state.isAdminActive,
+        activeAdminTab: state.activeAdminTab,
+        isProfileActive: state.isProfileActive,
         isDevMode: state.isDevMode,
         salesReceiptLogs: state.salesReceiptLogs
       })

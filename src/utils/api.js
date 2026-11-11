@@ -101,3 +101,55 @@ export async function apiGet(url, options = {}) {
   }
   return await res.json()
 }
+
+export async function apiPost(url, data, options = {}) {
+  const prefix = url.startsWith('/api/v1') ? url : `/api/v1${url.startsWith('/') ? url : `/${url}`}`
+  const res = await apiFetch(prefix, {
+    ...options,
+    method: 'POST',
+    body: data !== undefined ? JSON.stringify(data) : undefined
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || `Request failed with status ${res.status}`)
+  }
+  return await res.json()
+}
+
+export async function apiPut(url, data, options = {}) {
+  const prefix = url.startsWith('/api/v1') ? url : `/api/v1${url.startsWith('/') ? url : `/${url}`}`
+  const res = await apiFetch(prefix, {
+    ...options,
+    method: 'PUT',
+    body: data !== undefined ? JSON.stringify(data) : undefined
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || `Request failed with status ${res.status}`)
+  }
+  return await res.json()
+}
+
+export async function apiDelete(url, options = {}) {
+  const prefix = url.startsWith('/api/v1') ? url : `/api/v1${url.startsWith('/') ? url : `/${url}`}`
+  const res = await apiFetch(prefix, { ...options, method: 'DELETE' })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || `Request failed with status ${res.status}`)
+  }
+  return await res.json()
+}
+
+export async function apiUpload(url, formData, options = {}) {
+  const prefix = url.startsWith('/api/v1') ? url : `/api/v1${url.startsWith('/') ? url : `/${url}`}`
+  const res = await apiFetch(prefix, {
+    ...options,
+    method: 'POST',
+    body: formData
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || `Upload gagal: ${res.status}`)
+  }
+  return await res.json()
+}

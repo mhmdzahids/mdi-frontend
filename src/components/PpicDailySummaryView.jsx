@@ -6,15 +6,16 @@ import { Button } from './ui/Button'
 import { Input } from './ui/Input'
 import { exportPpicRecapExcel } from '../utils/excelExport'
 import { SummaryCardSkeleton, DivisionCardSkeleton } from './ui/Skeleton'
-import { SquarePen, Lock } from 'lucide-react'
+import { SquarePen, Lock, ChevronRight } from 'lucide-react'
+import { canAccess } from '../utils/rbac'
 
 const DIVISION_CONFIG = [
-  { id: 'DAGING', name: 'Daging (Giling & Mix)', defaultUnit: 'Gilingan', unitLabel: 'gilingan' },
-  { id: 'BUMBU', name: 'Bumbu Sparta', defaultUnit: 'Karung', unitLabel: 'karung' },
-  { id: 'KULIT', name: 'Kulit Dimsum', defaultUnit: 'BAL', unitLabel: 'bal' },
-  { id: 'SAOS', name: 'Saos Dimsum', defaultUnit: 'BAL', unitLabel: 'bal' },
-  { id: 'CETAK', name: 'Meja Cetak', defaultUnit: 'PCS', unitLabel: 'pcs' },
-  { id: 'PACKING', name: 'Meja Packing', defaultUnit: 'PACK', unitLabel: 'pack' }
+  { id: 'DAGING', name: 'Daging (Giling & Mix)', defaultUnit: 'Gilingan', unitLabel: 'gilingan', station: 'MEAT', stage: 'PROD_1', perm: 'meat:view' },
+  { id: 'BUMBU', name: 'Bumbu Sparta', defaultUnit: 'Karung', unitLabel: 'karung', station: 'SEASONING', stage: 'PROD_1', perm: 'seasoning:view' },
+  { id: 'KULIT', name: 'Kulit Dimsum', defaultUnit: 'BAL', unitLabel: 'bal', station: 'WRAPPER', stage: 'PROD_1', perm: 'wrapper:view' },
+  { id: 'SAOS', name: 'Saos Dimsum', defaultUnit: 'BAL', unitLabel: 'bal', station: 'SAUCE', stage: 'PROD_1', perm: 'sauce:view' },
+  { id: 'CETAK', name: 'Meja Cetak', defaultUnit: 'PCS', unitLabel: 'pcs', prod2Tab: 'ASSEMBLY', stage: 'PROD_2', perm: 'prod2_assembly:view' },
+  { id: 'PACKING', name: 'Meja Packing', defaultUnit: 'PACK', unitLabel: 'pack', prod2Tab: 'FREEZER', stage: 'PROD_2', perm: 'prod2_packing:view' }
 ]
 
 const getTodayStr = () => new Date().toISOString().slice(0, 10)
@@ -52,6 +53,9 @@ export default function PpicDailySummaryView() {
   const voidLots = useProduction1Store((s) => s.voidLots)
   const operatorName = useProduction1Store((s) => s.operatorName)
   const operatorId = useProduction1Store((s) => s.operatorId)
+  const currentUser = useProduction1Store((s) => s.currentUser)
+  const isDevMode = useProduction1Store((s) => s.isDevMode)
+  const navigateToRoute = useProduction1Store((s) => s.navigateToRoute)
 
   const todayStr = getTodayStr()
   const isRange = filterPreset === 'range'
@@ -214,7 +218,7 @@ export default function PpicDailySummaryView() {
     })
   }
 
-  const divisions = dailyRecapData?.divisions || {}
+  const divisions = useMemo(() => dailyRecapData?.divisions || {}, [dailyRecapData?.divisions])
   const primaryOfficer = useMemo(() => {
     const officers = DIVISION_CONFIG.map((d) => divisions[d.id]?.updated_by).filter(Boolean)
     if (officers.length === 0) return operatorName || operatorId || 'PPIC-AYU'
@@ -456,6 +460,16 @@ export default function PpicDailySummaryView() {
             {DIVISION_CONFIG.map((divConfig) => {
               const divData = divisions[divConfig.id] || {}
               const hasDiffOfficer = Boolean(divData.updated_by && divData.updated_by !== primaryOfficer)
+              const canOpenStation = canAccess(divConfig.perm, currentUser, isDevMode)
+
+              const handleStationClick = () => {
+                if (!canOpenStation) return
+                if (divConfig.stage === 'PROD_2') {
+                  navigateToRoute({ stage: 'PROD_2', prod2Tab: divConfig.prod2Tab })
+                } else {
+                  navigateToRoute({ stage: 'PROD_1', station: divConfig.station })
+                }
+              }
 
               return (
                 <div
@@ -463,11 +477,22 @@ export default function PpicDailySummaryView() {
                   className="border border-bg-cream-dark shadow-2xs rounded-2xl bg-white overflow-hidden"
                 >
                   {/* Header Card Satu Baris */}
-                  <div className="px-4 py-2 flex items-center justify-between border-b border-bg-cream-dark">
-                    <div className="flex items-center gap-2 flex-wrap min-w-0">
+                  <div
+                    onClick={canOpenStation ? handleStationClick : undefined}
+                    className={`px-4 py-2 flex items-center justify-between border-b border-bg-cream-dark select-none ${
+                      canOpenStation
+                        ? 'cursor-pointer hover:bg-[#F5F1EB]/60 active:bg-[#EDE8DF]/70 transition-colors'
+                        : ''
+                    }`}
+                    title={canOpenStation ? `Buka Halaman ${divConfig.name}` : undefined}
+                  >
+                    <div className="flex items-center gap-1.5 flex-wrap min-w-0">
                       <h2 className="text-sm font-bold text-text-primary tracking-tight">
                         {divConfig.name}
                       </h2>
+                      {canOpenStation && (
+                        <ChevronRight className="w-4 h-4 text-[#3A6B80] shrink-0" />
+                      )}
                       {hasDiffOfficer && (
                         <span className="text-[11px] font-medium text-text-secondary bg-bg-cream px-2 py-0.5 rounded-md border border-bg-cream-dark">
                           Petugas: {divData.updated_by}
@@ -480,25 +505,30 @@ export default function PpicDailySummaryView() {
                       )}
                     </div>
 
-                    {isHistorical ? (
-                      <div
-                        className="min-w-[44px] min-h-[44px] flex items-center justify-center text-text-secondary/60"
-                        title="Arsip Riwayat"
-                        aria-label="Arsip Riwayat"
-                      >
-                        <Lock className="w-5 h-5" />
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => openEditModal(divConfig)}
-                        aria-label="Catat Reject & Kendala"
-                        title="Catat Reject & Kendala"
-                        className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-brand-blue hover:text-brand-blue-dark hover:bg-bg-cream active:scale-95 transition-all cursor-pointer"
-                      >
-                        <SquarePen className="w-5 h-5" />
-                      </button>
-                    )}
+                    <div className="flex items-center gap-1 shrink-0">
+                      {isHistorical ? (
+                        <div
+                          className="min-w-[44px] min-h-[44px] flex items-center justify-center text-text-secondary/60"
+                          title="Arsip Riwayat"
+                          aria-label="Arsip Riwayat"
+                        >
+                          <Lock className="w-5 h-5" />
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            openEditModal(divConfig)
+                          }}
+                          aria-label="Catat Reject & Kendala"
+                          title="Catat Reject & Kendala"
+                          className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-brand-blue hover:text-brand-blue-dark hover:bg-bg-cream active:scale-95 transition-all cursor-pointer focus-visible:outline-none"
+                        >
+                          <SquarePen className="w-5 h-5" />
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {/* Metrik Satu Baris */}

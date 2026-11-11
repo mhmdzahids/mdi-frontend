@@ -1,29 +1,32 @@
 import { useEffect } from 'react'
-import { X } from 'lucide-react'
-import { MixerIcon, BagIcon, WrapperIcon, SauceIcon, PlanIcon, ReceiveIcon } from '../Icons'
+import { X, Check } from 'lucide-react'
+import { MixerIcon, BagIcon, WrapperIcon, SauceIcon } from '../Icons'
 import { useLockBodyScroll } from '../../utils/useLockBodyScroll'
+import { useProduction1Store } from '../../store/production1Store'
+import { canAccess } from '../../utils/rbac'
 
-const STATIONS = [
-  { id: 'MEAT', label: 'Giling & Mix', description: 'Pengolahan adonan daging', icon: MixerIcon },
-  { id: 'SEASONING', label: 'Bumbu', description: 'Penyiapan paket bumbu', icon: BagIcon },
-  { id: 'WRAPPER', label: 'Kulit', description: 'Penerimaan & potong kulit', icon: WrapperIcon },
-  { id: 'SAUCE', label: 'Saos', description: 'Pengemasan saos & minyak', icon: SauceIcon },
-  { id: 'SUMMARY', label: 'Rekap PPIC', description: 'Kontrol rekapitulasi & reject harian', icon: PlanIcon },
-  { id: 'SUPPLIER', label: 'Barang Masuk', description: 'Inbound supplier luar', icon: ReceiveIcon }
+const P1_STATIONS = [
+  { id: 'MEAT', label: 'Giling & Mix', shortLabel: 'Giling', icon: MixerIcon, permission: 'meat:view' },
+  { id: 'SEASONING', label: 'Bumbu', shortLabel: 'Bumbu', icon: BagIcon, permission: 'seasoning:view' },
+  { id: 'WRAPPER', label: 'Kulit', shortLabel: 'Kulit', icon: WrapperIcon, permission: 'wrapper:view' },
+  { id: 'SAUCE', label: 'Saos', shortLabel: 'Saos', icon: SauceIcon, permission: 'sauce:view' }
 ]
 
 /**
- * Bottom Sheet Pemilihan Stasiun Produksi 1.
- * Muncul saat tab "Stasiun" ditekan pada akun dengan > 6 navigasi (Supervisor / PIC).
- * Setiap baris stasiun memiliki tinggi minimal 56px untuk ergonomi sentuh pekerja pabrik.
+ * Bottom Sheet Pemilihan Stasiun Kerja (Minimalis).
+ * Dibuka dari chip stasiun di header untuk pengguna dengan izin > 1 stasiun.
  */
 export default function StationSheet({
   isOpen,
   onClose,
   activeStation,
-  onSelectStation
+  onSelectStation,
+  stations
 }) {
+  const currentUser = useProduction1Store((s) => s.currentUser)
   useLockBodyScroll(isOpen)
+
+  const visibleStations = stations || P1_STATIONS.filter((st) => canAccess(st.permission, currentUser))
 
   useEffect(() => {
     if (!isOpen) return
@@ -55,29 +58,24 @@ export default function StationSheet({
         {/* Handle Bar Minimalis */}
         <div className="w-10 h-1 bg-[#EDE8DF] rounded-full mx-auto mb-3" />
 
-        {/* Header Sheet */}
+        {/* Header Sheet: Hanya "Stasiun" tanpa subjudul */}
         <div className="flex items-center justify-between pb-3 border-b border-[#EDE8DF]">
-          <div>
-            <h3 id="station-sheet-title" className="text-sm font-bold font-heading text-[#2C3E50]">
-              Pilih Stasiun Kerja
-            </h3>
-            <p className="text-[11px] text-[#6B7B8D] mt-0.5">
-              Stasiun hulu Produksi 1 Dimsum
-            </p>
-          </div>
+          <h3 id="station-sheet-title" className="text-sm font-bold font-heading text-[#2C3E50]">
+            Stasiun
+          </h3>
           <button
             type="button"
             onClick={onClose}
-            className="w-9 h-9 rounded-lg flex items-center justify-center text-[#6B7B8D] hover:text-[#2C3E50] hover:bg-[#F5F1EB] transition-colors cursor-pointer"
+            className="w-9 h-9 rounded-lg flex items-center justify-center text-[#6B7B8D] hover:text-[#2C3E50] hover:bg-[#F5F1EB] transition-colors cursor-pointer focus-visible:outline-none"
             aria-label="Tutup"
           >
             <X className="w-5 h-5 stroke-[2]" />
           </button>
         </div>
 
-        {/* Daftar Stasiun */}
-        <div className="grid grid-cols-1 gap-2.5 mt-3.5">
-          {STATIONS.map((st) => {
+        {/* Daftar Stasiun: Ikon + Nama Saja (Tanpa Deskripsi) */}
+        <div className="grid grid-cols-1 gap-2 mt-3">
+          {visibleStations.map((st) => {
             const Icon = st.icon
             const isActive = activeStation === st.id
 
@@ -89,35 +87,28 @@ export default function StationSheet({
                   onSelectStation(st.id)
                   onClose()
                 }}
-                className={`w-full min-h-[56px] px-3.5 py-2.5 rounded-xl border flex items-center gap-3.5 text-left transition-all cursor-pointer active:scale-[0.99] ${
+                className={`w-full min-h-[48px] px-3.5 py-2.5 rounded-xl border flex items-center justify-between transition-all cursor-pointer active:scale-[0.99] focus-visible:outline-none ${
                   isActive
                     ? 'bg-[#EEF5F9] border-[#6A9DB3]/50 text-[#3A6B80] shadow-2xs'
                     : 'bg-white border-[#EDE8DF] hover:bg-[#F5F1EB] text-[#2C3E50]'
                 }`}
               >
-                <div
-                  className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${
-                    isActive ? 'bg-[#4685ac] text-white' : 'bg-[#EDE8DF]/60 text-[#6B7B8D]'
-                  }`}
-                >
-                  <Icon className="w-5 h-5" />
+                <div className="flex items-center gap-3 min-w-0">
+                  <div
+                    className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+                      isActive ? 'bg-[#3A6B80] text-white' : 'bg-[#EDE8DF]/60 text-[#6B7B8D]'
+                    }`}
+                  >
+                    <Icon className="w-4 h-4" />
+                  </div>
+                  <span className="text-xs font-bold font-heading tracking-tight truncate">
+                    {st.label}
+                  </span>
                 </div>
 
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold font-heading tracking-tight">
-                      {st.label}
-                    </span>
-                    {isActive && (
-                      <span className="text-[10px] font-semibold text-[#4685ac] bg-white px-2 py-0.5 rounded-md border border-[#D1E4EF]">
-                        Aktif
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-[11px] text-[#6B7B8D] truncate mt-0.5">
-                    {st.description}
-                  </p>
-                </div>
+                {isActive && (
+                  <Check className="w-4 h-4 text-[#2F7D5B] stroke-[2.5] shrink-0" />
+                )}
               </button>
             )
           })}

@@ -1,11 +1,11 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useProduction1Store } from '../store/production1Store'
 import { PlusIcon, MinusIcon, CheckIcon, AlertIcon } from './Icons'
-import { Package } from 'lucide-react'
+import { Package, ChevronRight } from 'lucide-react'
 import { Card, CardContent } from './ui/Card'
 import { Badge } from './ui/Badge'
-import { Modal } from './ui/Modal'
 import { SegmentedControl } from './ui/SegmentedControl'
+import { canAccess } from '../utils/rbac'
 
 const DEFAULT_PRODUCTS = [
   {
@@ -26,11 +26,20 @@ const DEFAULT_PRODUCTS = [
 
 export default function ProductsView() {
   const storeCatalog = useProduction1Store((s) => s.catalogProducts)
-  const updateCatalogProduct = useProduction1Store((s) => s.updateCatalogProduct)
+  const fetchCatalogProducts = useProduction1Store((s) => s.fetchCatalogProducts)
   const toggleCatalogProductDisplay = useProduction1Store((s) => s.toggleCatalogProductDisplay)
+  const openProductEdit = useProduction1Store((s) => s.openProductEdit)
   const finishedGoodsLots = useProduction1Store((s) => s.finishedGoodsLots)
   const salesReceiptLogs = useProduction1Store((s) => s.salesReceiptLogs) || []
   const verifyStagedSalesReceipt = useProduction1Store((s) => s.verifyStagedSalesReceipt)
+  const currentUser = useProduction1Store((s) => s.currentUser)
+  const isDevMode = useProduction1Store((s) => s.isDevMode)
+
+  const canViewPrice = canAccess('freezer_sales:view_price', currentUser, isDevMode)
+
+  useEffect(() => {
+    fetchCatalogProducts()
+  }, [fetchCatalogProducts])
 
   const products = (storeCatalog && storeCatalog.length > 0) ? storeCatalog : DEFAULT_PRODUCTS
 
@@ -39,11 +48,6 @@ export default function ProductsView() {
   const [waveQty, setWaveQty] = useState(0)
   const [verificationNotes, setVerificationNotes] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
-
-  // State untuk modal edit nama & deskripsi katalog
-  const [editingItem, setEditingItem] = useState(null)
-  const [editName, setEditName] = useState('')
-  const [editDesc, setEditDesc] = useState('')
 
   // Hitung Data Pembanding untuk produk terpilih
   const currentProductLots = finishedGoodsLots.filter((l) => l.type === selectedProductId)
@@ -56,25 +60,6 @@ export default function ProductsView() {
   const totalDispatchedFromPacking = currentProductLots.length
   const totalVerifiedAcc = alreadyAccLots.length
   const pendingCount = pendingLots.length
-
-  const handleOpenEdit = (product) => {
-    setEditingItem(product)
-    setEditName(product.name)
-    setEditDesc(product.description || '')
-  }
-
-  const handleSaveEdit = (e) => {
-    e.preventDefault()
-    if (!editingItem) return
-    const trimmedName = editName.trim()
-    if (!trimmedName) return
-
-    updateCatalogProduct(editingItem.id, {
-      name: trimmedName,
-      description: editDesc.trim()
-    })
-    setEditingItem(null)
-  }
 
   const handleSubmitVerification = async (status) => {
     if (waveQty <= 0) return
@@ -328,117 +313,95 @@ export default function ProductsView() {
         </Card>
       )}
 
-      {/* LIST KATALOG PRODUK */}
+      {/* LIST KATALOG PRODUK (Format Kartu Barang Masuk) */}
       <div className="space-y-2.5 pt-1">
         <span className="text-xs font-bold text-[#6B7B8D] block px-1">
           Katalog produk POS
         </span>
 
-        {products.map((product) => (
-          <Card key={product.id} className="border border-[#EDE8DF] shadow-xs hover:border-[#D5CEBF] transition-colors">
-            <CardContent className="p-3.5 space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-10 h-10 rounded-xl bg-[#F5F1EB] border border-[#EDE8DF] flex items-center justify-center shrink-0 text-[#4685ac]">
-                    <Package className="w-5 h-5" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-xs font-bold text-[#2C3E50] truncate">
-                        {product.name}
-                      </h3>
-                      <Badge variant="neutral" size="sm" tabular>
-                        {product.spec}
-                      </Badge>
-                    </div>
-                    <p className="text-[11px] text-[#6B7B8D] truncate mt-0.5">
-                      {product.description || 'Tidak ada deskripsi.'}
-                    </p>
-                  </div>
+        {products.map((product) => {
+          const isPriceEmpty = !product.price || product.price <= 0
+          const isProductActive = Boolean(product.is_active ?? product.isDisplayActive)
+
+          return (
+            <div
+              key={product.id}
+              onClick={() => openProductEdit(product.id)}
+              className="bg-white border border-[#EDE8DF] hover:border-[#D5CEBF] rounded-2xl p-3.5 sm:p-4 shadow-xs transition-all cursor-pointer active:scale-[0.99] flex items-center justify-between gap-3"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                {/* 1:1 Thumbnail Persegi (56-64px) */}
+                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl overflow-hidden bg-[#F5F1EB] border border-[#EDE8DF] shrink-0 flex items-center justify-center">
+                  {product.thumbnail_url || product.image_url ? (
+                    <img
+                      src={product.thumbnail_url || product.image_url}
+                      alt={product.name}
+                      loading="lazy"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <Package className="w-6 h-6 text-[#8C9BA8] stroke-[1.5]" />
+                  )}
                 </div>
 
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => handleOpenEdit(product)}
-                    className="min-h-[44px] px-3 text-xs font-semibold text-[#2C3E50] bg-white border border-[#EDE8DF] rounded-xl hover:bg-[#F5F1EB] active:scale-95 transition-all cursor-pointer"
-                    title="Ubah nama & deskripsi"
-                  >
-                    Ubah
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => toggleCatalogProductDisplay(product.id)}
-                    className={`min-h-[44px] px-3 text-xs font-semibold rounded-xl border transition-all cursor-pointer active:scale-95 ${
-                      product.isDisplayActive
-                        ? 'bg-[#F5F1EB] text-[#2C3E50] border-[#EDE8DF] hover:bg-[#EDE8DF]'
-                        : 'bg-[#2C3E50] text-white border-[#2C3E50]'
-                    }`}
-                    title="Toggle status display produk"
-                  >
-                    {product.isDisplayActive ? 'Aktif' : 'Nonaktif'}
-                  </button>
+                {/* Kolom Teks Tengah */}
+                <div className="min-w-0">
+                  {/* Baris 1: Nama Produk (teks tebal, max 2 baris) */}
+                  <h3 className="font-bold text-xs sm:text-sm text-[#1E293B] line-clamp-2 leading-snug break-words">
+                    {product.name}
+                  </h3>
+
+                  {/* Baris 2: Spec / Isi per kemasan (warna muted) */}
+                  {product.spec && (
+                    <span className="text-[11px] text-[#6B7B8D] block mt-0.5">
+                      {product.spec}
+                    </span>
+                  )}
+
+                  {/* Baris 3: Harga Rupiah (Hanya jika pengguna berizin 'Lihat Harga') */}
+                  {canViewPrice && (
+                    <div className="mt-1">
+                      {!isPriceEmpty ? (
+                        <span className="text-xs sm:text-sm font-bold text-[#1E293B] tabular-nums">
+                          Rp {new Intl.NumberFormat('id-ID').format(product.price)}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-[#8C9BA8] font-normal italic">
+                          Belum ada harga
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        ))}
+
+              {/* Kanan: Switch Status Display + Chevron Kecil */}
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  disabled={isPriceEmpty}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    toggleCatalogProductDisplay(product.id)
+                  }}
+                  title={isPriceEmpty ? 'Isi harga dulu untuk mengaktifkan' : 'Ubah status aktif produk'}
+                  className={`min-h-[44px] min-w-[64px] px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${
+                    isPriceEmpty
+                      ? 'bg-[#EDE8DF] text-[#8C9BA8] cursor-not-allowed opacity-60'
+                      : isProductActive
+                      ? 'bg-[#E8F5E9] text-[#2E7D32] hover:bg-[#C8E6C9] cursor-pointer'
+                      : 'bg-red-50 text-red-600 hover:bg-red-100 cursor-pointer'
+                  }`}
+                >
+                  {isProductActive ? 'Aktif' : 'Nonaktif'}
+                </button>
+
+                <ChevronRight className="w-4 h-4 text-[#8C9BA8]" />
+              </div>
+            </div>
+          )
+        })}
       </div>
-
-      {/* Modal Edit Nama & Deskripsi */}
-      <Modal
-        isOpen={Boolean(editingItem)}
-        onClose={() => setEditingItem(null)}
-        title="Ubah informasi produk"
-        size="sm"
-      >
-        {editingItem && (
-          <form onSubmit={handleSaveEdit} className="space-y-3.5">
-            <div>
-              <label className="text-xs font-semibold text-[#6B7B8D] block mb-1">
-                Nama produk
-              </label>
-              <input
-                type="text"
-                value={editName}
-                onChange={(e) => setEditName(e.target.value)}
-                className="w-full h-12 text-xs border border-[#EDE8DF] rounded-xl px-3 bg-white text-[#2C3E50] focus:border-[#4685ac] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4685ac]/20 transition-colors"
-                placeholder="Nama produk"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="text-xs font-semibold text-[#6B7B8D] block mb-1">
-                Deskripsi produk
-              </label>
-              <textarea
-                rows={3}
-                value={editDesc}
-                onChange={(e) => setEditDesc(e.target.value)}
-                className="w-full text-xs border border-[#EDE8DF] rounded-xl p-3 bg-white text-[#2C3E50] focus:border-[#4685ac] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4685ac]/20 resize-none transition-colors"
-                placeholder="Keterangan isi dan kemasan produk..."
-              />
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#EDE8DF]">
-              <button
-                type="button"
-                onClick={() => setEditingItem(null)}
-                className="min-h-[44px] px-4 text-xs font-semibold text-[#6B7B8D] bg-[#F5F1EB] hover:bg-[#EDE8DF] active:scale-95 rounded-xl border border-[#EDE8DF] cursor-pointer transition-all"
-              >
-                Batal
-              </button>
-              <button
-                type="submit"
-                className="min-h-[44px] px-5 text-xs font-bold text-white bg-[#4685ac] hover:bg-[#3A6B80] active:bg-[#2E5466] active:scale-95 rounded-xl cursor-pointer transition-all shadow-xs"
-              >
-                Simpan
-              </button>
-            </div>
-          </form>
-        )}
-      </Modal>
     </div>
   )
 }
