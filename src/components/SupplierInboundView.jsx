@@ -22,7 +22,8 @@ import {
   ChevronDown,
   ChevronUp,
   Send,
-  Info
+  Info,
+  CheckCircle2
 } from 'lucide-react'
 
 const INBOUND_CATEGORIES = [
@@ -956,96 +957,139 @@ export default function SupplierInboundView() {
     return res
   }, [supplierInboundList, supplierOutboundList, filterCategory, searchQuery])
 
-  // Render Kartu Transaksi Barang Masuk (Inbound)
-  const renderInboundCard = (item, idx, showTypeBadge = false) => {
+  // Render Kartu Transaksi Barang Masuk (Inbound) - 3 Zona Berhierarki + Footer
+  const renderInboundCard = (item, idx) => {
     const isExpanded = expandedCardId === item.inbound_id
     const itemOutbounds = supplierOutboundList.filter((o) => o.inbound_id === item.inbound_id)
     const alreadyOutbound = itemOutbounds.reduce((sum, o) => sum + (Number(o.quantity) || 0), 0)
     const remainingStock = Math.max(0, (Number(item.quantity) || 0) - alreadyOutbound)
     const isOutOfStock = remainingStock <= 0
+    const timeFormatted = formatItemTime(item.created_at)
 
     return (
       <div
         key={`in-${item.inbound_id || idx}`}
-        className={`bg-white border rounded-2xl p-3 shadow-2xs transition-all ${
+        className={`bg-white border rounded-2xl p-4 sm:p-5 shadow-xs transition-all space-y-3.5 ${
           isExpanded ? 'border-[#4685ac] ring-1 ring-[#4685ac]/30 bg-[#FBFDFE]' : 'border-[#EDE8DF] hover:border-[#D5CEBF]'
         }`}
       >
-        {/* Baris Ringkasan Kartu - Klik untuk Toggle Tampilkan / Sembunyikan Aksi */}
-        <div
-          onClick={() => setExpandedCardId(isExpanded ? null : item.inbound_id)}
-          className="flex items-start justify-between gap-2.5 cursor-pointer select-none"
-        >
-          <div className="space-y-1 min-w-0 flex-1">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {showTypeBadge && (
-                <span className="px-1.5 py-0.5 rounded-md text-[9px] font-extrabold bg-[#EAF5EE] text-[#2F7D5B] border border-[#CBEAD6]">
-                  MASUK
-                </span>
-              )}
-              {(item.has_qr === false || item.has_qr === 0) && (
-                <span className="px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-[#F5F1EB] text-[#8C9BA8] border border-[#EDE8DF]">
-                  Tanpa QR
-                </span>
-              )}
-              <span className="font-bold text-xs text-[#2C3E50] block truncate">
-                {item.item_name}
-              </span>
-            </div>
-            <span className="text-[11px] text-[#6B7B8D] block">
-              {formatItemTime(item.created_at) ? `${formatItemTime(item.created_at)} • ` : ''}Supplier: <span className="font-semibold text-[#2C3E50]">{item.supplier_name}</span>
-              {item.document_no ? ` • SJ: ${item.document_no}` : ''}
+        {/* ZONA A: Atas (Badge MASUK + Jam di kiri, Chevron tanpa kotak di kanan min 44px tap target) */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-[#EAF5EE] text-[#2F7D5B] border border-[#CBEAD6]">
+              MASUK
             </span>
-            {item.notes && (
-              <span className="text-[11px] text-[#6B7B8D] italic block">
-                &ldquo;{item.notes}&rdquo;
+            {timeFormatted && (
+              <span className="text-xs font-medium text-[#6B7B8D]">
+                {timeFormatted}
+              </span>
+            )}
+            {(item.has_qr === false || item.has_qr === 0) && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium bg-[#F5F1EB] text-[#8C9BA8] border border-[#EDE8DF]">
+                Tanpa QR
               </span>
             )}
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
-            <div className="text-right">
-              <span className="font-bold text-xs text-[#2C3E50] tabular-nums block">
-                {item.quantity} <span className="text-[11px] font-semibold text-[#6B7B8D]">{formatUnitDisplay(item.unit)}</span>
-              </span>
-              {isOutOfStock ? (
-                <span className="text-[10px] font-bold text-rose-600 block mt-0.5">
-                  Stok Habis
-                </span>
-              ) : alreadyOutbound > 0 ? (
-                <span className="text-[10px] font-semibold text-emerald-700 block mt-0.5">
-                  Sisa: {remainingStock} {formatUnitDisplay(item.unit)}
-                </span>
-              ) : (
-                <span className="text-[10px] text-[#6B7B8D] block mt-0.5">
-                  {item.received_by || 'PPIC'}
-                </span>
-              )}
-            </div>
+          {/* Chevron tanpa kotak, min 44x44px tap area */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              setExpandedCardId(isExpanded ? null : item.inbound_id)
+            }}
+            className="w-11 h-11 min-w-[44px] min-h-[44px] -mr-2.5 -my-2 flex items-center justify-center text-[#6B7B8D] hover:text-[#2C3E50] active:scale-95 transition-colors cursor-pointer rounded-full"
+            title={isExpanded ? 'Tutup aksi' : 'Tampilkan opsi aksi'}
+            aria-label="Toggle opsi aksi"
+          >
+            {isExpanded ? (
+              <ChevronUp className="w-5 h-5 text-[#3A6B80]" />
+            ) : (
+              <ChevronDown className="w-5 h-5 text-[#6B7B8D]" />
+            )}
+          </button>
+        </div>
 
-            {/* Tombol Toggle Chevron */}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation()
-                setExpandedCardId(isExpanded ? null : item.inbound_id)
-              }}
-              className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
-                isExpanded
-                  ? 'bg-[#EEF5F9] text-[#4685ac]'
-                  : 'bg-[#FAF7F2] text-[#6B7B8D] hover:text-[#2C3E50] hover:bg-[#EDE8DF]'
-              }`}
-              title={isExpanded ? 'Tutup aksi' : 'Tampilkan opsi aksi'}
-              aria-label="Toggle opsi aksi"
-            >
-              {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-            </button>
+        {/* ZONA B: Tengah (Nama barang semibold maks 2 baris di kiri, Jumlah tebal & besar + unit kecil di kanan) */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1 min-w-0 pr-1">
+            <h3 className="font-semibold text-sm sm:text-base text-[#1E293B] line-clamp-2 leading-snug break-words">
+              {item.item_name}
+            </h3>
+          </div>
+
+          <div className="text-right shrink-0">
+            <div className="flex items-baseline justify-end">
+              <span className="text-2xl sm:text-[26px] font-black text-[#1E293B] tabular-nums tracking-tight">
+                {item.quantity}
+              </span>
+              <span className="text-xs font-bold text-[#6B7B8D] ml-1 uppercase">
+                {formatUnitDisplay(item.unit)}
+              </span>
+            </div>
+            {isOutOfStock ? (
+              <span className="text-[10px] font-bold text-rose-600 block mt-0.5">
+                Stok Habis
+              </span>
+            ) : alreadyOutbound > 0 ? (
+              <span className="text-[10px] font-semibold text-emerald-700 block mt-0.5">
+                Sisa: {remainingStock} {formatUnitDisplay(item.unit)}
+              </span>
+            ) : null}
           </div>
         </div>
 
-        {/* Panel Aksi yang Tersembunyi (Hanya Muncul saat Kartu Ditoggle) */}
+        {/* ZONA C: Detail (Grid 2 Kolom, label abu-abu text-xs di atas, nilai text-sm di bawah) */}
+        <div className="grid grid-cols-2 gap-x-4 gap-y-3 pt-0.5">
+          <div className="space-y-0.5 min-w-0">
+            <span className="text-xs text-[#6B7B8D] font-medium block">Supplier</span>
+            <p className="text-sm font-semibold text-[#1E293B] truncate" title={item.supplier_name}>
+              {item.supplier_name || '-'}
+            </p>
+          </div>
+
+          <div className="space-y-0.5 min-w-0">
+            <span className="text-xs text-[#6B7B8D] font-medium block">No. SJ</span>
+            <p className="text-sm font-semibold text-[#1E293B] truncate" title={item.document_no || '-'}>
+              {item.document_no || '-'}
+            </p>
+          </div>
+
+          <div className="space-y-0.5 min-w-0">
+            <span className="text-xs text-[#6B7B8D] font-medium block">Penerima</span>
+            <p className="text-sm font-semibold text-[#1E293B] truncate" title={item.received_by || 'PPIC'}>
+              {item.received_by || 'PPIC'}
+            </p>
+          </div>
+
+          {item.notes ? (
+            <div className="space-y-0.5 min-w-0">
+              <span className="text-xs text-[#6B7B8D] font-medium block">Catatan</span>
+              <p className="text-sm font-semibold text-[#1E293B] truncate" title={item.notes}>
+                {item.notes}
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-0.5 min-w-0">
+              <span className="text-xs text-[#6B7B8D] font-medium block">Kategori</span>
+              <p className="text-sm font-semibold text-[#1E293B] truncate">
+                {INBOUND_CATEGORIES.find((c) => c.id === item.category)?.label || item.category || '-'}
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* ZONA D: Footer (Garis pemisah tipis + chip Terverifikasi hijau dengan ikon centang) */}
+        <div className="pt-3 border-t border-[#EDE8DF] flex items-center justify-between gap-2">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-[#EAF5EE] text-[#2F7D5B] border border-[#CBEAD6]">
+            <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-[#2F7D5B]" />
+            <span>Terverifikasi</span>
+          </span>
+        </div>
+
+        {/* Panel Aksi Expandable (Muncul saat kartu ditoggle via chevron) */}
         {isExpanded && (
-          <div className="mt-3 pt-2.5 border-t border-[#EDE8DF] flex items-center justify-end gap-2 animate-in fade-in duration-150 relative">
+          <div className="pt-2.5 border-t border-dashed border-[#EDE8DF] flex items-center justify-end gap-2 animate-in fade-in duration-150 relative">
             {item.has_qr !== false && item.has_qr !== 0 ? (
               <button
                 type="button"
@@ -1053,7 +1097,7 @@ export default function SupplierInboundView() {
                   e.stopPropagation()
                   handleOpenPrintQrForInbound(item)
                 }}
-                className="min-h-[36px] px-3 rounded-xl border border-[#EDE8DF] bg-white hover:bg-[#FAF7F2] active:scale-95 text-[#2C3E50] text-xs font-semibold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
+                className="min-h-[38px] px-3.5 rounded-xl border border-[#EDE8DF] bg-white hover:bg-[#FAF7F2] active:scale-95 text-[#2C3E50] text-xs font-semibold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
                 title="Buka QR"
               >
                 <QrCode className="w-3.5 h-3.5 text-[#3A6B80]" />
@@ -1067,7 +1111,7 @@ export default function SupplierInboundView() {
                     e.stopPropagation()
                     handleNoQrButtonClick(item)
                   }}
-                  className="min-h-[36px] px-3 rounded-xl border border-[#EDE8DF] bg-[#F5F1EB] text-[#8C9BA8] hover:bg-[#EDE8DF] active:scale-95 text-xs font-semibold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer opacity-70"
+                  className="min-h-[38px] px-3.5 rounded-xl border border-[#EDE8DF] bg-[#F5F1EB] text-[#8C9BA8] hover:bg-[#EDE8DF] active:scale-95 text-xs font-semibold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer opacity-70"
                   title="Tips: Barang ini tidak memiliki label QR"
                   aria-label="Buka QR (Dinonaktifkan: Barang tidak memiliki QR)"
                 >
@@ -1092,7 +1136,7 @@ export default function SupplierInboundView() {
               <button
                 type="button"
                 disabled
-                className="min-h-[36px] px-3.5 rounded-xl border border-stone-200 bg-stone-100 text-stone-400 text-xs font-semibold flex items-center gap-1.5 cursor-not-allowed opacity-75"
+                className="min-h-[38px] px-3.5 rounded-xl border border-stone-200 bg-stone-100 text-stone-400 text-xs font-semibold flex items-center gap-1.5 cursor-not-allowed opacity-75"
                 title="Stok barang ini sudah habis (0)"
               >
                 <ArrowUpRight className="w-3.5 h-3.5 text-stone-400" />
@@ -1105,7 +1149,7 @@ export default function SupplierInboundView() {
                   e.stopPropagation()
                   handleOpenStockOutModal(item)
                 }}
-                className="min-h-[36px] px-3.5 rounded-xl border border-red-600 bg-red-600 hover:bg-red-700 active:bg-red-800 active:scale-95 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
+                className="min-h-[38px] px-3.5 rounded-xl border border-red-600 bg-red-600 hover:bg-red-700 active:bg-red-800 active:scale-95 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
                 title="Keluarkan stok ke divisi produksi atau umum"
               >
                 <ArrowUpRight className="w-3.5 h-3.5 text-white" />
@@ -1324,13 +1368,18 @@ export default function SupplierInboundView() {
               {groupedAllByDate.map((group) => {
                 if (group.items.length === 0) {
                   return (
-                    <div key={group.dateStr} className="space-y-1.5">
-                      <div className="flex items-center gap-1.5 px-1 pt-1 pb-0.5">
-                        <span className="text-xs font-bold text-[#2C3E50]">
-                          {group.badgeLabel || 'Hari Ini'}
-                        </span>
-                        <span className="text-xs text-[#6B7B8D]">
-                          {group.title}
+                    <div key={group.dateStr} className="space-y-2.5">
+                      <div className="flex items-center justify-between gap-2 px-1 pt-2 pb-0.5">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs font-bold text-[#2C3E50]">
+                            {group.badgeLabel || 'Hari Ini'}
+                          </span>
+                          <span className="text-xs text-[#6B7B8D]">
+                            {group.title}
+                          </span>
+                        </div>
+                        <span className="text-[11px] font-semibold text-[#6B7B8D] bg-[#F5F1EB] border border-[#EDE8DF] px-2 py-0.5 rounded-full">
+                          0 Transaksi
                         </span>
                       </div>
                       <div className="bg-white border border-[#EDE8DF] rounded-2xl p-4 text-center text-xs text-[#556575] font-medium shadow-2xs">
@@ -1341,17 +1390,22 @@ export default function SupplierInboundView() {
                 }
 
                 return (
-                  <div key={group.dateStr} className="space-y-1.5">
-                    <div className="flex items-center gap-1.5 px-1 pt-1 pb-0.5">
-                      <span className="text-xs font-bold text-[#2C3E50]">
-                        {group.badgeLabel || 'Riwayat'}
-                      </span>
-                      <span className="text-xs text-[#6B7B8D]">
-                        {group.title}
+                  <div key={group.dateStr} className="space-y-2.5">
+                    <div className="flex items-center justify-between gap-2 px-1 pt-2 pb-0.5">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-bold text-[#2C3E50]">
+                          {group.badgeLabel || 'Riwayat'}
+                        </span>
+                        <span className="text-xs text-[#6B7B8D]">
+                          {group.title}
+                        </span>
+                      </div>
+                      <span className="text-[11px] font-semibold text-[#6B7B8D] bg-[#F5F1EB] border border-[#EDE8DF] px-2.5 py-0.5 rounded-full">
+                        {group.items.length} Transaksi
                       </span>
                     </div>
 
-                    <div className="space-y-2">
+                    <div className="space-y-3 pt-1">
                       {group.items.map((item, idx) =>
                         item._type === 'OUTBOUND'
                           ? renderOutboundCard(item, idx, true)
@@ -1395,13 +1449,18 @@ export default function SupplierInboundView() {
               {groupedInboundByDate.map((group) => {
                 if (group.items.length === 0) {
                   return (
-                    <div key={group.dateStr} className="space-y-1.5">
-                      <div className="flex items-center gap-1.5 px-1 pt-1 pb-0.5">
-                        <span className="text-xs font-bold text-[#2C3E50]">
-                          {group.badgeLabel || 'Hari Ini'}
-                        </span>
-                        <span className="text-xs text-[#6B7B8D]">
-                          {group.title}
+                    <div key={group.dateStr} className="space-y-2.5">
+                      <div className="flex items-center justify-between gap-2 px-1 pt-2 pb-0.5">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs font-bold text-[#2C3E50]">
+                            {group.badgeLabel || 'Hari Ini'}
+                          </span>
+                          <span className="text-xs text-[#6B7B8D]">
+                            {group.title}
+                          </span>
+                        </div>
+                        <span className="text-[11px] font-semibold text-[#6B7B8D] bg-[#F5F1EB] border border-[#EDE8DF] px-2 py-0.5 rounded-full">
+                          0 Transaksi
                         </span>
                       </div>
                       <div className="bg-white border border-[#EDE8DF] rounded-2xl p-4 text-center text-xs text-[#556575] font-medium shadow-2xs">
@@ -1412,17 +1471,22 @@ export default function SupplierInboundView() {
                 }
 
                 return (
-                  <div key={group.dateStr} className="space-y-1.5">
-                    <div className="flex items-center gap-1.5 px-1 pt-1 pb-0.5">
-                      <span className="text-xs font-bold text-[#2C3E50]">
-                        {group.badgeLabel || 'Riwayat'}
-                      </span>
-                      <span className="text-xs text-[#6B7B8D]">
-                        {group.title}
+                  <div key={group.dateStr} className="space-y-2.5">
+                    <div className="flex items-center justify-between gap-2 px-1 pt-2 pb-0.5">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-bold text-[#2C3E50]">
+                          {group.badgeLabel || 'Riwayat'}
+                        </span>
+                        <span className="text-xs text-[#6B7B8D]">
+                          {group.title}
+                        </span>
+                      </div>
+                      <span className="text-[11px] font-semibold text-[#6B7B8D] bg-[#F5F1EB] border border-[#EDE8DF] px-2.5 py-0.5 rounded-full">
+                        {group.items.length} Transaksi
                       </span>
                     </div>
 
-                    <div className="space-y-2">
+                    <div className="space-y-3 pt-1">
                       {group.items.map((item, idx) => renderInboundCard(item, idx, false))}
                     </div>
                   </div>
