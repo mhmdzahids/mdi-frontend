@@ -8,6 +8,7 @@ export const Input = forwardRef(function Input(
   {
     label,
     error,
+    success,
     helperText,
     id,
     type = 'text',
@@ -49,7 +50,9 @@ export const Input = forwardRef(function Input(
             (Icon ? 'pl-10 ' : '') +
             (rightElement ? 'pr-11 ' : '') +
             (error
-              ? 'border-rose-400 focus:border-rose-600 focus-visible:ring-2 focus-visible:ring-rose-500/20 '
+              ? 'border-rose-400 focus:border-rose-600 focus-visible:ring-2 focus-visible:ring-rose-500/20 bg-rose-50/20 '
+              : success
+              ? 'border-emerald-500 focus:border-emerald-600 focus-visible:ring-2 focus-visible:ring-emerald-500/20 bg-emerald-50/10 '
               : 'border-[#EDE8DF] hover:border-[#D5CEBF] focus:border-[#4685ac] focus-visible:ring-2 focus-visible:ring-[#4685ac]/20 ') +
             'focus-visible:outline-none disabled:bg-[#EDE8DF]/50 disabled:text-[#6B7B8D]/50 disabled:cursor-not-allowed ' +
             inputClassName

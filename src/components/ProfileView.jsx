@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react'
-import { User, Building2, Calendar, LogOut } from 'lucide-react'
+import { User, Building2, Calendar, LogOut, KeyRound, ChevronRight } from 'lucide-react'
 import { useProduction1Store } from '../store/production1Store'
 import { Avatar } from './ui/Avatar'
 import { useLockBodyScroll } from '../utils/useLockBodyScroll'
 import BarcodeCalibrationStudio from './BarcodeCalibrationStudio'
 import OperationalSettingsCard from './OperationalSettingsCard'
-import ChangePasswordCard from './ChangePasswordCard'
+import ChangePasswordModal from './ChangePasswordModal'
 
 function formatIndonesianDate(dateString) {
   if (!dateString) return '-'
@@ -55,6 +55,7 @@ export default function ProfileView() {
 
   const [activeTab, setActiveTab] = useState('ACCOUNT')
   const [showConfirmLogout, setShowConfirmLogout] = useState(false)
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false)
   useLockBodyScroll(showConfirmLogout)
 
   // Ambil profil lengkap dari backend jika created_at belum ada di session
@@ -174,8 +175,39 @@ export default function ProfileView() {
             </div>
           </div>
 
-          {/* Form Ganti Password */}
-          <ChangePasswordCard />
+          {/* Bagian Keamanan Akun (Standar Industri: Tenang, Rapi, & Tanpa Kepanikan) */}
+          <div className="bg-white border border-[#EDE8DF] rounded-2xl p-4 shadow-2xs">
+            <span className="text-xs font-bold text-[#1E293B] block mb-3">
+              Keamanan Akun
+            </span>
+
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-[#F5F1EB] border border-[#EDE8DF] flex items-center justify-center shrink-0 text-[#64748B]">
+                  <KeyRound className="w-4 h-4 stroke-[2]" />
+                </div>
+                <div className="min-w-0">
+                  <span className="text-[11px] text-[#64748B] block leading-tight">Kata Sandi</span>
+                  <span className="text-xs font-bold text-[#1E293B] tracking-widest block mt-0.5">••••••••</span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsChangePasswordOpen(true)}
+                className="min-h-[38px] px-3.5 rounded-xl border border-[#EDE8DF] bg-white hover:bg-[#F5F1EB] text-[#1E293B] font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 shadow-2xs"
+              >
+                <span>Ubah</span>
+                <ChevronRight className="w-3.5 h-3.5 text-[#64748B]" />
+              </button>
+            </div>
+          </div>
+
+          {/* Modal Ganti Password yang Fokus & Interaktif */}
+          <ChangePasswordModal
+            isOpen={isChangePasswordOpen}
+            onClose={() => setIsChangePasswordOpen(false)}
+          />
 
           {/* Tombol Keluar */}
           <button
