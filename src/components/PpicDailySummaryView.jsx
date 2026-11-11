@@ -1,10 +1,12 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { gsap } from 'gsap'
+import { useGSAP } from '@gsap/react'
 import { useProduction1Store } from '../store/production1Store'
 import { Button } from './ui/Button'
 import { Input } from './ui/Input'
 import { exportPpicRecapExcel } from '../utils/excelExport'
 import { SummaryCardSkeleton, DivisionCardSkeleton } from './ui/Skeleton'
-import { SquarePen, Lock, AlertTriangle, CheckCircle2 } from 'lucide-react'
+import { SquarePen, Lock } from 'lucide-react'
 
 const DIVISION_CONFIG = [
   { id: 'DAGING', name: 'Daging (Giling & Mix)', defaultUnit: 'Gilingan', unitLabel: 'gilingan' },
@@ -268,8 +270,58 @@ export default function PpicDailySummaryView() {
     0
   )
 
+  const containerRef = useRef(null)
+
+  // GSAP + ScrollTrigger untuk Scroll Reveal & Parallax Halus
+  useGSAP(
+    () => {
+      if (typeof window === 'undefined') return
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+
+      // 1. Reveal metric cards saat konten dimuat
+      gsap.from('.gsap-metric-card', {
+        opacity: 0,
+        y: 16,
+        duration: 0.5,
+        stagger: 0.08,
+        ease: 'power2.out',
+        clearProps: 'transform,opacity'
+      })
+
+      // 2. Reveal per Section untuk Division Cards saat di-scroll ke bawah
+      const divisionCards = gsap.utils.toArray('.gsap-division-card')
+      divisionCards.forEach((card) => {
+        gsap.from(card, {
+          scrollTrigger: {
+            trigger: card,
+            start: 'top 88%',
+            toggleActions: 'play none none none'
+          },
+          opacity: 0,
+          y: 20,
+          duration: 0.55,
+          ease: 'power2.out',
+          clearProps: 'transform,opacity'
+        })
+      })
+
+      // 3. Parallax halus pada Toolbar Header saat scrolling
+      gsap.to('.gsap-parallax-banner', {
+        scrollTrigger: {
+          trigger: '.gsap-filter-toolbar',
+          start: 'top top',
+          end: 'bottom top',
+          scrub: 0.8
+        },
+        y: 8,
+        ease: 'none'
+      })
+    },
+    { scope: containerRef, dependencies: [dailyRecapData, loadingRecap] }
+  )
+
   return (
-    <div className="w-full max-w-4xl mx-auto space-y-5 font-sans pb-28">
+    <div ref={containerRef} className="w-full max-w-4xl mx-auto space-y-5 font-sans pb-28">
       {feedback && (
         <div
           className={`p-3.5 rounded-2xl text-xs sm:text-sm font-semibold flex items-center justify-between ${feedback.type === 'success'
@@ -289,8 +341,8 @@ export default function PpicDailySummaryView() {
       )}
 
       {/* Toolbar Filter Tanggal & Periode */}
-      <div className="bg-white border border-[#EDE8DF] rounded-3xl p-3 sm:p-4 shadow-xs space-y-3">
-        <div className="flex items-stretch gap-1.5 p-1 bg-[#F5F1EB] rounded-2xl w-full overflow-x-auto">
+      <div className="bg-white border border-[#EDE8DF] rounded-3xl p-3 sm:p-4 shadow-xs space-y-3 gsap-filter-toolbar">
+        <div className="flex items-stretch gap-1.5 p-1 bg-[#F5F1EB] rounded-2xl w-full overflow-x-auto gsap-parallax-banner">
           <button
             type="button"
             onClick={() => applyPreset('today')}
@@ -401,7 +453,7 @@ export default function PpicDailySummaryView() {
         <>
           {/* Ringkasan Ringkas */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="p-4 rounded-3xl bg-white border border-[#EDE8DF] shadow-xs">
+            <div className="p-4 rounded-3xl bg-white border border-[#EDE8DF] shadow-xs gsap-metric-card">
               <div className="text-[11px] font-bold text-[#6B7B8D] uppercase tracking-wider">
                 Target Gilingan
               </div>
@@ -411,7 +463,7 @@ export default function PpicDailySummaryView() {
               <div className="text-[11px] text-[#6B7B8D] mt-0.5">Target shift</div>
             </div>
 
-            <div className="p-4 rounded-3xl bg-white border border-[#EDE8DF] shadow-xs">
+            <div className="p-4 rounded-3xl bg-white border border-[#EDE8DF] shadow-xs gsap-metric-card">
               <div className="text-[11px] font-bold text-[#6B7B8D] uppercase tracking-wider">
                 Barcode Terbit
               </div>
@@ -421,7 +473,7 @@ export default function PpicDailySummaryView() {
               <div className="text-[11px] text-[#6B7B8D] mt-0.5">Total lot terbit</div>
             </div>
 
-            <div className="p-4 rounded-3xl bg-white border border-[#EDE8DF] shadow-xs">
+            <div className="p-4 rounded-3xl bg-white border border-[#EDE8DF] shadow-xs gsap-metric-card">
               <div className="text-[11px] font-bold text-[#6B7B8D] uppercase tracking-wider">
                 Total Reject
               </div>
@@ -431,7 +483,7 @@ export default function PpicDailySummaryView() {
               <div className="text-[11px] text-[#6B7B8D] mt-0.5">Semua stasiun</div>
             </div>
 
-            <div className="p-4 rounded-3xl bg-white border border-[#EDE8DF] shadow-xs">
+            <div className="p-4 rounded-3xl bg-white border border-[#EDE8DF] shadow-xs gsap-metric-card">
               <div className="text-[11px] font-bold text-[#6B7B8D] uppercase tracking-wider">
                 Barang Masuk
               </div>
@@ -467,7 +519,7 @@ export default function PpicDailySummaryView() {
               return (
                 <div
                   key={divConfig.id}
-                  className="border border-bg-cream-dark shadow-2xs rounded-2xl bg-white overflow-hidden"
+                  className="border border-bg-cream-dark shadow-2xs rounded-2xl bg-white overflow-hidden gsap-division-card"
                 >
                   {/* Header Card Satu Baris */}
                   <div className="px-4 py-2 flex items-center justify-between border-b border-bg-cream-dark">

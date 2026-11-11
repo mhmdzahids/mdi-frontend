@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { User, Building2, Calendar, LogOut, KeyRound, ChevronRight } from 'lucide-react'
+import { motion } from 'motion/react'
 import { useProduction1Store } from '../store/production1Store'
 import { Avatar } from './ui/Avatar'
 import { useLockBodyScroll } from '../utils/useLockBodyScroll'
@@ -23,7 +24,7 @@ function formatIndonesianDate(dateString) {
 }
 
 // Data fallback tanggal terdaftar akun
-export const DEFAULT_ACCOUNT_REGISTRATIONS = {
+const DEFAULT_ACCOUNT_REGISTRATIONS = {
   opr_daging: '2024-02-15T08:00:00Z',
   pic_daging: '2023-08-01T08:00:00Z',
   opr_bumbu: '2024-03-10T08:00:00Z',
@@ -72,7 +73,6 @@ export default function ProfileView() {
     }
   }, [isPPIC, activeTab])
 
-  const roleLabel = userRole === 'STAKEHOLDER' || userRole === 'PIC' ? 'PIC' : 'Karyawan'
   const displayName = currentUser?.full_name || operatorName || operatorId || '-'
   const divisionName = currentUser?.division || '-'
   const userKey = (currentUser?.username || operatorId || '').toLowerCase()
@@ -82,7 +82,12 @@ export default function ProfileView() {
   return (
     <div className="w-full max-w-md md:max-w-xl mx-auto flex flex-col space-y-4 pb-8">
       {/* Header Profil Ringkas */}
-      <div className="bg-white border border-[#EDE8DF] rounded-2xl p-4 shadow-2xs flex items-center gap-3.5">
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+        className="bg-white border border-[#EDE8DF] rounded-2xl p-4 shadow-2xs flex items-center gap-3.5"
+      >
         <div className="shrink-0">
           <Avatar size="md" />
         </div>
@@ -96,7 +101,7 @@ export default function ProfileView() {
             {divisionName}
           </span>
         </div>
-      </div>
+      </motion.div>
 
       {/* Navigasi Kategori (Segmented Switcher) - Khusus Akun PPIC */}
       {isPPIC && (
@@ -137,7 +142,12 @@ export default function ProfileView() {
       {/* Konten Kategori 1: Akun & Info Pribadi (Semua Akun / Karyawan & PIC) */}
       {(!isPPIC || activeTab === 'ACCOUNT') && (
         <div className="space-y-4">
-          <div className="bg-white border border-[#EDE8DF] rounded-2xl p-4 shadow-2xs">
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, delay: 0.05, ease: [0.22, 1, 0.36, 1] }}
+            className="bg-white border border-[#EDE8DF] rounded-2xl p-4 shadow-2xs"
+          >
             <span className="text-xs font-bold text-[#1E293B] block mb-3">
               Informasi Akun
             </span>
@@ -173,10 +183,15 @@ export default function ProfileView() {
                 </div>
               </div>
             </div>
-          </div>
+          </motion.div>
 
           {/* Bagian Keamanan Akun (Standar Industri: Tenang, Rapi, & Tanpa Kepanikan) */}
-          <div className="bg-white border border-[#EDE8DF] rounded-2xl p-4 shadow-2xs">
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
+            className="bg-white border border-[#EDE8DF] rounded-2xl p-4 shadow-2xs"
+          >
             <span className="text-xs font-bold text-[#1E293B] block mb-3">
               Keamanan Akun
             </span>
@@ -192,16 +207,17 @@ export default function ProfileView() {
                 </div>
               </div>
 
-              <button
+              <motion.button
                 type="button"
+                whileTap={{ scale: 0.96 }}
                 onClick={() => setIsChangePasswordOpen(true)}
-                className="min-h-[38px] px-3.5 rounded-xl border border-[#EDE8DF] bg-white hover:bg-[#F5F1EB] text-[#1E293B] font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 shadow-2xs"
+                className="min-h-[38px] px-3.5 rounded-xl border border-[#EDE8DF] bg-white hover:bg-[#F5F1EB] text-[#1E293B] font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
               >
                 <span>Ubah</span>
                 <ChevronRight className="w-3.5 h-3.5 text-[#64748B]" />
-              </button>
+              </motion.button>
             </div>
-          </div>
+          </motion.div>
 
           {/* Modal Ganti Password yang Fokus & Interaktif */}
           <ChangePasswordModal
@@ -210,14 +226,15 @@ export default function ProfileView() {
           />
 
           {/* Tombol Keluar */}
-          <button
+          <motion.button
             type="button"
+            whileTap={{ scale: 0.98 }}
             onClick={() => setShowConfirmLogout(true)}
-            className="w-full min-h-[48px] px-4 rounded-xl border border-[#FADBD8] bg-[#FDEDEC]/80 hover:bg-[#FDEDEC] text-[#E8352D] font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-[0.99]"
+            className="w-full min-h-[48px] px-4 rounded-xl border border-[#FADBD8] bg-[#FDEDEC]/80 hover:bg-[#FDEDEC] text-[#E8352D] font-bold text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer"
           >
             <LogOut className="w-4 h-4 stroke-[2.2]" />
             <span>Keluar Akun</span>
-          </button>
+          </motion.button>
         </div>
       )}
 

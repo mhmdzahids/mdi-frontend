@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { KeyRound, Eye, EyeOff, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react'
+import { Eye, EyeOff, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react'
 import { Modal } from './ui/Modal'
 import { Input } from './ui/Input'
 import { useProduction1Store } from '../store/production1Store'

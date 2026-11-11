@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { motion } from 'motion/react'
 import { useProduction1Store } from '../store/production1Store'
 import { Card, CardContent } from './ui/Card'
 import { Input } from './ui/Input'
@@ -114,52 +115,59 @@ export default function LoginScreen() {
             </div>
 
             <div className="space-y-1.5">
-              {DIVISION_PRESETS.map((d) => (
-                <div
+              {DIVISION_PRESETS.map((d, idx) => (
+                <motion.div
                   key={d.name}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.35, delay: idx * 0.04, ease: [0.22, 1, 0.36, 1] }}
                   className="flex items-center justify-between p-2 sm:p-2.5 rounded-2xl border border-[#EDE8DF] bg-[#F5F1EB]/40 hover:bg-[#F5F1EB] transition-colors"
                 >
                   <span className="text-xs font-bold text-[#2C3E50] pr-2">
                     {d.name}
                   </span>
                   <div className="flex items-center gap-1.5 shrink-0">
-                    <button
+                    <motion.button
                       type="button"
+                      whileTap={{ scale: 0.95 }}
                       onClick={() => handleSelectPreset(d.karyawan)}
                       disabled={loading}
-                      className="min-h-[44px] px-3.5 rounded-xl border border-[#EDE8DF] bg-white hover:bg-[#F5F1EB] text-[#2C3E50] text-xs font-semibold transition-all cursor-pointer active:scale-95 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4685ac]"
+                      className="min-h-[44px] px-3.5 rounded-xl border border-[#EDE8DF] bg-white hover:bg-[#F5F1EB] text-[#2C3E50] text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4685ac]"
                     >
                       Karyawan
-                    </button>
-                    <button
+                    </motion.button>
+                    <motion.button
                       type="button"
+                      whileTap={{ scale: 0.95 }}
                       onClick={() => handleSelectPreset(d.pic)}
                       disabled={loading}
-                      className="min-h-[44px] px-3.5 rounded-xl bg-[#2C3E50] hover:bg-[#1E2B37] text-white text-xs font-semibold transition-all cursor-pointer active:scale-95 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4685ac]"
+                      className="min-h-[44px] px-3.5 rounded-xl bg-[#2C3E50] hover:bg-[#1E2B37] text-white text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4685ac]"
                     >
                       PIC
-                    </button>
+                    </motion.button>
                   </div>
-                </div>
+                </motion.div>
               ))}
 
-              <button
+              <motion.button
                 type="button"
+                whileTap={{ scale: 0.97 }}
                 onClick={() => handleSelectPreset('ppic_ayu')}
                 disabled={loading}
-                className="w-full min-h-[48px] rounded-2xl border-2 border-[#4685ac]/30 bg-[#4685ac]/10 hover:bg-[#4685ac]/20 active:bg-[#4685ac]/30 text-[#1E3A5F] text-xs font-bold transition-all cursor-pointer active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4685ac]"
+                className="w-full min-h-[48px] rounded-2xl border-2 border-[#4685ac]/30 bg-[#4685ac]/10 hover:bg-[#4685ac]/20 active:bg-[#4685ac]/30 text-[#1E3A5F] text-xs font-bold transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4685ac]"
               >
                 <span>Ayu (PPIC & Cetak Barcode)</span>
-              </button>
+              </motion.button>
 
-              <button
+              <motion.button
                 type="button"
+                whileTap={{ scale: 0.97 }}
                 onClick={() => handleSelectPreset('supervisor')}
                 disabled={loading}
-                className="w-full min-h-[48px] rounded-2xl border border-[#EDE8DF] bg-white hover:bg-[#F5F1EB] active:bg-[#EDE8DF] text-[#2C3E50] text-xs font-bold transition-all cursor-pointer active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4685ac]"
+                className="w-full min-h-[48px] rounded-2xl border border-[#EDE8DF] bg-white hover:bg-[#F5F1EB] active:bg-[#EDE8DF] text-[#2C3E50] text-xs font-bold transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4685ac]"
               >
                 <span>Supervisor & PPIC (Pak Yosi)</span>
-              </button>
+              </motion.button>
             </div>
           </div>
 

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { LayoutGrid, FileText } from 'lucide-react'
+import { motion } from 'motion/react'
 import { useProduction1Store } from '../../store/production1Store'
 import { Avatar } from '../ui/Avatar'
 import StationSheet from './StationSheet'
@@ -303,12 +304,13 @@ export default function BottomNav() {
           const isActive = tab.isActive
 
           return (
-            <button
+            <motion.button
               key={tab.key}
               type="button"
+              whileTap={{ scale: 0.92 }}
               onClick={tab.onClick}
               aria-current={isActive ? 'page' : undefined}
-              className={`relative flex-1 min-h-[48px] min-w-[48px] flex flex-col items-center justify-center transition-all cursor-pointer active:scale-95 focus-visible:outline-none py-1.5 px-0.5 ${
+              className={`relative flex-1 min-h-[48px] min-w-[48px] flex flex-col items-center justify-center transition-colors cursor-pointer focus-visible:outline-none py-1.5 px-0.5 ${
                 isActive
                   ? 'text-[#3A6B80]'
                   : 'text-[#556575] hover:text-[#2C3E50]'
@@ -316,7 +318,11 @@ export default function BottomNav() {
             >
               {/* Indikator aktif non-warna: garis atas terdefinisi */}
               {isActive && (
-                <span className="absolute top-0 w-8 h-1 rounded-full bg-[#3A6B80]" />
+                <motion.span
+                  layoutId="bottom-nav-active-indicator"
+                  className="absolute top-0 w-8 h-1 rounded-full bg-[#3A6B80]"
+                  transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                />
               )}
 
               {tab.isProfile ? (
@@ -336,7 +342,7 @@ export default function BottomNav() {
               >
                 {tab.label}
               </span>
-            </button>
+            </motion.button>
           )
         })}
       </nav>

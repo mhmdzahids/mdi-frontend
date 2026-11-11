@@ -22,6 +22,7 @@ import { SegmentedControl } from './components/ui/SegmentedControl'
 import { Avatar } from './components/ui/Avatar'
 import { useHashNavigation } from './utils/useHashNavigation'
 import { ArrowLeftRight } from 'lucide-react'
+import { motion } from 'motion/react'
 import logoAdmin from './assets/logo_admin.png'
 
 export default function App() {
@@ -87,6 +88,12 @@ export default function App() {
     currentUser?.division?.toLowerCase().includes('supervisor')
 
   const canSwitchAll = isDevMode || isGlobalSupervisor
+
+  const currentRouteKey = isProfileActive
+    ? 'profile'
+    : activeProductionStage === 'PROD_2'
+    ? `prod2-${activeProd2Tab}`
+    : `prod1-${activeStation}`
 
   useHashNavigation()
 
@@ -174,25 +181,28 @@ export default function App() {
 
             {/* Chip Ganti Tahap Produksi (P1 / P2) - Hanya untuk PIC/Stakeholder */}
             {canSwitchAll && (
-              <button
+              <motion.button
                 type="button"
+                whileTap={{ scale: 0.94 }}
+                whileHover={{ scale: 1.02 }}
                 onClick={toggleProductionStage}
-                className="min-h-[44px] min-w-[44px] text-xs font-bold font-heading text-[#3A6B80] bg-[#EEF5F9] hover:bg-[#D1E4EF] active:bg-[#BCE3CF] border border-[#6A9DB3]/40 px-2.5 py-1.5 rounded-lg flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-95 shadow-2xs shrink-0 focus-visible:outline-none"
+                className="min-h-[44px] min-w-[44px] text-xs font-bold font-heading text-[#3A6B80] bg-[#EEF5F9] hover:bg-[#D1E4EF] active:bg-[#BCE3CF] border border-[#6A9DB3]/40 px-2.5 py-1.5 rounded-lg flex items-center justify-center gap-1 cursor-pointer transition-all shadow-2xs shrink-0 focus-visible:outline-none"
                 title="Ganti Tahap Produksi"
                 aria-label="Ganti Tahap Produksi P1 atau P2"
               >
                 <ArrowLeftRight className="w-3 h-3 stroke-[2.5]" />
                 <span>{activeProductionStage === 'PROD_1' ? 'P1' : 'P2'}</span>
-              </button>
+              </motion.button>
             )}
           </div>
 
           {/* Kanan: Klaster Pengguna + Status Titik Koneksi (Disembunyikan di rute Profile) - Touch Target min 44x44px */}
           {!isProfileActive && (
-            <button
+            <motion.button
               type="button"
+              whileTap={{ scale: 0.96 }}
               onClick={openProfile}
-              className="min-h-[44px] flex items-center gap-2 text-right transition-opacity active:opacity-80 cursor-pointer min-w-0 shrink-0 p-1 focus-visible:outline-none"
+              className="min-h-[44px] flex items-center gap-2 text-right transition-opacity cursor-pointer min-w-0 shrink-0 p-1 focus-visible:outline-none"
               title="Buka Profil Pengguna"
               aria-label="Profil Pengguna"
             >
@@ -214,7 +224,7 @@ export default function App() {
                   title={`Status Backend: ${syncStatus}`}
                 />
               </div>
-            </button>
+            </motion.button>
           )}
         </header>
 
@@ -239,28 +249,36 @@ export default function App() {
 
       {/* Konten Halaman Aktif (Profile vs Produksi 1 vs Produksi 2) */}
       <main className="flex-1 p-3.5 sm:p-4">
-        {isProfileActive ? (
-          <ProfileView />
-        ) : activeProductionStage === 'PROD_2' ? (
-          <>
-            {(activeProd2Tab === 'INBOUND' ||
-              activeProd2Tab === 'ASSEMBLY' ||
-              activeProd2Tab === 'FREEZER' ||
-              activeProd2Tab === 'PRODUCTS') && <Production2View />}
-            {activeProd2Tab === 'LOGS' && <CustodyLogsView />}
-          </>
-        ) : (
-          <>
-            {activeStation === 'PLAN' && <ProductionPlanView />}
-            {activeStation === 'SUMMARY' && <PpicDailySummaryView />}
-            {activeStation === 'SUPPLIER' && <SupplierInboundView />}
-            {activeStation === 'MEAT' && <MeatStation />}
-            {activeStation === 'SEASONING' && <SeasoningStation />}
-            {activeStation === 'WRAPPER' && <WrapperStation />}
-            {activeStation === 'SAUCE' && <SauceStation />}
-            {activeStation === 'LOGS' && <CustodyLogsView />}
-          </>
-        )}
+        <motion.div
+          key={currentRouteKey}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+          className="w-full flex-1"
+        >
+          {isProfileActive ? (
+            <ProfileView />
+          ) : activeProductionStage === 'PROD_2' ? (
+            <>
+              {(activeProd2Tab === 'INBOUND' ||
+                activeProd2Tab === 'ASSEMBLY' ||
+                activeProd2Tab === 'FREEZER' ||
+                activeProd2Tab === 'PRODUCTS') && <Production2View />}
+              {activeProd2Tab === 'LOGS' && <CustodyLogsView />}
+            </>
+          ) : (
+            <>
+              {activeStation === 'PLAN' && <ProductionPlanView />}
+              {activeStation === 'SUMMARY' && <PpicDailySummaryView />}
+              {activeStation === 'SUPPLIER' && <SupplierInboundView />}
+              {activeStation === 'MEAT' && <MeatStation />}
+              {activeStation === 'SEASONING' && <SeasoningStation />}
+              {activeStation === 'WRAPPER' && <WrapperStation />}
+              {activeStation === 'SAUCE' && <SauceStation />}
+              {activeStation === 'LOGS' && <CustodyLogsView />}
+            </>
+          )}
+        </motion.div>
       </main>
 
       {/* Bottom Navigation Terpadu & Responsif */}
