@@ -1,5 +1,38 @@
 import { useState } from 'react'
-import { X, Plus, Minus } from 'lucide-react'
+import { motion, AnimatePresence } from 'motion/react'
+import { X, Plus, Minus, ShoppingBag, Bike } from 'lucide-react'
+
+function formatRupiah(val) {
+  return new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: 'IDR',
+    maximumFractionDigits: 0
+  }).format(val || 0)
+}
+
+const CHANNELS = [
+  {
+    id: 'SHOPEEFOOD',
+    label: 'ShopeeFood',
+    prefix: 'SPF-',
+    theme: 'border-[#EE4D2D] bg-[#EE4D2D]/10 text-[#EE4D2D]',
+    activeBorder: 'border-[#EE4D2D] ring-2 ring-[#EE4D2D]/30 bg-[#EE4D2D]/15 text-[#EE4D2D]'
+  },
+  {
+    id: 'GRABFOOD',
+    label: 'GrabFood',
+    prefix: 'GRB-',
+    theme: 'border-[#00B14F] bg-[#00B14F]/10 text-[#00B14F]',
+    activeBorder: 'border-[#00B14F] ring-2 ring-[#00B14F]/30 bg-[#00B14F]/15 text-[#00B14F]'
+  },
+  {
+    id: 'GOFOOD',
+    label: 'GoFood',
+    prefix: 'GF-',
+    theme: 'border-[#ED2724] bg-[#ED2724]/10 text-[#ED2724]',
+    activeBorder: 'border-[#ED2724] ring-2 ring-[#ED2724]/30 bg-[#ED2724]/15 text-[#ED2724]'
+  }
+]
 
 export default function POSNewOjolOrderModal({
   isOpen,
@@ -15,6 +48,8 @@ export default function POSNewOjolOrderModal({
 
   if (!isOpen) return null
 
+  const selectedChannel = CHANNELS.find((c) => c.id === channel) || CHANNELS[0]
+
   const handleQtyChange = (productId, delta) => {
     setItemQtys((prev) => {
       const current = prev[productId] || 0
@@ -23,9 +58,24 @@ export default function POSNewOjolOrderModal({
     })
   }
 
+  const handleApplyPrefix = (prefix) => {
+    if (!orderNo.startsWith(prefix)) {
+      setOrderNo(prefix)
+    }
+  }
+
+  const totalPacks = Object.values(itemQtys).reduce((a, b) => a + b, 0)
+  const totalAmount = products.reduce((acc, p) => {
+    const qty = itemQtys[p.id] || 0
+    return acc + qty * (p.price || 0)
+  }, 0)
+
   const handleSubmit = (e) => {
     e.preventDefault()
-    if (!orderNo.trim()) return
+    if (!orderNo.trim()) {
+      alert('Masukkan nomor pesanan atau resi driver.')
+      return
+    }
 
     const items = []
     products.forEach((p) => {
@@ -41,7 +91,7 @@ export default function POSNewOjolOrderModal({
     })
 
     if (items.length === 0) {
-      alert('Pilih minimal 1 item untuk pesanan ini.')
+      alert('Pilih minimal 1 kemasan produk.')
       return
     }
 
@@ -54,129 +104,220 @@ export default function POSNewOjolOrderModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 select-none">
-      <div className="w-full max-w-md bg-white rounded-2xl p-5 shadow-2xl border border-[#EDE8DF] space-y-4">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-[#EDE8DF] pb-3">
-          <div>
-            <span className="text-sm font-bold text-[#2C3E50] block">Pesanan Ojek Online</span>
-            <span className="text-[11px] text-[#6B7B8D]">Input order untuk antrean scan</span>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-9 h-9 rounded-full bg-[#F5F1EB] text-[#2C3E50] flex items-center justify-center hover:bg-[#EDE8DF] active:scale-95"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
+    <AnimatePresence>
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-3.5 sm:p-4 select-none">
+        {/* Backdrop */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={onClose}
+          className="fixed inset-0 bg-black/60 backdrop-blur-xs"
+        />
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Channel Selector */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-[#6B7B8D] block">Platform</label>
-            <div className="grid grid-cols-3 gap-2">
-              {[
-                { id: 'SHOPEEFOOD', label: 'ShopeeFood', color: 'border-orange-500 text-orange-600 bg-orange-50' },
-                { id: 'GRABFOOD', label: 'GrabFood', color: 'border-emerald-600 text-emerald-600 bg-emerald-50' },
-                { id: 'GOFOOD', label: 'GoFood', color: 'border-red-500 text-red-600 bg-red-50' }
-              ].map((c) => {
-                const active = channel === c.id
-                return (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => setChannel(c.id)}
-                    className={`h-11 rounded-xl border text-xs font-bold transition-all active:scale-98 cursor-pointer ${
-                      active
-                        ? `${c.color} ring-1`
-                        : 'border-[#EDE8DF] bg-[#F5F1EB] text-[#6B7B8D] hover:bg-[#EDE8DF]'
-                    }`}
-                  >
-                    {c.label}
-                  </button>
-                )
-              })}
+        {/* Modal Window */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95, y: 16 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.95, y: 16 }}
+          transition={{ type: 'spring', damping: 25, stiffness: 350 }}
+          className="relative w-full max-w-md bg-white rounded-3xl p-5 sm:p-6 shadow-2xl border border-[#EDE8DF] space-y-4.5 z-10 max-h-[92vh] overflow-y-auto"
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between border-b border-[#EDE8DF] pb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-10 h-10 rounded-2xl bg-[#EDE8DF] flex items-center justify-center text-[#2C3E50]">
+                <Bike className="w-5 h-5 text-[#3A6B80]" />
+              </div>
+              <div>
+                <span className="text-sm font-bold text-[#2C3E50] font-heading block leading-tight">
+                  Pesanan Ojek Online
+                </span>
+                <span className="text-[11px] text-[#556575]">
+                  Buat antrean scan kemasan untuk driver pick-up
+                </span>
+              </div>
             </div>
+            <motion.button
+              type="button"
+              whileTap={{ scale: 0.9 }}
+              onClick={onClose}
+              className="w-8 h-8 rounded-full bg-[#F5F1EB] text-[#556575] hover:text-[#2C3E50] flex items-center justify-center cursor-pointer transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </motion.button>
           </div>
 
-          {/* No. Order & Nama Customer */}
-          <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-[#6B7B8D] block">No. Order / PIN *</label>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Platform Selector */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-[#556575] uppercase tracking-wider block">
+                Platform Delivery
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {CHANNELS.map((c) => {
+                  const active = channel === c.id
+                  return (
+                    <motion.button
+                      key={c.id}
+                      type="button"
+                      whileTap={{ scale: 0.96 }}
+                      onClick={() => {
+                        setChannel(c.id)
+                        handleApplyPrefix(c.prefix)
+                      }}
+                      className={`h-12 rounded-2xl border text-xs font-bold transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 ${
+                        active
+                          ? c.activeBorder
+                          : 'border-[#EDE8DF] bg-[#F5F1EB]/50 text-[#556575] hover:bg-[#F5F1EB]'
+                      }`}
+                    >
+                      <span className="text-[12px] font-extrabold">{c.label}</span>
+                      <span className="text-[9px] opacity-75 font-mono">{c.prefix}</span>
+                    </motion.button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Nomor Pesanan / Order ID */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-[#556575] uppercase tracking-wider block">
+                  Nomor Order / Kode Pick-up <span className="text-rose-500">*</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => handleApplyPrefix(selectedChannel.prefix)}
+                  className="text-[10px] font-bold text-[#3A6B80] hover:underline"
+                >
+                  Gunakan {selectedChannel.prefix}
+                </button>
+              </div>
               <input
                 type="text"
                 required
                 value={orderNo}
-                onChange={(e) => setOrderNo(e.target.value)}
-                placeholder="SPF-8821"
-                className="w-full h-11 bg-white border border-[#B7C3CE] rounded-xl px-3 text-xs font-bold uppercase text-[#2C3E50] focus:outline-none focus:border-[#4685ac]"
+                onChange={(e) => setOrderNo(e.target.value.toUpperCase())}
+                placeholder={`Contoh: ${selectedChannel.prefix}8821`}
+                className="w-full h-11 bg-[#F5F1EB] rounded-xl px-3.5 text-xs font-mono font-bold uppercase text-[#2C3E50] border border-[#B7C3CE] focus:bg-white focus:outline-none focus:border-[#3A6B80] transition-colors"
               />
             </div>
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-[#6B7B8D] block">Pemesan</label>
+
+            {/* Nama Driver / Catatan */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-[#556575] uppercase tracking-wider block">
+                Nama Driver / Pelanggan (Opsional)
+              </label>
               <input
                 type="text"
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
-                placeholder="Nama pemesan"
-                className="w-full h-11 bg-white border border-[#EDE8DF] rounded-xl px-3 text-xs text-[#2C3E50] focus:outline-none focus:border-[#4685ac]"
+                placeholder="Contoh: Pak Anton (Driver Shopee)"
+                className="w-full h-11 bg-[#F5F1EB] rounded-xl px-3.5 text-xs text-[#2C3E50] border border-[#B7C3CE] focus:bg-white focus:outline-none focus:border-[#3A6B80] transition-colors"
               />
             </div>
-          </div>
 
-          {/* Item Selector */}
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-[#6B7B8D] block">Pilih Jumlah Item</label>
-            <div className="space-y-2">
-              {products.map((p) => {
-                const qty = itemQtys[p.id] || 0
-                return (
-                  <div
-                    key={p.id}
-                    className="flex items-center justify-between p-2.5 bg-[#F5F1EB] border border-[#EDE8DF] rounded-xl"
-                  >
-                    <div>
-                      <span className="text-xs font-bold text-[#2C3E50] block">{p.name}</span>
-                      <span className="text-[10px] text-[#6B7B8D]">{p.spec || 'Pack'}</span>
-                    </div>
+            {/* Daftar Produk Kemasan */}
+            <div className="space-y-2 pt-1">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-[#556575] uppercase tracking-wider block">
+                  Daftar Kemasan yang Dipesan
+                </label>
+                <span className="text-[11px] font-bold text-[#3A6B80] tabular-nums">
+                  {totalPacks} pack dipilih
+                </span>
+              </div>
 
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        disabled={qty <= 0}
-                        onClick={() => handleQtyChange(p.id, -1)}
-                        className="w-8 h-8 rounded-lg bg-white border border-[#EDE8DF] flex items-center justify-center text-[#2C3E50] disabled:opacity-30 active:scale-95"
-                      >
-                        <Minus className="w-3.5 h-3.5" />
-                      </button>
-                      <span className="w-6 text-center text-xs font-bold tabular-nums text-[#2C3E50]">
-                        {qty}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => handleQtyChange(p.id, 1)}
-                        className="w-8 h-8 rounded-lg bg-white border border-[#EDE8DF] flex items-center justify-center text-[#2C3E50] active:scale-95"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                      </button>
+              <div className="divide-y divide-[#EDE8DF] border border-[#EDE8DF] rounded-2xl bg-white overflow-hidden">
+                {products.map((p) => {
+                  const qty = itemQtys[p.id] || 0
+                  return (
+                    <div
+                      key={p.id}
+                      className="p-3 flex items-center justify-between gap-3 hover:bg-[#F5F1EB]/40 transition-colors"
+                    >
+                      <div className="min-w-0">
+                        <span className="text-xs font-bold text-[#2C3E50] block truncate">
+                          {p.name}
+                        </span>
+                        <div className="flex items-center gap-2 text-[11px] text-[#556575]">
+                          <span>{p.spec || 'Pack'}</span>
+                          <span>•</span>
+                          <span className="font-semibold text-[#2F7D5B] tabular-nums">
+                            {formatRupiah(p.price)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Stepper +/- */}
+                      <div className="flex items-center gap-1.5 shrink-0 bg-[#F5F1EB] rounded-xl p-1 border border-[#EDE8DF]">
+                        <motion.button
+                          type="button"
+                          whileTap={{ scale: 0.88 }}
+                          onClick={() => handleQtyChange(p.id, -1)}
+                          disabled={qty <= 0}
+                          className="w-7 h-7 rounded-lg bg-white border border-[#EDE8DF] text-[#2C3E50] flex items-center justify-center disabled:opacity-30 cursor-pointer shadow-2xs"
+                        >
+                          <Minus className="w-3.5 h-3.5" />
+                        </motion.button>
+                        <span className="w-7 text-center text-xs font-extrabold text-[#2C3E50] tabular-nums">
+                          {qty}
+                        </span>
+                        <motion.button
+                          type="button"
+                          whileTap={{ scale: 0.88 }}
+                          onClick={() => handleQtyChange(p.id, 1)}
+                          className="w-7 h-7 rounded-lg bg-[#2C3E50] text-white flex items-center justify-center cursor-pointer shadow-2xs"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                        </motion.button>
+                      </div>
                     </div>
-                  </div>
-                )
-              })}
+                  )
+                })}
+              </div>
             </div>
-          </div>
 
-          {/* Submit Button */}
-          <button
-            type="submit"
-            disabled={isSubmitting || !orderNo.trim()}
-            className="w-full h-12 bg-[#2F7D5B] text-white rounded-xl text-xs font-bold flex items-center justify-center shadow-md hover:bg-[#27664B] active:scale-98 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all"
-          >
-            {isSubmitting ? 'Menyimpan...' : 'Masuk Antrean Scan'}
-          </button>
-        </form>
+            {/* Total Footer Banner */}
+            <div className="bg-[#2C3E50] rounded-2xl p-3.5 text-white flex items-center justify-between shadow-md">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-[#B7C3CE] block">
+                  Total Estimasi Pesanan
+                </span>
+                <span className="text-xs font-medium text-white/80">
+                  {totalPacks} pack kemasan
+                </span>
+              </div>
+              <span className="text-xl font-extrabold font-heading text-white tabular-nums">
+                {formatRupiah(totalAmount)}
+              </span>
+            </div>
+
+            {/* Tombol Submit */}
+            <div className="pt-1 flex items-center gap-2">
+              <motion.button
+                type="button"
+                whileTap={{ scale: 0.96 }}
+                onClick={onClose}
+                className="h-12 px-4 rounded-xl border border-[#EDE8DF] bg-white text-[#556575] hover:text-[#2C3E50] text-xs font-bold transition-colors cursor-pointer"
+              >
+                Batal
+              </motion.button>
+
+              <motion.button
+                type="submit"
+                whileTap={{ scale: 0.97 }}
+                disabled={!orderNo.trim() || totalPacks === 0 || isSubmitting}
+                className="flex-1 h-12 rounded-xl bg-[#3A6B80] hover:bg-[#2F586B] text-white text-xs font-bold flex items-center justify-center gap-2 shadow-md active:scale-98 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all"
+              >
+                <ShoppingBag className="w-4 h-4" />
+                <span>{isSubmitting ? 'Menyimpan...' : 'Masuk Antrean Scan'}</span>
+              </motion.button>
+            </div>
+          </form>
+        </motion.div>
       </div>
-    </div>
+    </AnimatePresence>
   )
 }
