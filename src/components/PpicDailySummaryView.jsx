@@ -6,8 +6,9 @@ import { Button } from './ui/Button'
 import { Input } from './ui/Input'
 import { exportPpicRecapExcel } from '../utils/excelExport'
 import { SummaryCardSkeleton, DivisionCardSkeleton } from './ui/Skeleton'
-import { SquarePen, Lock, ChevronRight } from 'lucide-react'
+import { SquarePen, Lock, ChevronRight, Store, RefreshCw } from 'lucide-react'
 import { canAccess } from '../utils/rbac'
+import { apiGet } from '../utils/api'
 
 const DIVISION_CONFIG = [
   { id: 'DAGING', name: 'Daging (Giling & Mix)', defaultUnit: 'Gilingan', unitLabel: 'gilingan', station: 'MEAT', stage: 'PROD_1', perm: 'meat:view' },
@@ -65,6 +66,24 @@ export default function PpicDailySummaryView() {
     ? `${rangeStartDate} s/d ${rangeEndDate}`
     : selectedDate
 
+  // State Real-Time Inventory Finished Goods (Stok Gudang Sales & Freezer)
+  const [inventoryList, setInventoryList] = useState([])
+  const [loadingInventory, setLoadingInventory] = useState(false)
+
+  const fetchInventory = useCallback(async () => {
+    try {
+      setLoadingInventory(true)
+      const res = await apiGet('/pos/inventory-summary', { silent: true })
+      if (res && res.success && Array.isArray(res.data)) {
+        setInventoryList(res.data)
+      }
+    } catch (err) {
+      console.warn('Failed to load inventory in PPIC Recap:', err?.message)
+    } finally {
+      setLoadingInventory(false)
+    }
+  }, [])
+
   const loadRecap = useCallback(async () => {
     setLoadingRecap(true)
     try {
@@ -73,14 +92,16 @@ export default function PpicDailySummaryView() {
       } else {
         await fetchDailyRecap(selectedDate)
       }
+      fetchInventory()
     } finally {
       setLoadingRecap(false)
     }
-  }, [fetchDailyRecap, filterPreset, rangeStartDate, rangeEndDate, selectedDate])
+  }, [fetchDailyRecap, filterPreset, rangeStartDate, rangeEndDate, selectedDate, fetchInventory])
 
   useEffect(() => {
     fetchDailyRecap(todayStr)
-  }, [fetchDailyRecap, todayStr])
+    fetchInventory()
+  }, [fetchDailyRecap, todayStr, fetchInventory])
 
   const applyPreset = (preset) => {
     setFilterPreset(preset)
@@ -675,6 +696,83 @@ export default function PpicDailySummaryView() {
                 </div>
               )
             })}
+          </div>
+
+          {/* REKAP SALDO STOK BARANG JADI (GUDANG SALES & FREEZER) */}
+          <div className="bg-white border border-[#EDE8DF] rounded-2xl p-4 sm:p-5 shadow-xs space-y-3">
+            <div className="flex items-center justify-between border-b border-[#EDE8DF] pb-2.5">
+              <div className="flex items-center gap-2">
+                <Store className="w-4 h-4 text-[#2F7D5B]" />
+                <div>
+                  <h3 className="text-sm font-bold text-[#2C3E50]">
+                    Rekap Saldo Stok Barang Jadi (Gudang Sales & Freezer)
+                  </h3>
+                  <p className="text-[11px] text-[#6B7B8D]">
+                    Stok aktif hasil verifikasi ACC Sales (siap jual di POS) vs antrean di Packing
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={fetchInventory}
+                className="text-xs text-[#6B7B8D] hover:text-[#3A6B80] flex items-center gap-1 cursor-pointer transition-colors"
+                title="Perbarui stok"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loadingInventory ? 'animate-spin text-[#3A6B80]' : ''}`} />
+                <span>Sinkron</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {inventoryList.map((item) => (
+                <div
+                  key={item.product_id}
+                  className="bg-[#F5F1EB] border border-[#EDE8DF] rounded-xl p-3.5 space-y-2.5"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="font-bold text-xs sm:text-sm text-[#2C3E50]">
+                        {item.product_name}
+                      </span>
+                      <span className="text-[11px] text-[#6B7B8D] block">
+                        {item.spec}
+                      </span>
+                    </div>
+                    <span className={`px-2 py-0.5 rounded-lg text-xs font-bold ${
+                      item.verified_sales_stock > 0
+                        ? 'bg-[#EAF5EE] text-[#2F7D5B] border border-[#BCE3CF]'
+                        : 'bg-rose-50 text-rose-600 border border-rose-200'
+                    }`}>
+                      {item.verified_sales_stock > 0 ? `${item.verified_sales_stock} pack siap jual` : 'Stok Habis'}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 text-center pt-1 border-t border-[#EDE8DF]">
+                    <div className="bg-white rounded-lg p-2 border border-[#EDE8DF]">
+                      <span className="text-[10px] text-[#6B7B8D] block">Menunggu ACC</span>
+                      <span className="text-sm font-bold text-[#A8862E] tabular-nums">
+                        {item.staged_from_kitchen}
+                      </span>
+                      <span className="text-[9px] text-[#6B7B8D] block">pack</span>
+                    </div>
+                    <div className="bg-white rounded-lg p-2 border border-[#EDE8DF]">
+                      <span className="text-[10px] text-[#2F7D5B] block font-medium">Siap di POS</span>
+                      <span className="text-sm font-bold text-[#2F7D5B] tabular-nums">
+                        {item.verified_sales_stock}
+                      </span>
+                      <span className="text-[9px] text-[#6B7B8D] block">pack</span>
+                    </div>
+                    <div className="bg-white rounded-lg p-2 border border-[#EDE8DF]">
+                      <span className="text-[10px] text-[#3A6B80] block">Terjual di POS</span>
+                      <span className="text-sm font-bold text-[#3A6B80] tabular-nums">
+                        {item.sold_today}
+                      </span>
+                      <span className="text-[9px] text-[#6B7B8D] block">pack</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </>
       )}

@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { useProduction1Store, calculatePlanMetrics } from '../store/production1Store'
 import { getTodayIndonesian, filterAndSortLots } from '../utils/dateFilter'
-import { isPpicAyu } from '../utils/permissions'
+import { canAccess } from '../utils/rbac'
 import {
   Printer,
   Plus,
@@ -41,7 +41,6 @@ function formatTime(isoStr) {
 export default function ProductionPlanView() {
   const dailyPlan = useProduction1Store((s) => s.dailyPlan)
   const activePlanId = useProduction1Store((s) => s.activePlanId)
-  const userRole = useProduction1Store((s) => s.userRole)
   const currentUser = useProduction1Store((s) => s.currentUser)
   const planDetailMode = useProduction1Store((s) => s.planDetailMode) || 'GENERAL'
   const doughLots = useProduction1Store((s) => s.doughLots) || []
@@ -55,7 +54,6 @@ export default function ProductionPlanView() {
   const planBatches = useProduction1Store((s) => s.planBatches) || []
   const publishedAt = useProduction1Store((s) => s.publishedAt)
   const publishedBy = useProduction1Store((s) => s.publishedBy)
-  const lastSavedDraftAt = useProduction1Store((s) => s.lastSavedDraftAt)
 
   // Actions dari store
   const updatePlanDraft = useProduction1Store((s) => s.updatePlanDraft)
@@ -208,9 +206,10 @@ export default function ProductionPlanView() {
   // Total QR yang akan diterbitkan pada batch berikutnya
   const totalLotsToIssue = plannedGilingan + plannedKarung + plannedKulit + plannedSaos
 
-  // Hak akses (Hanya PPIC Ayu / Supervisor yang berwenang mengubah dan menerbitkan)
-  const isAyuOrSupervisor = isPpicAyu(currentUser)
-  const isAuthorized = isAyuOrSupervisor || userRole === 'STAKEHOLDER' || userRole === 'PIC'
+  // Hak akses (Hanya yang berwenang plan:update / plan:publish yang berhak mengubah dan menerbitkan)
+  const canUpdatePlan = canAccess('plan:update', currentUser)
+  const canPublishPlan = canAccess('plan:publish', currentUser)
+  const isAuthorized = canUpdatePlan || canPublishPlan
   // Jika sudah DITERBITKAN, input rencana terkunci secara permanen (hanya bisa tambah batch)
   const isInputDisabled = !isAuthorized || isPublished
 

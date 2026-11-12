@@ -48,6 +48,7 @@ export default function BottomNav() {
 
   const isSuper = Boolean(currentUser?.is_superadmin)
   const isCurrentlyAdmin = isAdminActive || (isSuper && !isProfileActive)
+  const isPOSPage = activeProductionStage === 'PROD_2' && activeProd2Tab === 'POS' && !isProfileActive && !isCurrentlyAdmin && !editingProduct
 
   // 1. Super Admin: Admin | Profil (Hanya 2 tab terpusat)
   if (isSuper) {
@@ -249,7 +250,9 @@ export default function BottomNav() {
   return (
     <nav
       aria-label="Navigasi Utama Bawah"
-      className="fixed bottom-0 left-0 right-0 max-w-md md:max-w-xl lg:max-w-2xl mx-auto bg-white border-t border-[#EDE8DF] rounded-t-2xl shadow-[0_-4px_16px_rgba(44,62,80,0.04)] z-40 flex items-center min-h-[64px] pb-[env(safe-area-inset-bottom)] select-none px-2 justify-around"
+      className={`fixed bottom-0 left-0 right-0 ${
+        isPOSPage ? 'max-w-7xl' : 'max-w-md md:max-w-xl lg:max-w-2xl'
+      } mx-auto bg-white border-t border-[#EDE8DF] rounded-t-2xl shadow-[0_-4px_16px_rgba(44,62,80,0.04)] z-40 flex items-center min-h-[64px] pb-[env(safe-area-inset-bottom)] select-none px-2 justify-around`}
     >
       {finalTabs.map((tab) => {
         const Icon = tab.icon

@@ -1,0 +1,3 @@
+# Internal Factory MES & POS Application - Do Not Index
+User-agent: *
+Disallow: /

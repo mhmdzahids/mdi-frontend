@@ -1,13 +1,13 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useProduction1Store } from '../store/production1Store'
 import { PlusIcon, MinusIcon, CheckIcon, AlertIcon } from './Icons'
-import { Package, ChevronRight, Tag, Sparkles, Percent } from 'lucide-react'
+import { Package, ChevronRight, Tag, RefreshCw, Store, CheckCircle2, Clock, ShoppingCart } from 'lucide-react'
 import { Card, CardContent } from './ui/Card'
 import { Badge } from './ui/Badge'
 import { SegmentedControl } from './ui/SegmentedControl'
 import { canAccess } from '../utils/rbac'
+import { apiGet } from '../utils/api'
 import ProductDiscountModal from './promotions/ProductDiscountModal'
-import PromotionsManagementView from './promotions/PromotionsManagementView'
 
 const DEFAULT_PRODUCTS = [
   {
@@ -40,13 +40,31 @@ export default function ProductsView() {
   const canViewPrice = canAccess('freezer_sales:view_price', currentUser, isDevMode)
   const canEditPrice = canAccess('freezer_sales:edit_price', currentUser, isDevMode)
 
-  const [activeMainTab, setActiveMainTab] = useState('INVENTORY') // 'INVENTORY' | 'PROMOTIONS'
   const [selectedDiscountProduct, setSelectedDiscountProduct] = useState(null)
   const [isDiscountModalOpen, setIsDiscountModalOpen] = useState(false)
 
+  // State Data Inventaris Real-Time dari Backend
+  const [inventoryList, setInventoryList] = useState([])
+  const [isLoadingSummary, setIsLoadingSummary] = useState(false)
+
+  const fetchInventorySummary = useCallback(async () => {
+    try {
+      setIsLoadingSummary(true)
+      const res = await apiGet('/pos/inventory-summary', { silent: true })
+      if (res && res.success && Array.isArray(res.data)) {
+        setInventoryList(res.data)
+      }
+    } catch (err) {
+      console.warn('Failed to load inventory summary in ProductsView:', err?.message)
+    } finally {
+      setIsLoadingSummary(false)
+    }
+  }, [])
+
   useEffect(() => {
     fetchCatalogProducts()
-  }, [fetchCatalogProducts])
+    fetchInventorySummary()
+  }, [fetchCatalogProducts, fetchInventorySummary])
 
   const products = (storeCatalog && storeCatalog.length > 0) ? storeCatalog : DEFAULT_PRODUCTS
 
@@ -64,9 +82,15 @@ export default function ProductsView() {
   const pendingLots = currentProductLots.filter(
     (l) => l.status === 'PACKED_VERIFIED' || l.status === 'READY_IN_ASSEMBLY_STATION' || l.status === 'IN_PACKING_STATION'
   )
-  const totalDispatchedFromPacking = currentProductLots.length
-  const totalVerifiedAcc = alreadyAccLots.length
-  const pendingCount = pendingLots.length
+
+  const selectedProdSummary = inventoryList.find((it) => it.product_id === selectedProductId)
+  const stagedFromKitchenCount = selectedProdSummary ? selectedProdSummary.staged_from_kitchen : pendingLots.length
+  const verifiedAccCount = selectedProdSummary ? selectedProdSummary.verified_sales_stock : alreadyAccLots.length
+  const soldTodayCount = selectedProdSummary ? selectedProdSummary.sold_today : 0
+
+  const totalAccAll = inventoryList.reduce((acc, it) => acc + (it.verified_sales_stock || 0), 0)
+  const totalStagedAll = inventoryList.reduce((acc, it) => acc + (it.staged_from_kitchen || 0), 0)
+  const totalSoldAll = inventoryList.reduce((acc, it) => acc + (it.sold_today || 0), 0)
 
   const handleSubmitVerification = async (status) => {
     if (waveQty <= 0) return
@@ -86,6 +110,7 @@ export default function ProductsView() {
       if (ok) {
         setWaveQty(0)
         setVerificationNotes('')
+        fetchInventorySummary()
       }
     } finally {
       setIsSubmitting(false)
@@ -94,81 +119,85 @@ export default function ProductsView() {
 
   return (
     <div className="space-y-3.5 pb-28">
-      {/* Tab Switcher: Katalog & Stok Fisik vs Voucher & Promo Website */}
-      <div className="flex items-center gap-1.5 p-1 bg-[#F5F1EB] rounded-2xl border border-[#EDE8DF]">
-        <button
-          type="button"
-          onClick={() => setActiveMainTab('INVENTORY')}
-          className={`flex-1 h-10 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-            activeMainTab === 'INVENTORY'
-              ? 'bg-[#2C3E50] text-white shadow-xs'
-              : 'text-[#556575] hover:bg-white/60'
-          }`}
-        >
-          <Package className="w-4 h-4" />
-          <span>Katalog & Stok Gudang</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveMainTab('PROMOTIONS')}
-          className={`flex-1 h-10 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-            activeMainTab === 'PROMOTIONS'
-              ? 'bg-[#2C3E50] text-white shadow-xs'
-              : 'text-[#556575] hover:bg-white/60'
-          }`}
-        >
-          <Sparkles className="w-4 h-4 text-amber-400" />
-          <span>Voucher & Promo Website</span>
-        </button>
-      </div>
-
-      {activeMainTab === 'PROMOTIONS' ? (
-        <PromotionsManagementView />
-      ) : (
-        <>
-          {/* Data Pembanding Ringkasan: Verifikasi & Stok POS */}
-          <Card className="border border-[#EDE8DF] shadow-xs">
-            <CardContent className="p-4">
-          {/* DATA PEMBANDING SIDE-BY-SIDE (Produksi vs Penjualan) */}
-          <div className="grid grid-cols-3 gap-2 text-center bg-[#F5F1EB] border border-[#EDE8DF] rounded-2xl p-2.5">
-            <div className="bg-white border border-[#EDE8DF] rounded-xl p-2 shadow-2xs">
-              <span className="text-[11px] text-[#6B7B8D] block font-medium">Kirim dapur</span>
-              <span className="text-base font-bold text-[#2C3E50] tabular-nums block my-0.5">
-                {totalDispatchedFromPacking}
+      {/* 1. DASHBOARD RINGKASAN SALDO STOK BARANG JADI (GUDANG SALES & FREEZER) */}
+      <Card className="border border-[#EDE8DF] shadow-xs">
+        <CardContent className="p-4 space-y-3">
+          <div className="flex items-center justify-between border-b border-[#EDE8DF] pb-2">
+            <div className="flex items-center gap-2">
+              <Store className="w-4 h-4 text-[#2F7D5B]" />
+              <span className="text-xs font-bold text-[#2C3E50] uppercase tracking-wider">
+                Stok Barang Jadi (Gudang Sales & Freezer)
               </span>
-              <span className="text-[10px] text-[#6B7B8D] block font-sans">pack</span>
+            </div>
+            <button
+              type="button"
+              onClick={fetchInventorySummary}
+              className="text-[11px] text-[#6B7B8D] hover:text-[#3A6B80] flex items-center gap-1 cursor-pointer transition-colors"
+              title="Perbarui data stok inventaris"
+            >
+              <RefreshCw className={`w-3 h-3 ${isLoadingSummary ? 'animate-spin text-[#3A6B80]' : ''}`} />
+              <span>Sinkron</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2 text-center">
+            {/* Siap Jual di POS */}
+            <div className="bg-[#EAF5EE] border border-[#BCE3CF] rounded-2xl p-2.5 shadow-2xs">
+              <span className="text-[11px] text-[#2F7D5B] block font-semibold">
+                Siap Jual (ACC)
+              </span>
+              <span className="text-lg sm:text-xl font-extrabold text-[#2F7D5B] tabular-nums block my-0.5">
+                {totalAccAll}
+              </span>
+              <span className="text-[10px] text-[#2F7D5B]/80 block font-sans">
+                pack aktif di POS
+              </span>
             </div>
 
-            <div className="bg-white border border-[#EDE8DF] rounded-xl p-2 shadow-2xs">
-              <span className="text-[11px] text-[#2F7D5B] block font-medium">Sudah acc</span>
-              <span className="text-base font-bold text-[#2F7D5B] tabular-nums block my-0.5">
-                {totalVerifiedAcc}
+            {/* Menunggu ACC dari Packing */}
+            <div className="bg-[#FAF4E6] border border-[#F3E5C1] rounded-2xl p-2.5 shadow-2xs">
+              <span className="text-[11px] text-[#A8862E] block font-semibold">
+                Menunggu ACC
               </span>
-              <span className="text-[10px] text-[#6B7B8D] block font-sans">pack</span>
+              <span className="text-lg sm:text-xl font-extrabold text-[#A8862E] tabular-nums block my-0.5">
+                {totalStagedAll}
+              </span>
+              <span className="text-[10px] text-[#A8862E]/80 block font-sans">
+                pack di kitchen
+              </span>
             </div>
 
-            <div className="bg-white border border-[#EDE8DF] rounded-xl p-2 shadow-2xs">
-              <span className="text-[11px] text-[#6B7B8D] block font-medium">Menunggu</span>
-              <span className={`text-base font-bold block my-0.5 tabular-nums ${pendingCount > 0 ? 'text-[#3A6B80]' : 'text-[#6B7B8D]'}`}>
-                {pendingCount}
+            {/* Terjual di Kasir POS */}
+            <div className="bg-[#EEF5F9] border border-[#D1E4EF] rounded-2xl p-2.5 shadow-2xs">
+              <span className="text-[11px] text-[#3A6B80] block font-semibold">
+                Terjual Hari Ini
               </span>
-              <span className="text-[10px] text-[#6B7B8D] block font-sans">pack</span>
+              <span className="text-lg sm:text-xl font-extrabold text-[#3A6B80] tabular-nums block my-0.5">
+                {totalSoldAll}
+              </span>
+              <span className="text-[10px] text-[#3A6B80]/80 block font-sans">
+                pack di POS
+              </span>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* PANEL UTAMA: VERIFIKASI FISIK PENJUALAN BERTAHAP (PENERIMAAN DARI DAPUR) */}
+      {/* 2. PANEL UTAMA: VERIFIKASI FISIK PENJUALAN BERTAHAP (PENERIMAAN DARI DAPUR) */}
       <Card className="border border-[#EDE8DF] shadow-xs">
         <CardContent className="p-4 space-y-3.5">
           <div className="flex items-center justify-between border-b border-[#EDE8DF] pb-2.5">
-            <span className="text-xs font-bold text-[#2C3E50]">
-              Penerimaan dari dapur
-            </span>
+            <div>
+              <span className="text-xs font-bold text-[#2C3E50] block">
+                Verifikasi Penerimaan Fisik dari Packing
+              </span>
+              <span className="text-[11px] text-[#6B7B8D] block">
+                Stok POS baru bertambah setelah diverifikasi (ACC) oleh Bagian Sales di bawah ini
+              </span>
+            </div>
           </div>
 
-          {/* Tab Pilihan Produk yang Diterima (Middle Center & Kontras Tinggi) */}
+          {/* Tab Pilihan Produk yang Diterima */}
           <SegmentedControl
             options={products.map((p) => ({
               value: p.id,
@@ -180,6 +209,33 @@ export default function ProductsView() {
               setWaveQty(0)
             }}
           />
+
+          {/* Indikator Status Produk Terpilih */}
+          <div className="grid grid-cols-3 gap-2 text-center bg-[#F5F1EB] border border-[#EDE8DF] rounded-2xl p-2.5">
+            <div className="bg-white border border-[#EDE8DF] rounded-xl p-2 shadow-2xs">
+              <span className="text-[11px] text-[#6B7B8D] block font-medium">Antrean Packing</span>
+              <span className={`text-base font-bold block my-0.5 tabular-nums ${stagedFromKitchenCount > 0 ? 'text-[#A8862E]' : 'text-[#6B7B8D]'}`}>
+                {stagedFromKitchenCount}
+              </span>
+              <span className="text-[10px] text-[#6B7B8D] block font-sans">pack</span>
+            </div>
+
+            <div className="bg-white border border-[#EDE8DF] rounded-xl p-2 shadow-2xs">
+              <span className="text-[11px] text-[#2F7D5B] block font-medium">Sudah di-ACC</span>
+              <span className="text-base font-bold text-[#2F7D5B] tabular-nums block my-0.5">
+                {verifiedAccCount}
+              </span>
+              <span className="text-[10px] text-[#6B7B8D] block font-sans">pack siap jual</span>
+            </div>
+
+            <div className="bg-white border border-[#EDE8DF] rounded-xl p-2 shadow-2xs">
+              <span className="text-[11px] text-[#3A6B80] block font-medium">Terjual di POS</span>
+              <span className="text-base font-bold text-[#3A6B80] tabular-nums block my-0.5">
+                {soldTodayCount}
+              </span>
+              <span className="text-[10px] text-[#6B7B8D] block font-sans">pack</span>
+            </div>
+          </div>
 
           {/* FORM INPUT KUANTITAS FISIK BERTAHAP */}
           <div className="space-y-2.5">
@@ -231,11 +287,11 @@ export default function ProductsView() {
               ))}
               <button
                 type="button"
-                disabled={pendingCount <= 0}
-                onClick={() => setWaveQty(pendingCount)}
+                disabled={stagedFromKitchenCount <= 0}
+                onClick={() => setWaveQty(stagedFromKitchenCount)}
                 className="min-h-[48px] text-xs font-bold tabular-nums rounded-xl border-[1.5px] border-[#B7C3CE] bg-[#EDE8DF] hover:bg-[#EDE8DF] text-[#2C3E50] disabled:opacity-40 disabled:border-[#EDE8DF] cursor-pointer active:scale-[0.98] transition-colors"
               >
-                 +{pendingCount}
+                 +{stagedFromKitchenCount}
               </button>
             </div>
 
@@ -243,20 +299,20 @@ export default function ProductsView() {
             {waveQty > 0 && (
               <div
                 className={`py-2 px-3 rounded-xl text-xs flex items-center justify-between border ${
-                  waveQty === pendingCount
+                  waveQty === stagedFromKitchenCount
                     ? 'bg-[#EAF5EE] border-[#BCE3CF] text-[#2F7D5B]'
-                    : waveQty < pendingCount
+                    : waveQty < stagedFromKitchenCount
                     ? 'bg-[#EEF5F9] border-[#D1E4EF] text-[#3A6B80]'
                     : 'bg-[#FAF4E6] border-[#F3E5C1] text-[#A8862E]'
                 }`}
               >
                 <span className="font-medium">
-                  {waveQty === pendingCount && 'Jumlah fisik sesuai'}
-                  {waveQty < pendingCount && `Sisa ${pendingCount - waveQty} pack menyusul`}
-                  {waveQty > pendingCount && `Lebih +${waveQty - pendingCount} pack`}
+                  {waveQty === stagedFromKitchenCount && 'Jumlah fisik sesuai'}
+                  {waveQty < stagedFromKitchenCount && `Sisa ${stagedFromKitchenCount - waveQty} pack menyusul`}
+                  {waveQty > stagedFromKitchenCount && `Lebih +${waveQty - stagedFromKitchenCount} pack`}
                 </span>
                 <span className="font-bold text-[11px]">
-                  {waveQty === pendingCount ? 'Sesuai' : waveQty < pendingCount ? 'Parsial' : 'Selisih'}
+                  {waveQty === stagedFromKitchenCount ? 'Sesuai' : waveQty < stagedFromKitchenCount ? 'Parsial' : 'Selisih'}
                 </span>
               </div>
             )}
@@ -488,8 +544,6 @@ export default function ProductsView() {
           )
         })}
       </div>
-        </>
-      )}
 
       {/* Modal Pasang/Edit Diskon (TUGAS 1.3) */}
       <ProductDiscountModal

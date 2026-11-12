@@ -121,7 +121,7 @@ export default function AuditExportSheet({ isOpen, onClose }) {
       ]
 
       const excelData = filtered.map((item, idx) => {
-        let waktuWib = '-'
+        let waktuWib
         try {
           const d = new Date(item.waktu)
           waktuWib = new Intl.DateTimeFormat('id-ID', {

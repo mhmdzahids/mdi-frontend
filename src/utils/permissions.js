@@ -1,66 +1,61 @@
-/**
- * Utility Matriks Hak Akses & Perizinan Berbasis Role MES
- */
+import { canAccess } from './rbac'
+import { useProduction1Store } from '../store/production1Store'
+
+function resolveUser(currentUser) {
+  if (currentUser) return currentUser
+  try {
+    return useProduction1Store.getState().currentUser
+  } catch {
+    return null
+  }
+}
 
 /**
- * Memeriksa apakah user saat ini adalah PPIC (Ayu) atau Supervisor Global.
- * Hanya PPIC/Supervisor yang berhak:
- * 1. Mengubah target Rencana Produksi (Target Gilingan & Kemasan)
- * 2. Menerbitkan/Generate seluruh barcode produksi awal (Daging, Bumbu, Kulit, Saos)
- * 3. Merekap catatan reject & operasional divisi
- * 4. Mencatat penerimaan barang dari supplier luar
+ * Memeriksa apakah user saat ini adalah PPIC (Ayu) atau Supervisor Global berdasarkan perizinan RBAC.
  *
  * @param {object|null} currentUser
  * @returns {boolean}
  */
 export function isPpicAyu(currentUser = null) {
-  if (!currentUser) return false
-  const div = String(currentUser.division || '').toUpperCase()
-  const opId = String(currentUser.operator_id || '').toUpperCase()
-  const username = String(currentUser.username || currentUser.sub || '').toLowerCase()
+  const user = resolveUser(currentUser)
+  if (!user) return false
+  if (user.is_superadmin) return true
   return (
-    div.includes('PPIC') ||
-    div.includes('SUPERVISOR') ||
-    opId.includes('AYU') ||
-    opId.includes('YOSI') ||
-    username === 'ppic_ayu' ||
-    username === 'supervisor' ||
-    username === 'ayu'
+    canAccess('plan:update', user) ||
+    canAccess('plan:view', user) ||
+    canAccess('ppic_recap:view', user)
   )
 }
 
 /**
  * Memeriksa apakah user saat ini berhak menerbitkan barcode batch produksi baru.
- * PIC divisi lapangan TIDAK BERHAK menerbitkan QR. Hanya PPIC (Ayu) / Supervisor yang berhak.
  *
  * @param {object|null} currentUser
  * @returns {boolean}
  */
 export function canGenerateNewLots(currentUser = null) {
-  return isPpicAyu(currentUser)
+  const user = resolveUser(currentUser)
+  if (!user) return false
+  if (user.is_superadmin) return true
+  return canAccess('barcode:generate', user) || canAccess('plan:update', user)
 }
 
 /**
  * Memeriksa apakah role saat ini memiliki izin untuk membuka/mencetak ulang label QR yang sudah ada.
- * Hanya role supervisor/PIC/PPIC (STAKEHOLDER, PIC, SUPERVISOR, ADMIN, PPIC) yang berhak.
- * Role Karyawan/Operator lapangan (OPERATOR) TIDAK BERHAK membuka QR.
  *
  * @param {string} userRole
  * @param {object|null} currentUser
  * @returns {boolean}
  */
 export function canOpenQr(userRole, currentUser = null) {
-  if (currentUser && isPpicAyu(currentUser)) {
-    return true
-  }
-  if (!userRole) return false
-  const r = String(userRole).toUpperCase()
+  const user = resolveUser(currentUser)
+  if (!user) return false
+  if (user.is_superadmin) return true
   return (
-    r === 'STAKEHOLDER' ||
-    r === 'PIC' ||
-    r === 'SUPERVISOR' ||
-    r === 'ADMIN' ||
-    r === 'PPIC'
+    canAccess('barcode:generate', user) ||
+    canAccess('plan:update', user) ||
+    canAccess('plan:view', user) ||
+    isPpicAyu(user)
   )
 }
 
@@ -73,7 +68,18 @@ export function canOpenQr(userRole, currentUser = null) {
  * @returns {boolean}
  */
 export function canManualDispatch(userRole, currentUser = null) {
-  return canOpenQr(userRole, currentUser)
+  const user = resolveUser(currentUser)
+  if (!user) return false
+  if (user.is_superadmin) return true
+  return (
+    canAccess('meat:operate', user) ||
+    canAccess('seasoning:operate', user) ||
+    canAccess('wrapper:operate', user) ||
+    canAccess('sauce:operate', user) ||
+    canAccess('prod2_assembly:operate', user) ||
+    canAccess('prod2_packing:operate', user) ||
+    canAccess('plan:update', user)
+  )
 }
 
 /**
@@ -84,18 +90,24 @@ export function canManualDispatch(userRole, currentUser = null) {
  * @returns {boolean}
  */
 export function isPICRole(userRole, currentUser = null) {
-  return canOpenQr(userRole, currentUser)
+  return canManualDispatch(userRole, currentUser)
 }
 
 /**
  * Memeriksa apakah role saat ini berhak membuat/mengunduh report Excel.
- * Role Karyawan/Pegawai (OPERATOR) TIDAK BERHAK membuat atau mengunduh laporan Excel.
- * Hanya PIC / Stakeholder / Supervisor / PPIC yang berhak.
  *
  * @param {string} userRole
  * @param {object|null} currentUser
  * @returns {boolean}
  */
 export function canExportExcel(userRole, currentUser = null) {
-  return canOpenQr(userRole, currentUser)
+  const user = resolveUser(currentUser)
+  if (!user) return false
+  if (user.is_superadmin) return true
+  return (
+    canAccess('ppic_recap:export', user) ||
+    canAccess('inbound:export', user) ||
+    canAccess('outbound:export', user) ||
+    canAccess('inventory:export', user)
+  )
 }

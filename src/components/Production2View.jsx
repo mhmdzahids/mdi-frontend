@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useProduction1Store } from '../store/production1Store'
 import { filterAndSortLots, groupLotsByDay } from '../utils/dateFilter'
-import { PlusIcon, MinusIcon, PrinterIcon, ScanIcon, CheckIcon, ScanInIcon } from './Icons'
+import { PrinterIcon, ScanInIcon } from './Icons'
 import ScanFeedbackBanner from './ScanFeedbackBanner'
 import BatchPrintSelectionBar from './BatchPrintSelectionBar'
 import { useLotMultiSelect } from '../hooks/useLotMultiSelect'
@@ -11,7 +11,6 @@ import StationTargetBanner from './StationTargetBanner'
 import { Card, CardContent } from './ui/Card'
 import { Badge } from './ui/Badge'
 import { Modal } from './ui/Modal'
-import { SegmentedControl } from './ui/SegmentedControl'
 import { Button } from './ui/Button'
 import { canOpenQr, canManualDispatch, canExportExcel } from '../utils/permissions'
 import { exportStationLotsExcel } from '../utils/excelExport'
@@ -208,9 +207,10 @@ export default function Production2View() {
 
   const activeProd2Tab = useProduction1Store((s) => s.activeProd2Tab)
   const packingSubLine = useProduction1Store((s) => s.packingSubLine)
-  const setPackingSubLine = useProduction1Store((s) => s.setPackingSubLine)
   const userRole = useProduction1Store((s) => s.userRole)
   const currentUser = useProduction1Store((s) => s.currentUser)
+  const operatorName = useProduction1Store((s) => s.operatorName)
+  const operatorId = useProduction1Store((s) => s.operatorId)
   const rawDoughLots = useProduction1Store((s) => s.doughLots)
   const rawWrapperLots = useProduction1Store((s) => s.wrapperLots)
   const rawSauceLots = useProduction1Store((s) => s.sauceLots)
@@ -274,8 +274,6 @@ export default function Production2View() {
       String(f.lotCode || f.lot_qr_code || '').includes('VAKUM')
   )
 
-  const remainingMikaPacks = Math.max(0, targetMikaPacks - verifiedMikaLots.length)
-  const remainingVakumPacks = Math.max(0, targetVakumPacks - verifiedVakumLots.length)
   const fgSelect = useLotMultiSelect(pendingPackingLots)
   const isPIC = canManualDispatch(userRole, currentUser)
   const canExport = canExportExcel(userRole, currentUser)

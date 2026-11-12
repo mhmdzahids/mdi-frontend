@@ -1,17 +1,12 @@
 import { useProduction1Store } from '../store/production1Store'
 import { getLotDateString, getDaysDiffFromToday } from '../utils/dateFilter'
+import { canAccess } from '../utils/rbac'
 import { Card, CardContent } from './ui/Card'
 import { Badge } from './ui/Badge'
 
 export default function StationTargetBanner({ type = 'MEAT' }) {
-  const isDevMode = useProduction1Store((s) => s.isDevMode)
   const currentUser = useProduction1Store((s) => s.currentUser)
-  const isGlobalSupervisor =
-    currentUser?.username === 'supervisor' ||
-    currentUser?.operator_id?.includes('YOSI') ||
-    currentUser?.division?.toLowerCase().includes('ppic') ||
-    currentUser?.division?.toLowerCase().includes('supervisor')
-  const canEditPlan = isDevMode || isGlobalSupervisor
+  const canEditPlan = canAccess('plan:update', currentUser)
   const setStation = useProduction1Store((s) => s.setStation)
   const dailyPlan = useProduction1Store((s) => s.dailyPlan) || {}
   const meatLots = useProduction1Store((s) => s.meatLots) || []

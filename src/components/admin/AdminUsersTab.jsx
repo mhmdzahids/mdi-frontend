@@ -14,6 +14,7 @@ import {
 import { motion } from 'motion/react'
 import { apiGet, apiPost } from '../../utils/api'
 import { useProduction1Store } from '../../store/production1Store'
+import { canAccess } from '../../utils/rbac'
 import ResetPasswordModal from './ResetPasswordModal'
 
 function formatLoginTime(dateStr) {
@@ -54,6 +55,9 @@ function formatLoginTime(dateStr) {
 export default function AdminUsersTab({ availableRoles = [], onReloadRoles }) {
   const currentUser = useProduction1Store((s) => s.currentUser)
   const openUserForm = useProduction1Store((s) => s.openUserForm)
+
+  const canCreateUser = canAccess('admin_users:create', currentUser)
+  const canUpdateUser = canAccess('admin_users:update', currentUser)
 
   const [users, setUsers] = useState([])
   const [isLoading, setIsLoading] = useState(true)
@@ -183,15 +187,17 @@ export default function AdminUsersTab({ availableRoles = [], onReloadRoles }) {
           )}
         </div>
 
-        <motion.button
-          type="button"
-          whileTap={{ scale: 0.95 }}
-          onClick={() => openUserForm('create', null)}
-          className="min-h-[44px] px-3.5 py-2 bg-[#3A6B80] hover:bg-[#2D5566] text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer transition-colors shrink-0"
-        >
-          <Plus className="w-4 h-4 stroke-[2.5]" />
-          <span>Tambah</span>
-        </motion.button>
+        {canCreateUser && (
+          <motion.button
+            type="button"
+            whileTap={{ scale: 0.95 }}
+            onClick={() => openUserForm('create', null)}
+            className="min-h-[44px] px-3.5 py-2 bg-[#3A6B80] hover:bg-[#2D5566] text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer transition-colors shrink-0"
+          >
+            <Plus className="w-4 h-4 stroke-[2.5]" />
+            <span>Tambah</span>
+          </motion.button>
+        )}
       </div>
 
       {/* Baris 2: Chips Status yang Bisa Digeser + Filter Peran */}
@@ -278,8 +284,10 @@ export default function AdminUsersTab({ availableRoles = [], onReloadRoles }) {
                 initial={{ opacity: 0, y: 4 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.15 }}
-                onClick={() => openUserForm('edit', u.id)}
-                className={`bg-white border rounded-2xl p-3.5 shadow-2xs transition-all cursor-pointer hover:border-[#6A9DB3]/40 active:scale-[0.99] relative ${
+                onClick={() => canUpdateUser && openUserForm('edit', u.id)}
+                className={`bg-white border rounded-2xl p-3.5 shadow-2xs transition-all ${
+                  canUpdateUser ? 'cursor-pointer hover:border-[#6A9DB3]/40 active:scale-[0.99]' : ''
+                } relative ${
                   u.is_active ? 'border-[#EDE8DF]' : 'border-[#EDE8DF] bg-[#FAFAFA]'
                 }`}
               >
@@ -308,69 +316,71 @@ export default function AdminUsersTab({ availableRoles = [], onReloadRoles }) {
                     />
 
                     {/* Menu Aksi Cepat (⋯) */}
-                    <div className="relative">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setOpenMenuUserId(isMenuOpen ? null : u.id)
-                        }}
-                        className="w-8 h-8 rounded-lg flex items-center justify-center text-[#6B7B8D] hover:text-[#2C3E50] hover:bg-[#F5F1EB] transition-colors"
-                        title="Opsi Akun"
-                      >
-                        <MoreVertical className="w-4 h-4" />
-                      </button>
-
-                      {isMenuOpen && (
-                        <div
-                          className="absolute right-0 top-full mt-1 w-44 bg-white border border-[#EDE8DF] rounded-xl shadow-lg z-20 py-1 select-none"
-                          onClick={(e) => e.stopPropagation()}
+                    {canUpdateUser && (
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setOpenMenuUserId(isMenuOpen ? null : u.id)
+                          }}
+                          className="w-8 h-8 rounded-lg flex items-center justify-center text-[#6B7B8D] hover:text-[#2C3E50] hover:bg-[#F5F1EB] transition-colors"
+                          title="Opsi Akun"
                         >
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setOpenMenuUserId(null)
-                              openUserForm('edit', u.id)
-                            }}
-                            className="w-full px-3 py-2 text-left text-xs text-[#2C3E50] hover:bg-[#F5F1EB] flex items-center gap-2 cursor-pointer"
-                          >
-                            <Edit2 className="w-3.5 h-3.5 text-[#3A6B80]" />
-                            <span>Edit Detail</span>
-                          </button>
+                          <MoreVertical className="w-4 h-4" />
+                        </button>
 
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setOpenMenuUserId(null)
-                              setResetTargetUser(u)
-                              setIsResetPwOpen(true)
-                            }}
-                            className="w-full px-3 py-2 text-left text-xs text-[#2C3E50] hover:bg-[#F5F1EB] flex items-center gap-2 cursor-pointer"
+                        {isMenuOpen && (
+                          <div
+                            className="absolute right-0 top-full mt-1 w-44 bg-white border border-[#EDE8DF] rounded-xl shadow-lg z-20 py-1 select-none"
+                            onClick={(e) => e.stopPropagation()}
                           >
-                            <KeyRound className="w-3.5 h-3.5 text-[#B25E09]" />
-                            <span>Reset Password</span>
-                          </button>
-
-                          {!isSelf && (
                             <button
                               type="button"
                               onClick={() => {
                                 setOpenMenuUserId(null)
-                                setStatusDialogTarget(u)
+                                openUserForm('edit', u.id)
                               }}
-                              className={`w-full px-3 py-2 text-left text-xs flex items-center gap-2 cursor-pointer border-t border-[#EDE8DF] ${
-                                u.is_active
-                                  ? 'text-[#C0392B] hover:bg-[#FDF2F2]'
-                                  : 'text-[#2F7D5B] hover:bg-[#EEF7F2]'
-                              }`}
+                              className="w-full px-3 py-2 text-left text-xs text-[#2C3E50] hover:bg-[#F5F1EB] flex items-center gap-2 cursor-pointer"
                             >
-                              <Power className="w-3.5 h-3.5" />
-                              <span>{u.is_active ? 'Nonaktifkan' : 'Aktifkan'}</span>
+                              <Edit2 className="w-3.5 h-3.5 text-[#3A6B80]" />
+                              <span>Edit Detail</span>
                             </button>
-                          )}
-                        </div>
-                      )}
-                    </div>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setOpenMenuUserId(null)
+                                setResetTargetUser(u)
+                                setIsResetPwOpen(true)
+                              }}
+                              className="w-full px-3 py-2 text-left text-xs text-[#2C3E50] hover:bg-[#F5F1EB] flex items-center gap-2 cursor-pointer"
+                            >
+                              <KeyRound className="w-3.5 h-3.5 text-[#B25E09]" />
+                              <span>Reset Password</span>
+                            </button>
+
+                            {!isSelf && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenMenuUserId(null)
+                                  setStatusDialogTarget(u)
+                                }}
+                                className={`w-full px-3 py-2 text-left text-xs flex items-center gap-2 cursor-pointer border-t border-[#EDE8DF] ${
+                                  u.is_active
+                                    ? 'text-[#C0392B] hover:bg-[#FDF2F2]'
+                                    : 'text-[#2F7D5B] hover:bg-[#EEF7F2]'
+                                }`}
+                              >
+                                <Power className="w-3.5 h-3.5" />
+                                <span>{u.is_active ? 'Nonaktifkan' : 'Aktifkan'}</span>
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 

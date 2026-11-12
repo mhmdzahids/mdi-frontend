@@ -12,9 +12,15 @@ import {
 import { motion } from 'motion/react'
 import { apiDelete } from '../../utils/api'
 import { useProduction1Store } from '../../store/production1Store'
+import { canAccess } from '../../utils/rbac'
 
 export default function AdminRolesTab({ roles = [], isLoading = false, onReloadRoles }) {
   const openRoleForm = useProduction1Store((s) => s.openRoleForm)
+  const currentUser = useProduction1Store((s) => s.currentUser)
+
+  const canCreateRole = canAccess('admin_roles:create', currentUser)
+  const canUpdateRole = canAccess('admin_roles:update', currentUser)
+  const canDeleteRole = canAccess('admin_roles:delete', currentUser)
 
   // Delete Confirmation Dialog
   const [deleteDialogTarget, setDeleteDialogTarget] = useState(null)
@@ -59,15 +65,17 @@ export default function AdminRolesTab({ roles = [], isLoading = false, onReloadR
           Role ({roles.length})
         </h3>
 
-        <motion.button
-          type="button"
-          whileTap={{ scale: 0.95 }}
-          onClick={() => openRoleForm('create', null)}
-          className="min-h-[40px] px-3.5 py-2 bg-[#3A6B80] hover:bg-[#2D5566] text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer transition-colors shrink-0"
-        >
-          <Plus className="w-4 h-4 stroke-[2.5]" />
-          <span>Baru</span>
-        </motion.button>
+        {canCreateRole && (
+          <motion.button
+            type="button"
+            whileTap={{ scale: 0.95 }}
+            onClick={() => openRoleForm('create', null)}
+            className="min-h-[40px] px-3.5 py-2 bg-[#3A6B80] hover:bg-[#2D5566] text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer transition-colors shrink-0"
+          >
+            <Plus className="w-4 h-4 stroke-[2.5]" />
+            <span>Baru</span>
+          </motion.button>
+        )}
       </div>
 
       {/* Daftar Kartu Role Ringkas (2 Baris per Kartu, Minimal 5 Role Muat dalam 1 Layar) */}
@@ -108,8 +116,10 @@ export default function AdminRolesTab({ roles = [], isLoading = false, onReloadR
                 initial={{ opacity: 0, y: 4 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.15 }}
-                onClick={() => openRoleForm('edit', r.id)}
-                className="bg-white border border-[#EDE8DF] rounded-2xl p-3 sm:p-3.5 shadow-2xs transition-all cursor-pointer hover:border-[#6A9DB3]/40 active:scale-[0.99] relative"
+                onClick={() => canUpdateRole && openRoleForm('edit', r.id)}
+                className={`bg-white border border-[#EDE8DF] rounded-2xl p-3 sm:p-3.5 shadow-2xs transition-all ${
+                  canUpdateRole ? 'cursor-pointer hover:border-[#6A9DB3]/40 active:scale-[0.99]' : ''
+                } relative`}
               >
                 {/* Baris 1: Nama Role + Ikon Gembok (jika sistem) di kiri; Menu ⋯ + Chevron di kanan */}
                 <div className="flex items-center justify-between gap-2">
@@ -126,52 +136,56 @@ export default function AdminRolesTab({ roles = [], isLoading = false, onReloadR
 
                   <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
                     {/* Menu Aksi ⋯ */}
-                    <div className="relative">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setOpenMenuRoleId(isMenuOpen ? null : r.id)
-                        }}
-                        className="w-7 h-7 rounded-lg flex items-center justify-center text-[#6B7B8D] hover:text-[#2C3E50] hover:bg-[#F5F1EB] transition-colors"
-                        title="Opsi Role"
-                      >
-                        <MoreVertical className="w-4 h-4" />
-                      </button>
-
-                      {isMenuOpen && (
-                        <div
-                          className="absolute right-0 top-full mt-1 w-40 bg-white border border-[#EDE8DF] rounded-xl shadow-lg z-20 py-1 select-none"
-                          onClick={(e) => e.stopPropagation()}
+                    {(canCreateRole || (canDelete && canDeleteRole)) && (
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setOpenMenuRoleId(isMenuOpen ? null : r.id)
+                          }}
+                          className="w-7 h-7 rounded-lg flex items-center justify-center text-[#6B7B8D] hover:text-[#2C3E50] hover:bg-[#F5F1EB] transition-colors"
+                          title="Opsi Role"
                         >
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setOpenMenuRoleId(null)
-                              openRoleForm('duplicate', r.id)
-                            }}
-                            className="w-full px-3 py-2 text-left text-xs text-[#2C3E50] hover:bg-[#F5F1EB] flex items-center gap-2 cursor-pointer"
-                          >
-                            <Copy className="w-3.5 h-3.5 text-[#3A6B80]" />
-                            <span>Duplikat</span>
-                          </button>
+                          <MoreVertical className="w-4 h-4" />
+                        </button>
 
-                          {canDelete && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setOpenMenuRoleId(null)
-                                setDeleteDialogTarget(r)
-                              }}
-                              className="w-full px-3 py-2 text-left text-xs text-[#C0392B] hover:bg-[#FDF2F2] flex items-center gap-2 cursor-pointer border-t border-[#EDE8DF]"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                              <span>Hapus</span>
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </div>
+                        {isMenuOpen && (
+                          <div
+                            className="absolute right-0 top-full mt-1 w-40 bg-white border border-[#EDE8DF] rounded-xl shadow-lg z-20 py-1 select-none"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {canCreateRole && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenMenuRoleId(null)
+                                  openRoleForm('duplicate', r.id)
+                                }}
+                                className="w-full px-3 py-2 text-left text-xs text-[#2C3E50] hover:bg-[#F5F1EB] flex items-center gap-2 cursor-pointer"
+                              >
+                                <Copy className="w-3.5 h-3.5 text-[#3A6B80]" />
+                                <span>Duplikat</span>
+                              </button>
+                            )}
+
+                            {canDelete && canDeleteRole && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenMenuRoleId(null)
+                                  setDeleteDialogTarget(r)
+                                }}
+                                className="w-full px-3 py-2 text-left text-xs text-[#C0392B] hover:bg-[#FDF2F2] flex items-center gap-2 cursor-pointer border-t border-[#EDE8DF]"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span>Hapus</span>
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     <ChevronRight className="w-4 h-4 text-[#94A3B8]" />
                   </div>

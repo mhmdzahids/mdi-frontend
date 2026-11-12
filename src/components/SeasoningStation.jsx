@@ -110,6 +110,8 @@ function SeasoningLotCard({
 export default function SeasoningStation() {
   const userRole = useProduction1Store((s) => s.userRole)
   const currentUser = useProduction1Store((s) => s.currentUser)
+  const operatorName = useProduction1Store((s) => s.operatorName)
+  const operatorId = useProduction1Store((s) => s.operatorId)
   const isPIC = canManualDispatch(userRole, currentUser)
   const canExport = canExportExcel(userRole, currentUser)
   const seasoningLots = useProduction1Store((s) => s.seasoningLots)
@@ -431,7 +433,7 @@ export default function SeasoningStation() {
       {/* Floating Action Bar untuk Cetak Batch QR / Scan Out / Manual Kirim */}
       <BatchPrintSelectionBar
         selectedCount={seasoningSelect.selectedCount}
-        canOpenQr={canOpenQr(userRole)}
+        canOpenQr={canOpenQr(userRole, currentUser)}
         onScanOut={() =>
           openCameraScanner({
             mode: 'UNIVERSAL',
@@ -439,7 +441,7 @@ export default function SeasoningStation() {
           })
         }
         scanOutLabel="Scan out"
-        onManualDispatch={canManualDispatch(userRole) ? handleSendSelected : undefined}
+        onManualDispatch={isPIC ? handleSendSelected : undefined}
         manualDispatchLabel="Kirim terpilih"
         onPrint={() => openBatchPrintModal(seasoningSelect.selectedLots, 'KARUNG BUMBU RACIK')}
       />

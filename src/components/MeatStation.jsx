@@ -14,7 +14,6 @@ import BatchPrintSelectionBar from './BatchPrintSelectionBar'
 import { useLotMultiSelect } from '../hooks/useLotMultiSelect'
 import { useLongPress } from '../hooks/useLongPress'
 import { Card, CardContent } from './ui/Card'
-import { Stepper } from './ui/Stepper'
 import { Badge } from './ui/Badge'
 import { Modal } from './ui/Modal'
 import { Button } from './ui/Button'
@@ -131,9 +130,7 @@ export default function MeatStation() {
   const [activeMeatTab, setActiveMeatTab] = useState('GILING') // 'GILING' | 'BUMBU'
   const [isFinishedFolded, setIsFinishedFolded] = useState(true)
 
-  const [gilinganInput, setGilinganInput] = useState(1)
-  const [batchNotes, setBatchNotes] = useState('')
-  const [isProcessing, setIsProcessing] = useState(false)
+  const gilinganInput = 1
   const [isSendingDough, setIsSendingDough] = useState(false)
   const [isReceivingBumbu, setIsReceivingBumbu] = useState(false)
 
@@ -147,20 +144,19 @@ export default function MeatStation() {
 
   const userRole = useProduction1Store((s) => s.userRole)
   const currentUser = useProduction1Store((s) => s.currentUser)
+  const operatorName = useProduction1Store((s) => s.operatorName)
+  const operatorId = useProduction1Store((s) => s.operatorId)
   const isPIC = canManualDispatch(userRole, currentUser)
   const canExport = canExportExcel(userRole, currentUser)
 
   const seasoningLots = useProduction1Store((s) => s.seasoningLots)
   const doughLots = useProduction1Store((s) => s.doughLots)
 
-  const produceBatchUnified = useProduction1Store((s) => s.produceBatchUnified)
   const recordMaterialUsage = useProduction1Store((s) => s.recordMaterialUsage)
   const scanInSeasoningBatch = useProduction1Store((s) => s.scanInSeasoningBatch)
   const scanOutAllDough = useProduction1Store((s) => s.scanOutAllDough)
   const voidLots = useProduction1Store((s) => s.voidLots)
   const setPrintModal = useProduction1Store((s) => s.setPrintModal)
-  const lastBatchPrintModal = useProduction1Store((s) => s.lastBatchPrintModal)
-  const reopenLastBatchPrintModal = useProduction1Store((s) => s.reopenLastBatchPrintModal)
   const openCameraScanner = useProduction1Store((s) => s.openCameraScanner)
   const openBatchPrintModal = useProduction1Store((s) => s.openBatchPrintModal)
 
@@ -267,25 +263,6 @@ export default function MeatStation() {
     const ok = await voidLots(selectedCodes)
     if (ok) {
       doughSelect.clearSelection()
-    }
-  }
-
-  // Handlers Eksekusi Giling & Mixing Terpadu
-  const handleExecuteBatchUnified = async () => {
-    const count = parseInt(gilinganInput, 10) || 1
-    if (count <= 0 || isProcessing) return
-    setIsProcessing(true)
-    try {
-      const yieldNum = 20.00
-      await produceBatchUnified({
-        gilinganCount: count,
-        doughYieldKg: yieldNum,
-        bumbuLotCodes: [],
-        notes: batchNotes.trim()
-      })
-      setBatchNotes('')
-    } finally {
-      setIsProcessing(false)
     }
   }
 
@@ -939,7 +916,7 @@ export default function MeatStation() {
       {/* Floating Action Bar untuk Adonan Terpilih (Hanya muncul jika N > 0) */}
       <BatchPrintSelectionBar
         selectedCount={doughSelect.selectedCount}
-        canOpenQr={canOpenQr(userRole)}
+        canOpenQr={canOpenQr(userRole, currentUser)}
         onScanOut={() =>
           openCameraScanner({
             mode: 'UNIVERSAL',
@@ -947,7 +924,7 @@ export default function MeatStation() {
           })
         }
         scanOutLabel="Scan out"
-        onManualDispatch={canManualDispatch(userRole) ? handleSendSelectedDough : undefined}
+        onManualDispatch={isPIC ? handleSendSelectedDough : undefined}
         manualDispatchLabel="Kirim"
         actionLabel={isPIC ? 'Batalkan sisa' : undefined}
         onAction={isPIC ? handleVoidSelectedLots : undefined}

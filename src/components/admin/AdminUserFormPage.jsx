@@ -49,6 +49,8 @@ export default function AdminUserFormPage({
 }) {
   const closeAdminForm = useProduction1Store((s) => s.closeAdminForm)
   const setActionFeedback = (fb) => useProduction1Store.setState({ actionFeedback: fb })
+  const currentUser = useProduction1Store((s) => s.currentUser)
+  const isCurrentSuperAdmin = Boolean(currentUser?.is_superadmin)
 
   const isEdit = mode === 'edit' && Boolean(targetId)
 
@@ -234,14 +236,26 @@ export default function AdminUserFormPage({
     return { status: 'success', message: 'Tersedia' }
   }, [username, existingUsers, isEdit, targetId])
 
-  // Role Selection Logic
+  // Role Selection Logic: Hanya Super Admin yang berhak melihat dan menetapkan role Super Admin
+  const visibleAvailableRoles = useMemo(() => {
+    if (isCurrentSuperAdmin) return availableRoles
+    return availableRoles.filter(
+      (r) => r.name !== 'Super Admin' && !r.is_superadmin
+    )
+  }, [availableRoles, isCurrentSuperAdmin])
+
   const superAdminRole = useMemo(() => {
+    if (!isCurrentSuperAdmin) return null
     return availableRoles.find((r) => r.is_system && r.name === 'Super Admin')
-  }, [availableRoles])
+  }, [availableRoles, isCurrentSuperAdmin])
 
   const toggleRole = (roleId) => {
     const isCurrentlySelected = selectedRoleIds.includes(roleId)
     const isTargetSuperAdmin = superAdminRole && superAdminRole.id === roleId
+
+    if (!isCurrentSuperAdmin && isTargetSuperAdmin) {
+      return
+    }
 
     if (!isCurrentlySelected && isTargetSuperAdmin) {
       setPendingSuperAdminToggle(roleId)
@@ -257,7 +271,7 @@ export default function AdminUserFormPage({
   }
 
   const confirmSuperAdminSelection = () => {
-    if (pendingSuperAdminToggle) {
+    if (pendingSuperAdminToggle && isCurrentSuperAdmin) {
       setSelectedRoleIds((prev) => [...prev, pendingSuperAdminToggle])
       setPendingSuperAdminToggle(null)
     }
@@ -265,12 +279,12 @@ export default function AdminUserFormPage({
   }
 
   const filteredRoles = useMemo(() => {
-    if (!roleSearch.trim()) return availableRoles
+    if (!roleSearch.trim()) return visibleAvailableRoles
     const q = roleSearch.toLowerCase()
-    return availableRoles.filter(
+    return visibleAvailableRoles.filter(
       (r) => r.name.toLowerCase().includes(q) || (r.description || '').toLowerCase().includes(q)
     )
-  }, [availableRoles, roleSearch])
+  }, [visibleAvailableRoles, roleSearch])
 
   // Back Button Click Handler dengan Unsaved Changes Guard
   const handleBackClick = () => {
@@ -322,7 +336,10 @@ export default function AdminUserFormPage({
       return
     }
 
-    const hasSuperAdminRole = superAdminRole && selectedRoleIds.includes(superAdminRole.id)
+    const hasSuperAdminRole = isCurrentSuperAdmin && superAdminRole && selectedRoleIds.includes(superAdminRole.id)
+    const safeRoleIds = isCurrentSuperAdmin
+      ? selectedRoleIds
+      : selectedRoleIds.filter((id) => !superAdminRole || id !== superAdminRole.id)
 
     try {
       setIsSubmitting(true)
@@ -332,8 +349,8 @@ export default function AdminUserFormPage({
           operator_id: operatorId.trim() || null,
           division: division || null,
           is_active: isActive,
-          is_superadmin: hasSuperAdminRole,
-          role_ids: selectedRoleIds
+          is_superadmin: Boolean(hasSuperAdminRole),
+          role_ids: safeRoleIds
         })
 
         if (onReloadRoles) onReloadRoles()
@@ -347,9 +364,9 @@ export default function AdminUserFormPage({
           operator_id: operatorId.trim() || null,
           division: division || null,
           is_active: true,
-          is_superadmin: hasSuperAdminRole,
+          is_superadmin: Boolean(hasSuperAdminRole),
           must_change_password: true,
-          role_ids: selectedRoleIds
+          role_ids: safeRoleIds
         })
 
         if (onReloadRoles) onReloadRoles()

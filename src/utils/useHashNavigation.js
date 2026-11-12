@@ -31,7 +31,9 @@ export function getHashFromState(
       return '#/admin/role/baru'
     }
     if (activeAdminTab === 'ROLES') return '#/admin/roles'
+    if (activeAdminTab === 'PROMOTIONS') return '#/admin/promosi'
     if (activeAdminTab === 'LOGS') return '#/admin/logs'
+    if (activeAdminTab === 'API_KEYS') return '#/admin/api-keys'
     return '#/admin'
   }
 
@@ -128,8 +130,14 @@ export function getStateFromHash(hash) {
     if (sub.includes('role')) {
       return { isAdmin: true, adminTab: 'ROLES', adminForm: null }
     }
+    if (sub.includes('promo') || sub.includes('voucher') || sub.includes('banner')) {
+      return { isAdmin: true, adminTab: 'PROMOTIONS', adminForm: null }
+    }
     if (sub.includes('log')) {
       return { isAdmin: true, adminTab: 'LOGS', adminForm: null }
+    }
+    if (sub.includes('key') || sub.includes('api')) {
+      return { isAdmin: true, adminTab: 'API_KEYS', adminForm: null }
     }
     return { isAdmin: true, adminTab: 'USERS', adminForm: null }
   }
@@ -232,8 +240,7 @@ export function useHashNavigation() {
   const isSuperAdmin = Boolean(currentUser?.is_superadmin)
 
   const authToken = useProduction1Store((s) => s.authToken)
-  const isDevMode = useProduction1Store((s) => s.isDevMode)
-  const isAuthenticated = Boolean(authToken || isDevMode)
+  const isAuthenticated = Boolean(authToken)
 
   const activePrintModal = useProduction1Store((s) => s.activePrintModal)
   const isCameraScannerOpen = useProduction1Store((s) => s.isCameraScannerOpen)
@@ -357,7 +364,7 @@ export function useHashNavigation() {
   useEffect(() => {
     const handlePopState = () => {
       const state = useProduction1Store.getState()
-      const isAuth = Boolean(state.authToken || state.isDevMode)
+      const isAuth = Boolean(state.authToken)
       const isSuper = Boolean(state.currentUser?.is_superadmin)
 
       // A. Jika ada modal yang sedang terbuka saat Back ditekan, tutup modal tersebut

@@ -61,6 +61,7 @@ export default function App() {
   const setUserRole = useProduction1Store((s) => s.setUserRole)
   const authToken = useProduction1Store((s) => s.authToken)
   const currentUser = useProduction1Store((s) => s.currentUser)
+  const fetchCurrentUserProfile = useProduction1Store((s) => s.fetchCurrentUserProfile)
   const isDevMode = useProduction1Store((s) => s.isDevMode)
   const toggleDevMode = useProduction1Store((s) => s.toggleDevMode)
   const processUniversalBarcode = useProduction1Store((s) => s.processUniversalBarcode)
@@ -103,21 +104,19 @@ export default function App() {
 
   const isGlobalSupervisor =
     !currentUser?.is_superadmin && (
-      currentUser?.username === 'supervisor' ||
-      currentUser?.username === 'ppic_ayu' ||
-      currentUser?.operator_id?.includes('YOSI') ||
-      currentUser?.operator_id?.includes('AYU') ||
-      currentUser?.division?.toLowerCase().includes('ppic') ||
-      currentUser?.division?.toLowerCase().includes('supervisor')
+      canAccess('plan:update', currentUser) ||
+      canAccess('plan:view', currentUser) ||
+      canAccess('ppic_recap:view', currentUser)
     )
 
-  const canSwitchAll = isDevMode || isGlobalSupervisor
+  const canSwitchAll = Boolean(isGlobalSupervisor)
 
   const isSuper = Boolean(currentUser?.is_superadmin)
   const isCurrentlyAdmin = isAdminActive || (isSuper && !isProfileActive)
   const isFullPageForm = (isCurrentlyAdmin && Boolean(adminForm)) || Boolean(editingProduct)
+  const isPOSPage = activeProductionStage === 'PROD_2' && activeProd2Tab === 'POS' && !isProfileActive && !isCurrentlyAdmin && !editingProduct
 
-  const allowedP1Stations = P1_STATION_CHIPS.filter((st) => canAccess(st.permission, currentUser, isDevMode))
+  const allowedP1Stations = P1_STATION_CHIPS.filter((st) => canAccess(st.permission, currentUser))
   const isP1StationPage = activeProductionStage === 'PROD_1' && ['MEAT', 'SEASONING', 'WRAPPER', 'SAUCE'].includes(activeStation)
   const showStationChip = !isAdminActive && !isProfileActive && isP1StationPage && allowedP1Stations.length > 1
   const currentStationObj = allowedP1Stations.find((st) => st.id === activeStation)
@@ -135,6 +134,12 @@ export default function App() {
     : `prod1-${activeStation}`
 
   useHashNavigation()
+
+  useEffect(() => {
+    if (authToken && fetchCurrentUserProfile) {
+      fetchCurrentUserProfile()
+    }
+  }, [authToken, fetchCurrentUserProfile])
 
   useEffect(() => {
     startAutoSync()
@@ -175,13 +180,15 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [processUniversalBarcode])
 
-  // Tampilkan layar login jika belum login dan bukan dalam Dev Mode
-  if (!authToken && !isDevMode) {
+  // Tampilkan layar login jika belum login
+  if (!authToken) {
     return <LoginScreen />
   }
 
   return (
-    <div className={`w-full max-w-md md:max-w-xl lg:max-w-2xl mx-auto min-h-screen min-h-[100dvh] bg-[var(--canvas)] text-[#2C3E50] flex flex-col font-sans relative shadow-2xs ${
+    <div className={`w-full ${
+      isPOSPage ? 'max-w-7xl px-2 sm:px-6' : 'max-w-md md:max-w-xl lg:max-w-2xl'
+    } mx-auto min-h-screen min-h-[100dvh] bg-[var(--canvas)] text-[#2C3E50] flex flex-col font-sans relative shadow-2xs ${
       isFullPageForm ? 'pb-0' : 'pb-24 sm:pb-28'
     }`}>
       {/* Global Top Progress Bar (YouTube/GitHub Style) */}

@@ -80,10 +80,29 @@ export async function apiFetch(url, options = {}) {
   delete nativeOptions.silent
 
   try {
-    return await fetch(url, {
+    const res = await fetch(url, {
       ...nativeOptions,
       headers: mergedHeaders
     })
+
+    // 401 Session Interceptor: tangani token kedaluwarsa atau tidak valid
+    if (res.status === 401) {
+      try {
+        const { useProduction1Store } = await import('../store/production1Store')
+        useProduction1Store.getState().logout()
+      } catch {
+        try {
+          localStorage.removeItem('mdi_production1_storage')
+        } catch {
+          // ignore
+        }
+      }
+      if (typeof window !== 'undefined' && window.location.hash !== '#/login') {
+        window.location.hash = '#/login'
+      }
+    }
+
+    return res
   } finally {
     if (!isSilent) {
       activeRequestsCount = Math.max(0, activeRequestsCount - 1)

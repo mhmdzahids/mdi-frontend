@@ -289,47 +289,22 @@ export const useProduction1Store = create(
       isSupervisorUser: () => {
         const s = get()
         const user = s.currentUser
-        if (user?.is_superadmin) return false
-        const role = (user?.role || s.userRole || '').toUpperCase()
-        if (role === 'OPERATOR') return false
-
-        const username = (user?.username || '').toLowerCase()
-        const opId = (user?.operator_id || s.operatorId || '').toUpperCase()
-        const div = (user?.division || '').toUpperCase()
-
-        // PIC stasiun tetap terkunci ke divisinya kecuali akun supervisor PPIC
-        if (opId.includes('DAGING') || opId.includes('BUMBU') || opId.includes('KULIT') || opId.includes('SAOS') || opId.includes('CETAK') || opId.includes('PACKING') || opId.includes('GUDANG')) {
-          if (!div.includes('PPIC') && !div.includes('SUPERVISOR') && username !== 'supervisor') {
-            return false
-          }
-        }
-
-        if (s.isDevMode) return true
-        return username === 'supervisor' || opId.includes('YOSI') || div.includes('PPIC') || div.includes('SUPERVISOR')
+        if (!user) return false
+        if (user.is_superadmin) return true
+        const perms = user.permissions || []
+        return perms.includes('plan:update') || perms.includes('ppic_recap:view')
       },
 
       isPpicUser: () => {
         const s = get()
         const user = s.currentUser
-        if (user?.is_superadmin) return false
-        const role = (user?.role || s.userRole || '').toUpperCase()
-        if (role === 'OPERATOR') return false
-
-        const username = (user?.username || user?.sub || '').toLowerCase()
-        const opId = (user?.operator_id || s.operatorId || '').toUpperCase()
-        const div = (user?.division || '').toUpperCase()
-        const defaultStation = (user?.default_station || '').toUpperCase()
-
+        if (!user) return false
+        if (user.is_superadmin) return true
+        const perms = user.permissions || []
         return (
-          username === 'supervisor' ||
-          username === 'ppic_ayu' ||
-          username === 'ayu' ||
-          opId.includes('YOSI') ||
-          opId.includes('AYU') ||
-          opId.includes('PPIC') ||
-          div.includes('PPIC') ||
-          div.includes('SUPERVISOR') ||
-          defaultStation === 'PLAN'
+          perms.includes('plan:update') ||
+          perms.includes('plan:view') ||
+          perms.includes('ppic_recap:view')
         )
       },
 
@@ -392,9 +367,14 @@ export const useProduction1Store = create(
         try {
           const payload = {}
           if (updates.name !== undefined) payload.name = updates.name
+          if (updates.sku !== undefined) payload.sku = updates.sku
           if (updates.description !== undefined) payload.description = updates.description
           if (updates.spec !== undefined) payload.spec = updates.spec
           if (updates.price !== undefined) payload.price = updates.price
+          if (updates.original_price !== undefined) payload.original_price = updates.original_price
+          if (updates.is_discount !== undefined) payload.is_discount = updates.is_discount
+          if (updates.discount_percent !== undefined) payload.discount_percent = updates.discount_percent
+          if (updates.stock_online !== undefined) payload.stock_online = updates.stock_online
           if (updates.is_active !== undefined) payload.is_active = updates.is_active
 
           const updated = await apiPut(`/products/${id}`, payload)
@@ -404,9 +384,14 @@ export const useProduction1Store = create(
                 ? {
                     ...p,
                     name: updated.name,
+                    sku: updated.sku,
                     description: updated.description,
                     spec: updated.spec,
                     price: updated.price,
+                    original_price: updated.original_price,
+                    is_discount: updated.is_discount,
+                    discount_percent: updated.discount_percent,
+                    stock_online: updated.stock_online,
                     image_url: updated.image_url,
                     thumbnail_url: updated.thumbnail_url,
                     is_active: updated.is_active,
@@ -420,6 +405,21 @@ export const useProduction1Store = create(
         } catch (err) {
           playErrorBeep()
           set({ actionFeedback: { type: 'error', message: err.message || 'Gagal menyimpan produk.' } })
+          throw err
+        }
+      },
+
+      deleteCatalogProduct: async (id) => {
+        try {
+          await apiDelete(`/products/${id}`)
+          set((s) => ({
+            catalogProducts: (s.catalogProducts || []).filter((p) => p.id !== id),
+            actionFeedback: { type: 'success', message: 'Produk berhasil dihapus.' }
+          }))
+          return true
+        } catch (err) {
+          playErrorBeep()
+          set({ actionFeedback: { type: 'error', message: err.message || 'Gagal menghapus produk.' } })
           throw err
         }
       },
@@ -3531,6 +3531,9 @@ export const useProduction1Store = create(
       },
 
       quickSwitchUser: async (username) => {
+        if (import.meta.env.PROD) {
+          throw new Error('Disabled in production')
+        }
         try {
           const res = await apiFetch('/api/v1/auth/quick-switch', {
             method: 'POST',
@@ -3613,6 +3616,7 @@ export const useProduction1Store = create(
         set({
           authToken: null,
           currentUser: null,
+          isDevMode: false,
           isProfileActive: false,
           isAdminActive: false,
           actionFeedback: { type: 'info', message: 'Anda telah logout dari sistem.' }
@@ -3624,7 +3628,10 @@ export const useProduction1Store = create(
         }
       },
 
-      toggleDevMode: (val) => set((s) => ({ isDevMode: typeof val === 'boolean' ? val : !s.isDevMode })),
+      toggleDevMode: (val) => {
+        if (!import.meta.env.DEV) return
+        set((s) => ({ isDevMode: typeof val === 'boolean' ? val : !s.isDevMode }))
+      },
 
       wipeAllData: async () => {
         // Reset semua data lot dan log lokal
@@ -4300,7 +4307,6 @@ export const useProduction1Store = create(
         isAdminActive: state.isAdminActive,
         activeAdminTab: state.activeAdminTab,
         isProfileActive: state.isProfileActive,
-        isDevMode: state.isDevMode,
         salesReceiptLogs: state.salesReceiptLogs
       })
     }

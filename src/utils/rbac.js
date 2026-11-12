@@ -7,26 +7,16 @@ export function isSuperAdmin(currentUser) {
   return Boolean(currentUser?.is_superadmin)
 }
 
-export function canAccess(permissionCode, currentUser, isDevMode = false) {
-  if (isDevMode) return true
+export function canAccess(permissionCode, currentUser) {
   if (!currentUser) return false
-  if (currentUser.is_superadmin) {
-    // Super Admin mengelola administrasi, profil, serta master harga produk POS
-    if (permissionCode.startsWith('admin_') || permissionCode.startsWith('profile:') || permissionCode.startsWith('freezer_sales:')) {
-      return true
-    }
-    return false
-  }
+  if (currentUser.is_superadmin) return true
   const perms = currentUser.permissions || []
   return perms.includes(permissionCode)
 }
 
-export function hasAnyPermission(permissionCodes = [], currentUser, isDevMode = false) {
-  if (isDevMode) return true
+export function hasAnyPermission(permissionCodes = [], currentUser) {
   if (!currentUser) return false
-  if (currentUser.is_superadmin) {
-    return permissionCodes.some((code) => code.startsWith('admin_') || code.startsWith('profile:') || code.startsWith('freezer_sales:'))
-  }
+  if (currentUser.is_superadmin) return true
   const perms = currentUser.permissions || []
   return permissionCodes.some((code) => perms.includes(code))
 }
@@ -201,8 +191,19 @@ export const PERMISSION_MODULES = [
       { code: 'freezer_sales:view', label: 'Lihat', type: 'view' },
       { code: 'freezer_sales:update', label: 'Ubah', type: 'update' },
       { code: 'freezer_sales:view_price', label: 'Lihat Harga', type: 'view_price' },
-      { code: 'freezer_sales:edit_price', label: 'Ubah Harga', type: 'edit_price' },
+      { code: 'freezer_sales:edit_price', label: 'Ubah Harga & Diskon', type: 'edit_price' },
+      { code: 'freezer_sales:delete', label: 'Hapus Produk', type: 'delete' },
       { code: 'freezer_sales:operate', label: 'Serah Terima', type: 'create' }
+    ]
+  },
+  {
+    feature: 'promotions',
+    title: 'Promosi Website (Voucher & Banner)',
+    description: 'Manajemen kupon voucher diskon dan banner promosi website buyer',
+    viewPerm: 'promotions:view',
+    actions: [
+      { code: 'promotions:view', label: 'Lihat Promo', type: 'view' },
+      { code: 'promotions:manage', label: 'Kelola Promo (Buat/Edit/Hapus)', type: 'create' }
     ]
   },
   {

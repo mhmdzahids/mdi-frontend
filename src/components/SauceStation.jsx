@@ -1,14 +1,12 @@
 import { useState } from 'react'
 import { useProduction1Store } from '../store/production1Store'
 import { filterAndSortLots, groupLotsByDay } from '../utils/dateFilter'
-import { PrinterIcon, ScanIcon } from './Icons'
+import { PrinterIcon } from './Icons'
 import BatchPrintSelectionBar from './BatchPrintSelectionBar'
 import { useLotMultiSelect } from '../hooks/useLotMultiSelect'
 import { useLongPress } from '../hooks/useLongPress'
 import { Card, CardContent } from './ui/Card'
-import { SegmentedControl } from './ui/SegmentedControl'
 import { Badge } from './ui/Badge'
-import { Button } from './ui/Button'
 import { groupStationLots, getLotSemanticBadge } from '../utils/scanMode'
 import { canOpenQr, canManualDispatch, canExportExcel } from '../utils/permissions'
 import { exportStationLotsExcel } from '../utils/excelExport'
@@ -110,6 +108,8 @@ export default function SauceStation() {
 
   const userRole = useProduction1Store((s) => s.userRole)
   const currentUser = useProduction1Store((s) => s.currentUser)
+  const operatorName = useProduction1Store((s) => s.operatorName)
+  const operatorId = useProduction1Store((s) => s.operatorId)
   const isPIC = canManualDispatch(userRole, currentUser)
   const canExport = canExportExcel(userRole, currentUser)
   const hasQrPermission = canOpenQr(userRole, currentUser)

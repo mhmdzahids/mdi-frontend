@@ -10,7 +10,12 @@
 
 function escapeXml(value) {
   if (value === null || value === undefined) return ''
-  return String(value)
+  let str = String(value)
+  // Neutralize formula trigger characters (=, +, -, @) to prevent CSV/Spreadsheet formula injection (CWE-1236)
+  if (/^[=+@-]/i.test(str)) {
+    str = "'" + str
+  }
+  return str
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
