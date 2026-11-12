@@ -489,8 +489,8 @@ export function exportPpicCustomExcel({
   }
 
   const fileName = isRange
-    ? `${filePrefix}_${safeFrom}_sd_${safeTo}.xlsx`
-    : `${filePrefix}_${safeFrom}.xlsx`
+    ? `${filePrefix}_${safeFrom}_sd_${safeTo}.xls`
+    : `${filePrefix}_${safeFrom}.xls`
 
   const periodSubtitle = isRange
     ? `Periode Transaksi : ${dateFromStr} s/d ${dateToStr} (WIB)`
