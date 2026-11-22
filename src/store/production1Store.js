@@ -2883,7 +2883,8 @@ export const useProduction1Store = create(
           cleanText.startsWith('BM-') ||
           cleanText.startsWith('AD-') ||
           cleanText.startsWith('KL-') ||
-          cleanText.startsWith('SA-')
+          cleanText.startsWith('SA-') ||
+          cleanText.startsWith('OUT-')
         ) {
           // Tentukan stasiun aktif operator saat ini
           let currentStation
@@ -3182,20 +3183,29 @@ export const useProduction1Store = create(
             if (Array.isArray(dbLots)) {
               const state = get()
               const bumbuLots = dbLots
-                .filter((l) => l.lot_type === 'BUMBU')
+                .filter(
+                  (l) =>
+                    l.lot_type === 'BUMBU' ||
+                    (l.lot_qr_code && l.lot_qr_code.startsWith('OUT-BM-')) ||
+                    (l.current_status && l.current_status.includes('SEASONING')) ||
+                    l.current_station === 'SEASONING_STATION'
+                )
                 .map((l) => {
                   const parts = l.lot_qr_code.split('-')
                   const idx = parseInt(parts[parts.length - 1] || '1', 10)
                   const rawQty = Number(l.quantity) || 0
-                  // 1 karung standar = 20 kresek. Jika nilai DB adalah 1 (karung), normalisasi ke 20 kresek
-                  const qtyKresek = (l.unit === 'KARUNG' && rawQty === 1) ? 20 : rawQty
+                  const isOutLot = Boolean(l.lot_qr_code && l.lot_qr_code.startsWith('OUT-'))
+                  // 1 karung standar = 20 kresek hanya jika lot BM karung racik, bukan lot bahan baku supplier
+                  const qtyKresek = (!isOutLot && l.unit === 'KARUNG' && rawQty === 1) ? 20 : rawQty
                   return {
                     lotCode: l.lot_qr_code,
+                    itemName: l.item_name || (isOutLot ? 'Bahan Baku Bumbu' : 'Bumbu Sparta'),
                     planId: l.plan_id || state.activePlanId,
                     sackNumber: idx,
-                    quantity: qtyKresek,
-                    initialQuantity: 20,
-                    unit: 'KARUNG',
+                    quantity: isOutLot ? rawQty : qtyKresek,
+                    initialQuantity: isOutLot ? rawQty : 20,
+                    unit: l.unit || (isOutLot ? 'KG' : 'KARUNG'),
+                    isRawMaterial: isOutLot,
                     status: l.current_status,
                     stationId: l.current_station,
                     createdDate: formatBackendLotDate(l.lot_qr_code, l.created_at),
