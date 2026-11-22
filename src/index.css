@@ -162,3 +162,8 @@ input[type="number"] {
 .safe-bottom-margin {
   margin-bottom: max(1.25rem, env(safe-area-inset-bottom, 1.25rem));
 }
+
+/* Scroll padding agar elemen yang difokuskan tidak tertutup fixed bottom bar (WCAG 2.4.11 Focus Not Obscured) */
+html {
+  scroll-padding-bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
+}

@@ -154,6 +154,9 @@ export default function SeasoningStation() {
   )
   const eligibleCodesSet = new Set(eligibleSeasoningLots.map((l) => l.lotCode))
   const seasoningSelect = useLotMultiSelect(eligibleSeasoningLots)
+  const incomingTransitLots = filteredSeasoningLots.filter(
+    (l) => l.status === 'IN_TRANSIT_TO_SEASONING' || l.status === 'IN_TRANSIT_TO_SEASONING_STATION'
+  )
   const transitLots = filteredSeasoningLots.filter((l) => l.status === 'IN_TRANSIT_TO_MEAT_MIXING')
   const terkirimLots = filteredSeasoningLots.filter(
     (l) =>
@@ -240,8 +243,50 @@ export default function SeasoningStation() {
           scanMode={scanMode}
           readyCount={readyLots.length}
           pendingCount={pendingConfirmation.length}
-          inTransitCount={transitLots.length}
+          inTransitCount={incomingTransitLots.length > 0 ? incomingTransitLots.length : transitLots.length}
+          scanInSubtext={incomingTransitLots.length > 0 ? `${incomingTransitLots.length} kiriman masuk` : undefined}
         />
+
+        {incomingTransitLots.length > 0 && (
+          <div className="bg-[#FAF4E6] border border-[#F3E5C1] rounded-xl p-3 sm:p-3.5 space-y-2.5 shadow-2xs">
+            <div className="border-b border-[#F3E5C1] pb-2">
+              <span className="text-xs font-bold text-[#A8862E] block">
+                Ada {incomingTransitLots.length} kiriman bahan baku masuk
+              </span>
+            </div>
+            <div className="space-y-1.5">
+              {incomingTransitLots.map((b) => (
+                <div
+                  key={b.lotCode}
+                  className="bg-white border border-[#F3E5C1] rounded-xl p-2.5 sm:p-3 flex items-center justify-between text-xs shadow-2xs"
+                >
+                  <div className="min-w-0 pr-2">
+                    <span className="font-mono font-bold text-[#2C3E50] text-sm block">
+                      {b.lotCode}
+                    </span>
+                    <span className="text-[11px] text-[#6B7B8D] block">
+                      Bumbu Sparta · {b.quantity} {b.unit || 'KARUNG'}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      openCameraScanner({
+                        mode: 'UNIVERSAL',
+                        title: `Scan In ${b.lotCode}`
+                      })
+                    }
+                    className="h-8 px-3 rounded-xl bg-[#d4a340] hover:bg-[#c29334] active:bg-[#b08328] text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-95 shrink-0"
+                    title={`Scan in lot ${b.lotCode}`}
+                  >
+                    <ScanIcon className="w-3.5 h-3.5 text-white stroke-[2.2]" />
+                    <span>Scan in</span>
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {transitLots.length > 0 && (
           <div className="bg-[#FAF4E6] border border-[#F3E5C1] text-[#A8862E] rounded-xl p-3 text-center text-xs font-semibold">

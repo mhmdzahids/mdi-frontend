@@ -13,14 +13,14 @@ const DEFAULT_PRODUCTS = [
   {
     id: 'FG_MIKA',
     name: 'Dimsum Mika',
-    description: 'Dimsum kukus isi 50 pcs kemasan mika menggunakan kulit 9 cm.',
+    description: 'Dimsum kukus isi 50 pcs kemasan mika menggunakan kulit pangsit 9 cm.',
     spec: '50 Pcs / Mika',
     isDisplayActive: true
   },
   {
     id: 'FG_VAKUM',
     name: 'Dimsum Vakum',
-    description: 'Dimsum beku isi 25 pcs kemasan vakum menggunakan kulit 7 cm.',
+    description: 'Dimsum beku isi 25 pcs kemasan vakum menggunakan kulit pangsit 7 cm.',
     spec: '25 Pcs / Pack',
     isDisplayActive: true
   }

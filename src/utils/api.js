@@ -6,6 +6,11 @@
 
 let activeRequestsCount = 0
 const listeners = new Set()
+let inMemoryToken = null
+
+export function setApiAuthToken(token) {
+  inMemoryToken = token || null
+}
 
 export function subscribeToLoading(listener) {
   listeners.add(listener)
@@ -33,11 +38,14 @@ export function getActiveRequestsCount() {
 }
 
 export function getStoredToken() {
+  if (inMemoryToken) return inMemoryToken
   try {
     const raw = localStorage.getItem('mdi_production1_storage')
     if (raw) {
       const parsed = JSON.parse(raw)
-      return parsed.state?.authToken || null
+      const token = parsed.state?.authToken || null
+      if (token) inMemoryToken = token
+      return token
     }
   } catch {
     // Abaikan jika localStorage tidak dapat diakses
@@ -87,18 +95,31 @@ export async function apiFetch(url, options = {}) {
 
     // 401 Session Interceptor: tangani token kedaluwarsa atau tidak valid
     if (res.status === 401) {
-      try {
-        const { useProduction1Store } = await import('../store/production1Store')
-        useProduction1Store.getState().logout()
-      } catch {
+      const isAuthUrl = url.includes('/auth/login')
+      // Hanya proses logout jika request dikirim menggunakan token dan bukan proses login
+      if (token && !isAuthUrl) {
         try {
-          localStorage.removeItem('mdi_production1_storage')
+          const { useProduction1Store } = await import('../store/production1Store')
+          const currentToken = useProduction1Store.getState().authToken
+          // Pastikan token yang ditolak adalah token yang aktif saat ini, bukan sisa request sebelum login
+          if (!currentToken || currentToken === token) {
+            inMemoryToken = null
+            useProduction1Store.getState().logout()
+            if (typeof window !== 'undefined' && window.location.hash !== '#/login') {
+              window.location.hash = '#/login'
+            }
+          }
         } catch {
-          // ignore
+          inMemoryToken = null
+          try {
+            localStorage.removeItem('mdi_production1_storage')
+          } catch {
+            // ignore
+          }
+          if (typeof window !== 'undefined' && window.location.hash !== '#/login') {
+            window.location.hash = '#/login'
+          }
         }
-      }
-      if (typeof window !== 'undefined' && window.location.hash !== '#/login') {
-        window.location.hash = '#/login'
       }
     }
 

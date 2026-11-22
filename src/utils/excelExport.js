@@ -231,8 +231,20 @@ export function downloadExcelXml({
 /**
  * Ekspor Rekap Harian PPIC ke Excel
  */
+/**
+ * Ekspor Rekap Harian PPIC ke Excel (1 Sheet Bersih & Terpadu)
+ * Memuat Seksi I: Rekapitulasi Produksi Divisi & Seksi II: Rincian Penggunaan Bumbu (Satuan: Kresek)
+ */
 export function exportPpicRecapExcel({ dateStr, recapData, operatorName }) {
   const divisions = recapData?.divisions || {}
+  const bumbuUsage = recapData?.bumbu_usage || {
+    total_initial: 0,
+    total_used: 0,
+    total_remaining: 0,
+    unit: 'KRESEK',
+    records: []
+  }
+
   const divRows = [
     {
       divisi: 'Daging (Giling & Mix)',
@@ -259,7 +271,7 @@ export function exportPpicRecapExcel({ dateStr, recapData, operatorName }) {
       catatan: divisions.BUMBU?.operational_notes || '-'
     },
     {
-      divisi: 'Kulit Dimsum',
+      divisi: 'Kulit Pangsit',
       satuan: divisions.KULIT?.unit || 'BAL',
       diterbitkan: divisions.KULIT?.total_lots || 0,
       total_qty: divisions.KULIT?.total_quantity || 0,
@@ -314,36 +326,310 @@ export function exportPpicRecapExcel({ dateStr, recapData, operatorName }) {
     .replace(/\s+/g, '_')
     .replace(/[^a-zA-Z0-9_-]/g, '')
 
-  downloadExcelXml({
-    fileName: `Rekap_PPIC_Pabrik_${safeDateStr}.xls`,
-    sheetName: 'Rekap PPIC',
-    title: 'PT MAKAN DIMSUM INDONESIA - REKAP HARIAN PPIC',
-    subtitles: [
-      `Tanggal / Periode: ${dateStr || new Date().toISOString().split('T')[0]}`,
-      `Target Gilingan  : ${recapData?.target_gilingan || 0} Gilingan`,
-      `Penyusun Laporan : ${operatorName || 'Ayu (PPIC)'}`,
-      `Waktu Ekspor     : ${new Date().toLocaleTimeString('id-ID')} WIB`
-    ],
-    columns: [
-      { header: 'Divisi', key: 'divisi', width: 170, align: 'left' },
-      { header: 'Satuan', key: 'satuan', width: 70, align: 'center' },
-      { header: 'Target', key: 'diterbitkan', width: 85, align: 'right' },
-      { header: 'Total Kuantitas', key: 'total_qty', width: 95, align: 'right' },
-      { header: 'Terkirim / Selesai', key: 'terkirim', width: 110, align: 'right' },
-      { header: 'Sisa Belum Dibuat', key: 'sisa_qr', width: 110, align: 'right' },
-      { header: 'Batal (VOID)', key: 'void_qr', width: 90, align: 'right' },
-      { header: 'Reject', key: 'reject', width: 70, align: 'right' },
-      { header: 'Alasan Reject', key: 'reject_notes', width: 180, align: 'left' },
-      { header: 'Catatan Operasional', key: 'catatan', width: 220, align: 'left' }
-    ],
-    data: divRows,
-    totals: {
-      label: 'TOTAL REJECT',
-      values: {
-        reject: totalReject
-      }
-    }
+  const totalCols = 10
+  const fileName = `Rekap_PPIC_Pabrik_${safeDateStr}.xls`
+
+  let xml = `<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:html="http://www.w3.org/TR/REC-html40">
+ <Styles>
+  <Style ss:ID="Default" ss:Name="Normal">
+   <Alignment ss:Vertical="Center"/>
+   <Borders/>
+   <Font ss:FontName="Calibri" ss:Size="11" ss:Color="#000000"/>
+   <Interior/>
+   <NumberFormat/>
+   <Protection/>
+  </Style>
+  <Style ss:ID="CompanyKop">
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
+   <Font ss:FontName="Calibri" ss:Size="14" ss:Color="#1E3A5F" ss:Bold="1"/>
+   <Interior ss:Color="#E9ECEF" ss:Pattern="Solid"/>
+  </Style>
+  <Style ss:ID="MetaLabel">
+   <Alignment ss:Horizontal="Left" ss:Vertical="Center"/>
+   <Font ss:FontName="Calibri" ss:Size="10" ss:Color="#495057" ss:Italic="1"/>
+  </Style>
+  <Style ss:ID="SectionHeader">
+   <Alignment ss:Horizontal="Left" ss:Vertical="Center"/>
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#2C3E50"/>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#2C3E50"/>
+   </Borders>
+   <Font ss:FontName="Calibri" ss:Size="11" ss:Color="#FFFFFF" ss:Bold="1"/>
+   <Interior ss:Color="#2C3E50" ss:Pattern="Solid"/>
+  </Style>
+  <Style ss:ID="TableHeader">
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/>
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#2C3E50"/>
+    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#2C3E50"/>
+    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#2C3E50"/>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#2C3E50"/>
+   </Borders>
+   <Font ss:FontName="Calibri" ss:Size="11" ss:Color="#FFFFFF" ss:Bold="1"/>
+   <Interior ss:Color="#3A6B80" ss:Pattern="Solid"/>
+  </Style>
+  <Style ss:ID="TableHeaderAmber">
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/>
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#8C6D1F"/>
+    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#8C6D1F"/>
+    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#8C6D1F"/>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#8C6D1F"/>
+   </Borders>
+   <Font ss:FontName="Calibri" ss:Size="11" ss:Color="#FFFFFF" ss:Bold="1"/>
+   <Interior ss:Color="#D4A340" ss:Pattern="Solid"/>
+  </Style>
+  <Style ss:ID="DataLeft">
+   <Alignment ss:Horizontal="Left" ss:Vertical="Center"/>
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E0E0E0"/>
+    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E0E0E0"/>
+    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E0E0E0"/>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E0E0E0"/>
+   </Borders>
+   <Font ss:FontName="Calibri" ss:Size="10" ss:Color="#212529"/>
+  </Style>
+  <Style ss:ID="DataCenter">
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E0E0E0"/>
+    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E0E0E0"/>
+    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E0E0E0"/>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E0E0E0"/>
+   </Borders>
+   <Font ss:FontName="Calibri" ss:Size="10" ss:Color="#212529"/>
+  </Style>
+  <Style ss:ID="DataRight">
+   <Alignment ss:Horizontal="Right" ss:Vertical="Center"/>
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E0E0E0"/>
+    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E0E0E0"/>
+    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E0E0E0"/>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E0E0E0"/>
+   </Borders>
+   <Font ss:FontName="Calibri" ss:Size="10" ss:Color="#212529"/>
+  </Style>
+  <Style ss:ID="TotalRowLeft">
+   <Alignment ss:Horizontal="Left" ss:Vertical="Center"/>
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Double" ss:Weight="3" ss:Color="#3A6B80"/>
+    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#3A6B80"/>
+    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#3A6B80"/>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#3A6B80"/>
+   </Borders>
+   <Font ss:FontName="Calibri" ss:Size="11" ss:Color="#1E3A5F" ss:Bold="1"/>
+   <Interior ss:Color="#F5F1EB" ss:Pattern="Solid"/>
+  </Style>
+  <Style ss:ID="TotalRowRight">
+   <Alignment ss:Horizontal="Right" ss:Vertical="Center"/>
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Double" ss:Weight="3" ss:Color="#3A6B80"/>
+    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#3A6B80"/>
+    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#3A6B80"/>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#3A6B80"/>
+   </Borders>
+   <Font ss:FontName="Calibri" ss:Size="11" ss:Color="#1E3A5F" ss:Bold="1"/>
+   <Interior ss:Color="#F5F1EB" ss:Pattern="Solid"/>
+  </Style>
+ </Styles>
+ <Worksheet ss:Name="Rekap PPIC">
+  <Table ss:DefaultRowHeight="20">
+   <Column ss:AutoFitWidth="0" ss:Width="50"/>
+   <Column ss:AutoFitWidth="0" ss:Width="110"/>
+   <Column ss:AutoFitWidth="0" ss:Width="150"/>
+   <Column ss:AutoFitWidth="0" ss:Width="110"/>
+   <Column ss:AutoFitWidth="0" ss:Width="110"/>
+   <Column ss:AutoFitWidth="0" ss:Width="100"/>
+   <Column ss:AutoFitWidth="0" ss:Width="100"/>
+   <Column ss:AutoFitWidth="0" ss:Width="100"/>
+   <Column ss:AutoFitWidth="0" ss:Width="160"/>
+   <Column ss:AutoFitWidth="0" ss:Width="200"/>
+`
+
+  // Baris Judul Utama Kop
+  xml += `   <Row ss:Height="28">
+    <Cell ss:MergeAcross="${totalCols - 1}" ss:StyleID="CompanyKop">
+     <Data ss:Type="String">PT MAKAN DIMSUM INDONESIA - REKAP HARIAN PPIC</Data>
+    </Cell>
+   </Row>\n`
+
+  // Subtitles
+  const subtitles = [
+    `Tanggal / Periode: ${dateStr || new Date().toISOString().split('T')[0]}`,
+    `Target Gilingan  : ${recapData?.target_gilingan || 0} Gilingan`,
+    `Penyusun Laporan : ${operatorName || 'Ayu (PPIC)'}`,
+    `Waktu Ekspor     : ${new Date().toLocaleTimeString('id-ID')} WIB`
+  ]
+  subtitles.forEach((sub) => {
+    xml += `   <Row ss:Height="18">
+    <Cell ss:MergeAcross="${totalCols - 1}" ss:StyleID="MetaLabel">
+     <Data ss:Type="String">${escapeXml(sub)}</Data>
+    </Cell>
+   </Row>\n`
   })
+
+  // Jarak
+  xml += `   <Row ss:Height="12"/>\n`
+
+  // =========================================================================
+  // SEKSI I: REKAPITULASI PRODUKSI DIVISI PABRIK
+  // =========================================================================
+  xml += `   <Row ss:Height="24">
+    <Cell ss:MergeAcross="${totalCols - 1}" ss:StyleID="SectionHeader">
+     <Data ss:Type="String">I. REKAPITULASI PRODUKSI DIVISI PABRIK</Data>
+    </Cell>
+   </Row>\n`
+
+  // Header Kolom Tabel 1
+  const t1Cols = [
+    { header: 'Divisi', key: 'divisi', align: 'left' },
+    { header: 'Satuan', key: 'satuan', align: 'center' },
+    { header: 'Target', key: 'diterbitkan', align: 'right' },
+    { header: 'Total Qty', key: 'total_qty', align: 'right' },
+    { header: 'Terkirim / Selesai', key: 'terkirim', align: 'right' },
+    { header: 'Sisa Belum Dibuat', key: 'sisa_qr', align: 'right' },
+    { header: 'Batal (VOID)', key: 'void_qr', align: 'right' },
+    { header: 'Reject', key: 'reject', align: 'right' },
+    { header: 'Alasan Reject', key: 'reject_notes', align: 'left' },
+    { header: 'Catatan Operasional', key: 'catatan', align: 'left' }
+  ]
+
+  xml += `   <Row ss:Height="26">\n`
+  t1Cols.forEach((col) => {
+    xml += `    <Cell ss:StyleID="TableHeader"><Data ss:Type="String">${escapeXml(col.header)}</Data></Cell>\n`
+  })
+  xml += `   </Row>\n`
+
+  // Data Baris Tabel 1
+  divRows.forEach((row) => {
+    xml += `   <Row ss:Height="22">\n`
+    t1Cols.forEach((col) => {
+      const rawVal = row[col.key]
+      const align = col.align || (typeof rawVal === 'number' ? 'right' : 'left')
+      const styleId = align === 'right' ? 'DataRight' : align === 'center' ? 'DataCenter' : 'DataLeft'
+      const isNum = typeof rawVal === 'number' && !isNaN(rawVal)
+      if (isNum) {
+        xml += `    <Cell ss:StyleID="${styleId}"><Data ss:Type="Number">${rawVal}</Data></Cell>\n`
+      } else {
+        xml += `    <Cell ss:StyleID="${styleId}"><Data ss:Type="String">${escapeXml(rawVal !== undefined && rawVal !== null ? rawVal : '-')}</Data></Cell>\n`
+      }
+    })
+    xml += `   </Row>\n`
+  })
+
+  // Baris Total Tabel 1
+  xml += `   <Row ss:Height="24">
+    <Cell ss:MergeAcross="6" ss:StyleID="TotalRowLeft"><Data ss:Type="String">TOTAL REJECT</Data></Cell>
+    <Cell ss:StyleID="TotalRowRight"><Data ss:Type="Number">${totalReject}</Data></Cell>
+    <Cell ss:StyleID="TotalRowRight"><Data ss:Type="String">-</Data></Cell>
+    <Cell ss:StyleID="TotalRowRight"><Data ss:Type="String">-</Data></Cell>
+   </Row>\n`
+
+  // Jarak antar seksi
+  xml += `   <Row ss:Height="16"/>\n`
+
+  // =========================================================================
+  // SEKSI II: PENGGUNAAN BUMBU DI RUANG GILING & MIX (SATUAN: KRESEK)
+  // =========================================================================
+  xml += `   <Row ss:Height="24">
+    <Cell ss:MergeAcross="${totalCols - 1}" ss:StyleID="SectionHeader">
+     <Data ss:Type="String">II. PENGGUNAAN BUMBU DI RUANG GILING &amp; MIX (SATUAN: KRESEK)</Data>
+    </Cell>
+   </Row>\n`
+
+  // Subtitle Seksi Bumbu
+  const bumbuSub = `Ringkasan: Stok Tersedia: ${bumbuUsage.total_initial || 0} Kresek  |  Digunakan: ${bumbuUsage.total_used || 0} Kresek  |  Sisa di Ruangan: ${bumbuUsage.total_remaining || 0} Kresek`
+  xml += `   <Row ss:Height="18">
+    <Cell ss:MergeAcross="${totalCols - 1}" ss:StyleID="MetaLabel">
+     <Data ss:Type="String">${escapeXml(bumbuSub)}</Data>
+    </Cell>
+   </Row>\n`
+
+  // Header Kolom Tabel 2
+  const t2Cols = [
+    'No',
+    'Tanggal',
+    'Kode Lot Karung',
+    'Stok Awal (Kresek)',
+    'Digunakan (Kresek)',
+    'Sisa (Kresek)',
+    'Status Sisa',
+    'Petugas',
+    'Catatan Operasional'
+  ]
+
+  xml += `   <Row ss:Height="26">
+    <Cell ss:StyleID="TableHeaderAmber"><Data ss:Type="String">No</Data></Cell>
+    <Cell ss:StyleID="TableHeaderAmber"><Data ss:Type="String">Tanggal</Data></Cell>
+    <Cell ss:StyleID="TableHeaderAmber"><Data ss:Type="String">Kode Lot Karung</Data></Cell>
+    <Cell ss:StyleID="TableHeaderAmber"><Data ss:Type="String">Stok Awal (Kresek)</Data></Cell>
+    <Cell ss:StyleID="TableHeaderAmber"><Data ss:Type="String">Digunakan (Kresek)</Data></Cell>
+    <Cell ss:StyleID="TableHeaderAmber"><Data ss:Type="String">Sisa (Kresek)</Data></Cell>
+    <Cell ss:StyleID="TableHeaderAmber"><Data ss:Type="String">Status Sisa</Data></Cell>
+    <Cell ss:StyleID="TableHeaderAmber"><Data ss:Type="String">Petugas</Data></Cell>
+    <Cell ss:MergeAcross="1" ss:StyleID="TableHeaderAmber"><Data ss:Type="String">Catatan Operasional</Data></Cell>
+   </Row>\n`
+
+  const bumbuRecords = bumbuUsage.records || []
+  if (bumbuRecords.length === 0) {
+    xml += `   <Row ss:Height="24">
+    <Cell ss:MergeAcross="${totalCols - 1}" ss:StyleID="DataCenter">
+     <Data ss:Type="String">Belum ada transaksi pemakaian bumbu tercatat pada periode ini.</Data>
+    </Cell>
+   </Row>\n`
+  } else {
+    bumbuRecords.forEach((rec, idx) => {
+      xml += `   <Row ss:Height="22">
+    <Cell ss:StyleID="DataCenter"><Data ss:Type="Number">${idx + 1}</Data></Cell>
+    <Cell ss:StyleID="DataCenter"><Data ss:Type="String">${escapeXml(rec.date)}</Data></Cell>
+    <Cell ss:StyleID="DataCenter"><Data ss:Type="String">${escapeXml(rec.lot_qr_code)}</Data></Cell>
+    <Cell ss:StyleID="DataRight"><Data ss:Type="Number">${Number(rec.initial_quantity) || 0}</Data></Cell>
+    <Cell ss:StyleID="DataRight"><Data ss:Type="Number">${Number(rec.quantity_used) || 0}</Data></Cell>
+    <Cell ss:StyleID="DataRight"><Data ss:Type="Number">${Number(rec.remaining_quantity) || 0}</Data></Cell>
+    <Cell ss:StyleID="DataCenter"><Data ss:Type="String">${escapeXml(rec.remaining_action || 'Di Ruangan')}</Data></Cell>
+    <Cell ss:StyleID="DataCenter"><Data ss:Type="String">${escapeXml(rec.operator_id || '-')}</Data></Cell>
+    <Cell ss:MergeAcross="1" ss:StyleID="DataLeft"><Data ss:Type="String">${escapeXml(rec.notes || '-')}</Data></Cell>
+   </Row>\n`
+    })
+
+    // Baris Total Tabel Bumbu
+    xml += `   <Row ss:Height="24">
+    <Cell ss:MergeAcross="2" ss:StyleID="TotalRowLeft"><Data ss:Type="String">TOTAL PEMAKAIAN BUMBU (KRESEK)</Data></Cell>
+    <Cell ss:StyleID="TotalRowRight"><Data ss:Type="Number">${Number(bumbuUsage.total_initial) || 0}</Data></Cell>
+    <Cell ss:StyleID="TotalRowRight"><Data ss:Type="Number">${Number(bumbuUsage.total_used) || 0}</Data></Cell>
+    <Cell ss:StyleID="TotalRowRight"><Data ss:Type="Number">${Number(bumbuUsage.total_remaining) || 0}</Data></Cell>
+    <Cell ss:StyleID="TotalRowRight"><Data ss:Type="String">-</Data></Cell>
+    <Cell ss:StyleID="TotalRowRight"><Data ss:Type="String">-</Data></Cell>
+    <Cell ss:MergeAcross="1" ss:StyleID="TotalRowRight"><Data ss:Type="String">-</Data></Cell>
+   </Row>\n`
+  }
+
+  xml += `  </Table>
+  <WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel">
+   <Selected/>
+   <ProtectObjects>False</ProtectObjects>
+   <ProtectScenarios>False</ProtectScenarios>
+  </WorksheetOptions>
+ </Worksheet>
+</Workbook>`
+
+  // Download blob
+  const blob = new Blob([xml], { type: 'application/vnd.ms-excel;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = fileName
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+  return { fileName, blob, xml }
 }
 
 /**

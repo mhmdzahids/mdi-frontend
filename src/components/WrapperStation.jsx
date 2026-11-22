@@ -141,6 +141,9 @@ export default function WrapperStation() {
     'WRAPPER_STATION',
     scanModeSettings
   )
+  const incomingTransitLots = filteredWrapperLots.filter(
+    (w) => w.status === 'IN_TRANSIT_TO_WRAPPER' || w.status === 'IN_TRANSIT_TO_WRAPPER_STATION'
+  )
   const readyWrappers = onHandStock
 
   // Hanya lot yang siap di stasiun kulit yang memenuhi syarat untuk di-scan out
@@ -154,7 +157,7 @@ export default function WrapperStation() {
 
   const handleExportExcel = () => {
     exportStationLotsExcel({
-      stationName: 'Divisi Kulit Dimsum',
+      stationName: 'Divisi Kulit Pangsit',
       divisionCode: 'KULIT',
       dateStr: new Date().toISOString().slice(0, 10),
       lots: filteredWrapperLots,
@@ -193,16 +196,58 @@ export default function WrapperStation() {
         {/* Tombol Scan In dan Scan Out Terpadu */}
         <ScanActionBar
           stationId="WRAPPER_STATION"
-          stationName="Kulit Dimsum"
+          stationName="Kulit Pangsit"
           targetName="Meja Cetak"
           scanMode={scanMode}
           readyCount={readyWrappers.length}
           pendingCount={pendingConfirmation.length}
-          inTransitCount={filteredWrapperLots.filter((w) => w.status === 'IN_TRANSIT_TO_ASSEMBLY').length}
+          inTransitCount={incomingTransitLots.length > 0 ? incomingTransitLots.length : filteredWrapperLots.filter((w) => w.status === 'IN_TRANSIT_TO_ASSEMBLY').length}
+          scanInSubtext={incomingTransitLots.length > 0 ? `${incomingTransitLots.length} kiriman masuk` : undefined}
         />
+
+        {incomingTransitLots.length > 0 && (
+          <div className="bg-[#FAF4E6] border border-[#F3E5C1] rounded-xl p-3 sm:p-3.5 space-y-2.5 shadow-2xs">
+            <div className="border-b border-[#F3E5C1] pb-2">
+              <span className="text-xs font-bold text-[#A8862E] block">
+                Ada {incomingTransitLots.length} kiriman bal kulit dalam pengiriman
+              </span>
+            </div>
+            <div className="space-y-1.5">
+              {incomingTransitLots.map((w) => (
+                <div
+                  key={w.lotCode}
+                  className="bg-white border border-[#F3E5C1] rounded-xl p-2.5 sm:p-3 flex items-center justify-between text-xs shadow-2xs"
+                >
+                  <div className="min-w-0 pr-2">
+                    <span className="font-mono font-bold text-[#2C3E50] text-sm block">
+                      {w.lotCode}
+                    </span>
+                    <span className="text-[11px] text-[#6B7B8D] block">
+                      {w.typeName || 'Kulit Pangsit'} · {w.balQty || 1} bal ({w.weightKg || 15} kg)
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      openCameraScanner({
+                        mode: 'UNIVERSAL',
+                        title: `Scan In ${w.lotCode}`
+                      })
+                    }
+                    className="h-8 px-3 rounded-xl bg-[#d4a340] hover:bg-[#c29334] active:bg-[#b08328] text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-95 shrink-0"
+                    title={`Scan in lot ${w.lotCode}`}
+                  >
+                    <ScanIcon className="w-3.5 h-3.5 text-white stroke-[2.2]" />
+                    <span>Scan in</span>
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* 2. Daftar Lot Kulit Dimsum */}
+      {/* 2. Daftar Lot Kulit Pangsit */}
       <Card className="border-[#EDE8DF] bg-white shadow-2xs">
         <CardContent className="p-4 space-y-3">
           <div className="flex items-center justify-between border-b border-[#EDE8DF] pb-2.5">
@@ -366,12 +411,12 @@ export default function WrapperStation() {
                         onPrint={() =>
                           setPrintModal({
                             lotCode: w.lotCode,
-                            title: 'LOT KULIT DIMSUM',
+                            title: 'LOT KULIT PANGSIT',
                             detail:
                               w.typeName ||
                               (sizeLabel.includes('7')
-                                ? 'Kulit Dimsum 7 cm (Vakum)'
-                                : 'Kulit Dimsum 9 cm (Mika)'),
+                                ? 'Kulit Pangsit 7 cm (Vakum)'
+                                : 'Kulit Pangsit 9 cm (Mika)'),
                             weight: `${balCount} Bal (${kgCount} kg)`,
                             createdAt: w.createdAt
                           })
@@ -390,7 +435,7 @@ export default function WrapperStation() {
       <BatchPrintSelectionBar
         selectedCount={wrapperSelect.selectedCount}
         canOpenQr={canOpenQr(userRole, currentUser)}
-        onPrint={() => openBatchPrintModal(wrapperSelect.selectedLots, 'LOT KULIT DIMSUM')}
+        onPrint={() => openBatchPrintModal(wrapperSelect.selectedLots, 'LOT KULIT PANGSIT')}
         onScanOut={() =>
           openCameraScanner({
             mode: 'UNIVERSAL',

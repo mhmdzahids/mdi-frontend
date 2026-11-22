@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { useProduction1Store } from '../store/production1Store'
 import { filterAndSortLots, groupLotsByDay } from '../utils/dateFilter'
-import { PrinterIcon } from './Icons'
+import { PrinterIcon, ScanIcon } from './Icons'
 import BatchPrintSelectionBar from './BatchPrintSelectionBar'
 import { useLotMultiSelect } from '../hooks/useLotMultiSelect'
 import { useLongPress } from '../hooks/useLongPress'
 import { Card, CardContent } from './ui/Card'
 import { Badge } from './ui/Badge'
+import { Button } from './ui/Button'
 import { groupStationLots, getLotSemanticBadge } from '../utils/scanMode'
 import { canOpenQr, canManualDispatch, canExportExcel } from '../utils/permissions'
 import { exportStationLotsExcel } from '../utils/excelExport'
@@ -131,6 +132,9 @@ export default function SauceStation() {
     'SAUCE_STATION',
     scanModeSettings
   )
+  const incomingTransitLots = filteredSauceLots.filter(
+    (s) => s.status === 'IN_TRANSIT_TO_SAUCE' || s.status === 'IN_TRANSIT_TO_SAUCE_STATION'
+  )
   const readySauces = onHandStock
 
   // Hanya lot yang siap di stasiun saos yang memenuhi syarat untuk di-scan out
@@ -188,8 +192,50 @@ export default function SauceStation() {
           scanMode={scanMode}
           readyCount={readySauces.length}
           pendingCount={pendingConfirmation.length}
-          inTransitCount={filteredSauceLots.filter((s) => s.status === 'IN_TRANSIT_TO_PACKING').length}
+          inTransitCount={incomingTransitLots.length > 0 ? incomingTransitLots.length : filteredSauceLots.filter((s) => s.status === 'IN_TRANSIT_TO_PACKING').length}
+          scanInSubtext={incomingTransitLots.length > 0 ? `${incomingTransitLots.length} kiriman masuk` : undefined}
         />
+
+        {incomingTransitLots.length > 0 && (
+          <div className="bg-[#FAF4E6] border border-[#F3E5C1] rounded-xl p-3 sm:p-3.5 space-y-2.5 shadow-2xs">
+            <div className="border-b border-[#F3E5C1] pb-2">
+              <span className="text-xs font-bold text-[#A8862E] block">
+                Ada {incomingTransitLots.length} kiriman saos dalam pengiriman
+              </span>
+            </div>
+            <div className="space-y-1.5">
+              {incomingTransitLots.map((s) => (
+                <div
+                  key={s.lotCode}
+                  className="bg-white border border-[#F3E5C1] rounded-xl p-2.5 sm:p-3 flex items-center justify-between text-xs shadow-2xs"
+                >
+                  <div className="min-w-0 pr-2">
+                    <span className="font-mono font-bold text-[#2C3E50] text-sm block">
+                      {s.lotCode}
+                    </span>
+                    <span className="text-[11px] text-[#6B7B8D] block">
+                      {s.typeName || 'Saos'} · {s.balQty || 1} bal
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      openCameraScanner({
+                        mode: 'UNIVERSAL',
+                        title: `Scan In ${s.lotCode}`
+                      })
+                    }
+                    className="h-8 px-3 rounded-xl bg-[#d4a340] hover:bg-[#c29334] active:bg-[#b08328] text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-95 shrink-0"
+                    title={`Scan in lot ${s.lotCode}`}
+                  >
+                    <ScanIcon className="w-3.5 h-3.5 text-white stroke-[2.2]" />
+                    <span>Scan in</span>
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 2. Daftar Lot Saos Dimsum */}

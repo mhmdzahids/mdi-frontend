@@ -158,7 +158,7 @@ Setiap entitas fisik dalam alur produksi memiliki standar penomoran QR barcode:
 | **Gudang / Penerima Barang** | Penerimaan bahan baku supplier (*Inbound*), pengeluaran bahan ke lantai produksi, dan kontrol stok freezer. | **Barang Masuk \| Riwayat \| Profil** *(Produksi 1)*<br/>**Produk \| Riwayat \| Profil** *(Produksi 2)* |
 | **Produksi Giling & Mix** | Menggiling daging ayam mentah, mencampur bumbu racik, dan menghasilkan wadah adonan kalis. | **Giling & Mix \| Riwayat \| Profil** |
 | **Produksi Bumbu** | Meracik formula bumbu rahasia Sparta ke dalam karung/kresek dan serah terima ke mixer. | **Bumbu \| Riwayat \| Profil** |
-| **Produksi Kulit Dimsum** | Memotong dan menyiapkan bal kulit 7 cm & 9 cm untuk meja cetak. | **Kulit \| Riwayat \| Profil** |
+| **Produksi Kulit Pangsit** | Memotong dan menyiapkan bal kulit 7 cm & 9 cm untuk meja cetak. | **Kulit \| Riwayat \| Profil** |
 | **Produksi Saos** | Menyiapkan bal saos botol dan sachet untuk meja packing. | **Saos \| Riwayat \| Profil** |
 | **Meja Cetak** | Menerima adonan & kulit, mencetak butir dimsum, dan menyusunnya di nampan stainless steel. | **Cetak \| Riwayat \| Profil** |
 | **Meja Packing** | Menyortir butir dimsum, mengemas mika 50 pcs / vakum 25 pcs, menempel barcode FG, dan kirim ke freezer. | **Packing \| Riwayat \| Profil** |

@@ -13,7 +13,7 @@ import { apiGet } from '../utils/api'
 const DIVISION_CONFIG = [
   { id: 'DAGING', name: 'Daging (Giling & Mix)', defaultUnit: 'Gilingan', unitLabel: 'gilingan', station: 'MEAT', stage: 'PROD_1', perm: 'meat:view' },
   { id: 'BUMBU', name: 'Bumbu Sparta', defaultUnit: 'Karung', unitLabel: 'karung', station: 'SEASONING', stage: 'PROD_1', perm: 'seasoning:view' },
-  { id: 'KULIT', name: 'Kulit Dimsum', defaultUnit: 'BAL', unitLabel: 'bal', station: 'WRAPPER', stage: 'PROD_1', perm: 'wrapper:view' },
+  { id: 'KULIT', name: 'Kulit Pangsit', defaultUnit: 'BAL', unitLabel: 'bal', station: 'WRAPPER', stage: 'PROD_1', perm: 'wrapper:view' },
   { id: 'SAOS', name: 'Saos Dimsum', defaultUnit: 'BAL', unitLabel: 'bal', station: 'SAUCE', stage: 'PROD_1', perm: 'sauce:view' },
   { id: 'CETAK', name: 'Meja Cetak', defaultUnit: 'PCS', unitLabel: 'pcs', prod2Tab: 'ASSEMBLY', stage: 'PROD_2', perm: 'prod2_assembly:view' },
   { id: 'PACKING', name: 'Meja Packing', defaultUnit: 'PACK', unitLabel: 'pack', prod2Tab: 'FREEZER', stage: 'PROD_2', perm: 'prod2_packing:view' }
@@ -240,6 +240,13 @@ export default function PpicDailySummaryView() {
   }
 
   const divisions = useMemo(() => dailyRecapData?.divisions || {}, [dailyRecapData?.divisions])
+  const bumbuUsage = useMemo(() => dailyRecapData?.bumbu_usage || {
+    total_initial: 0,
+    total_used: 0,
+    total_remaining: 0,
+    unit: 'KRESEK',
+    records: []
+  }, [dailyRecapData?.bumbu_usage])
   const primaryOfficer = useMemo(() => {
     const officers = DIVISION_CONFIG.map((d) => divisions[d.id]?.updated_by).filter(Boolean)
     if (officers.length === 0) return operatorName || operatorId || 'PPIC-AYU'
@@ -653,6 +660,23 @@ export default function PpicDailySummaryView() {
                         <div className={`text-lg font-semibold tabular-nums mt-0.5 ${(divData.void_count || 0) > 0 ? 'text-rose-600' : 'text-text-secondary'}`}>
                           {divData.void_count || 0} <span className="text-xs font-normal text-text-secondary">{divConfig.unitLabel || 'lot'}</span>
                         </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Sub-metrik Penggunaan Bumbu Sparta (Satuan: Kresek) */}
+                  {divConfig.id === 'DAGING' && (
+                    <div className="px-4 py-2.5 bg-blue-50/50 border-t border-blue-100/80 flex flex-wrap items-center justify-between gap-2 text-xs">
+                      <div className="flex items-center gap-1.5 text-blue-900 font-medium">
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
+                        <span>Penggunaan Bumbu:</span>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs tabular-nums text-slate-700 font-medium">
+                        <span>Stok: <strong className="text-slate-900">{bumbuUsage.total_initial || 0}</strong> krsk</span>
+                        <span className="text-slate-300">·</span>
+                        <span>Digunakan: <strong className="text-amber-700">{bumbuUsage.total_used || 0}</strong> krsk</span>
+                        <span className="text-slate-300">·</span>
+                        <span>Sisa: <strong className="text-emerald-700">{bumbuUsage.total_remaining || 0}</strong> krsk</span>
                       </div>
                     </div>
                   )}

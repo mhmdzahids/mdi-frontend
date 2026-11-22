@@ -32,7 +32,7 @@ import {
 } from './ui/CardComponents'
 
 const INBOUND_CATEGORIES = [
-  { id: 'KULIT', label: 'Kulit Dimsum' },
+  { id: 'KULIT', label: 'Kulit Pangsit' },
   { id: 'DAGING', label: 'Daging Mentah' },
   { id: 'BUMBU', label: 'Bumbu & Minyak' },
   { id: 'SAOS', label: 'Saos Kemasan' },
@@ -42,10 +42,12 @@ const INBOUND_CATEGORIES = [
 
 const DESTINATION_STATIONS = [
   { value: 'NONE', label: 'None (Tanpa Tujuan Khusus)' },
+  { value: 'MEAT_STATION', label: 'Divisi Daging (Giling & Mix)' },
+  { value: 'SEASONING_STATION', label: 'Divisi Bumbu (Racik Bumbu)' },
+  { value: 'WRAPPER_STATION', label: 'Divisi Kulit (Kulit Pangsit)' },
+  { value: 'SAUCE_STATION', label: 'Divisi Saos (Saos Dimsum)' },
   { value: 'ASSEMBLY_STATION', label: 'Meja Cetak (Produksi 2)' },
-  { value: 'MEAT_STATION', label: 'Giling & Mix (Produksi 1)' },
   { value: 'FINISHING_STATION', label: 'Meja Packing / Finishing' },
-  { value: 'SPICE_STATION', label: 'Racik Bumbu' },
   { value: 'UMUM', label: 'Keluar Umum / Pemakaian Lain' }
 ]
 
@@ -340,7 +342,7 @@ export default function SupplierInboundView() {
       if (isDetailed) {
         setItemName('')
       } else {
-        setItemName('Kulit Dimsum')
+        setItemName('Kulit Pangsit')
         if (!unit) setUnit('BAL')
       }
     } else if (newCat === 'SAOS') {
@@ -369,9 +371,9 @@ export default function SupplierInboundView() {
     setSkinVariant(variant)
     setFormError('')
     if (variant === '9CM') {
-      setItemName('Kulit Dimsum 9 cm (Mika)')
+      setItemName('Kulit Pangsit 9 cm (Mika)')
     } else {
-      setItemName('Kulit Dimsum 7 cm (Vakum)')
+      setItemName('Kulit Pangsit 7 cm (Vakum)')
     }
     if (!unit) setUnit('BAL')
   }
@@ -627,6 +629,7 @@ export default function SupplierInboundView() {
     try {
       await createSupplierOutbound({
         inbound_id: stockOutItem.inbound_id,
+        lot_qr_code: getInboundLotCode(stockOutItem),
         category: stockOutItem.category,
         item_name: stockOutItem.item_name,
         quantity: numQty,
@@ -2002,7 +2005,7 @@ export default function SupplierInboundView() {
                     setItemName(e.target.value)
                     setFormError('')
                   }}
-                  placeholder="Contoh: Kulit Dimsum 9 cm, Daging Paha Fillet, Plastik Vakum..."
+                  placeholder="Contoh: Kulit Pangsit 9 cm, Daging Paha Fillet, Plastik Vakum..."
                   className="w-full h-11 px-3.5 bg-white border border-[#EDE8DF] rounded-xl text-xs sm:text-sm font-semibold text-[#2C3E50] placeholder-[#6B7B8D] focus-visible:outline-none focus-visible:border-[#4685ac] focus-visible:ring-2 focus-visible:ring-[#4685ac]/20 shadow-2xs disabled:opacity-60"
                   required
                 />

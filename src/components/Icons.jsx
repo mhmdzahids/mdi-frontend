@@ -115,7 +115,7 @@ export function MixerIcon({ className = 'w-4 h-4', ...props }) {
   return <Blend className={className} {...props} />
 }
 
-// Stasiun Kulit (Lembaran kulit dimsum bertumpuk)
+// Stasiun Kulit (Lembaran kulit pangsit bertumpuk)
 export function WrapperIcon({ className = 'w-4 h-4', ...props }) {
   return <Layers className={className} {...props} />
 }

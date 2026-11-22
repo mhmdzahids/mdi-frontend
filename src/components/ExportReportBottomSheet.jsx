@@ -21,7 +21,7 @@ import { exportPpicCustomExcel } from '../utils/excelExport'
 
 const INBOUND_CATEGORIES = [
   { id: 'ALL', label: 'Semua Kategori' },
-  { id: 'KULIT', label: 'Kulit Dimsum' },
+  { id: 'KULIT', label: 'Kulit Pangsit' },
   { id: 'DAGING', label: 'Daging Mentah' },
   { id: 'BUMBU', label: 'Bumbu & Minyak' },
   { id: 'SAOS', label: 'Saos Kemasan' },

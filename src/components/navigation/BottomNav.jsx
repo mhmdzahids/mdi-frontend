@@ -1,5 +1,5 @@
 import { FileText, ShieldCheck, ShoppingBag } from 'lucide-react'
-import { motion } from 'motion/react'
+import { motion, useReducedMotion } from 'motion/react'
 import { useProduction1Store } from '../../store/production1Store'
 import { Avatar } from '../ui/Avatar'
 import { canAccess } from '../../utils/rbac'
@@ -28,6 +28,7 @@ const P1_STATION_DEFS = [
  * Ditentukan murni dari izin + role/divisi, tanpa sheet Stasiun.
  */
 export default function BottomNav() {
+  const shouldReduceMotion = useReducedMotion()
   const activeProductionStage = useProduction1Store((s) => s.activeProductionStage)
   const activeStation = useProduction1Store((s) => s.activeStation)
   const setStation = useProduction1Store((s) => s.setStation)
@@ -72,43 +73,46 @@ export default function BottomNav() {
     return (
       <nav
         aria-label="Navigasi Utama Bawah"
-        className="fixed bottom-0 left-0 right-0 max-w-md md:max-w-xl lg:max-w-2xl mx-auto bg-white border-t border-[#EDE8DF] rounded-t-2xl shadow-[0_-4px_16px_rgba(44,62,80,0.04)] z-40 flex items-center min-h-[64px] pb-[env(safe-area-inset-bottom)] select-none px-4 justify-center gap-12 sm:gap-20"
+        className="fixed bottom-0 left-0 right-0 max-w-md md:max-w-xl lg:max-w-2xl mx-auto bg-white border-t border-[#EDE8DF] rounded-t-2xl shadow-[0_-4px_16px_rgba(44,62,80,0.04)] z-40 flex items-center min-h-[64px] pb-[max(0.5rem,env(safe-area-inset-bottom,0px))] px-[max(0.75rem,env(safe-area-inset-left,0px))] pr-[max(0.75rem,env(safe-area-inset-right,0px))] select-none"
       >
-        {adminNavItems.map((tab) => {
-          const Icon = tab.icon
-          const isActive = tab.isActive
+        <ul role="list" className="flex items-center w-full justify-center gap-12 sm:gap-20 list-none p-0 m-0">
+          {adminNavItems.map((tab) => {
+            const Icon = tab.icon
+            const isActive = tab.isActive
 
-          return (
-            <motion.button
-              key={tab.key}
-              type="button"
-              whileTap={{ scale: 0.92 }}
-              onClick={tab.onClick}
-              aria-current={isActive ? 'page' : undefined}
-              className={`relative w-24 min-h-[48px] min-w-[48px] flex flex-col items-center justify-center transition-colors cursor-pointer focus-visible:outline-none py-1.5 px-0.5 ${
-                isActive ? 'text-[#3A6B80]' : 'text-[#556575] hover:text-[#2C3E50]'
-              }`}
-            >
-              {isActive && (
-                <motion.span
-                  layoutId="bottom-nav-active-indicator"
-                  className="absolute top-0 w-8 h-1 rounded-full bg-[#3A6B80]"
-                  transition={{ type: 'spring', stiffness: 500, damping: 35 }}
-                />
-              )}
-              {tab.isProfile ? (
-                <div className="flex items-center justify-center h-[24px]">
-                  <Avatar size="sm" active={isActive} />
-                </div>
-              ) : (
-                <Icon className="w-5 h-5 stroke-[2.2]" />
-              )}
-              <span className="text-[11px] font-semibold mt-1 tracking-tight leading-none">
-                {tab.label}
-              </span>
-            </motion.button>
-          )
-        })}
+            return (
+              <li key={tab.key} className="flex justify-center">
+                <motion.button
+                  type="button"
+                  whileTap={shouldReduceMotion ? undefined : { scale: 0.92 }}
+                  onClick={tab.onClick}
+                  aria-current={isActive ? 'page' : undefined}
+                  className={`relative w-24 min-h-[48px] min-w-[48px] flex flex-col items-center justify-center transition-colors cursor-pointer rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3A6B80] focus-visible:ring-offset-2 py-1.5 px-0.5 ${
+                    isActive ? 'text-[#3A6B80]' : 'text-[#556575] hover:text-[#2C3E50]'
+                  }`}
+                >
+                  {isActive && (
+                    <motion.span
+                      layoutId="bottom-nav-active-indicator"
+                      className="absolute top-0 w-8 h-1 rounded-full bg-[#3A6B80]"
+                      transition={shouldReduceMotion ? { duration: 0 } : { type: 'spring', stiffness: 500, damping: 35 }}
+                    />
+                  )}
+                  {tab.isProfile ? (
+                    <div className="flex items-center justify-center h-[24px]" aria-hidden="true">
+                      <Avatar size="sm" active={isActive} />
+                    </div>
+                  ) : (
+                    <Icon className="w-5 h-5 stroke-[2.2]" aria-hidden="true" />
+                  )}
+                  <span className="text-[11px] font-semibold mt-1 tracking-tight leading-none">
+                    {tab.label}
+                  </span>
+                </motion.button>
+              </li>
+            )
+          })}
+        </ul>
       </nav>
     )
   }
@@ -252,45 +256,48 @@ export default function BottomNav() {
       aria-label="Navigasi Utama Bawah"
       className={`fixed bottom-0 left-0 right-0 ${
         isPOSPage ? 'max-w-7xl' : 'max-w-md md:max-w-xl lg:max-w-2xl'
-      } mx-auto bg-white border-t border-[#EDE8DF] rounded-t-2xl shadow-[0_-4px_16px_rgba(44,62,80,0.04)] z-40 flex items-center min-h-[64px] pb-[env(safe-area-inset-bottom)] select-none px-2 justify-around`}
+      } mx-auto bg-white border-t border-[#EDE8DF] rounded-t-2xl shadow-[0_-4px_16px_rgba(44,62,80,0.04)] z-40 flex items-center min-h-[64px] pb-[max(0.5rem,env(safe-area-inset-bottom,0px))] px-[max(0.5rem,env(safe-area-inset-left,0px))] pr-[max(0.5rem,env(safe-area-inset-right,0px))] select-none`}
     >
-      {finalTabs.map((tab) => {
-        const Icon = tab.icon
-        const isActive = tab.isActive
+      <ul role="list" className="flex items-center w-full justify-around list-none p-0 m-0">
+        {finalTabs.map((tab) => {
+          const Icon = tab.icon
+          const isActive = tab.isActive
 
-        return (
-          <motion.button
-            key={tab.key}
-            type="button"
-            whileTap={{ scale: 0.92 }}
-            onClick={tab.onClick}
-            aria-current={isActive ? 'page' : undefined}
-            className={`relative flex-1 min-h-[48px] min-w-[48px] flex flex-col items-center justify-center transition-colors cursor-pointer focus-visible:outline-none py-1.5 px-0.5 ${
-              isActive ? 'text-[#3A6B80]' : 'text-[#556575] hover:text-[#2C3E50]'
-            }`}
-          >
-            {isActive && (
-              <motion.span
-                layoutId="bottom-nav-active-indicator"
-                className="absolute top-0 w-8 h-1 rounded-full bg-[#3A6B80]"
-                transition={{ type: 'spring', stiffness: 500, damping: 35 }}
-              />
-            )}
+          return (
+            <li key={tab.key} className="flex-1 flex justify-center min-w-0">
+              <motion.button
+                type="button"
+                whileTap={shouldReduceMotion ? undefined : { scale: 0.92 }}
+                onClick={tab.onClick}
+                aria-current={isActive ? 'page' : undefined}
+                className={`relative w-full max-w-[80px] min-h-[48px] min-w-[48px] flex flex-col items-center justify-center transition-colors cursor-pointer rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3A6B80] focus-visible:ring-offset-2 py-1.5 px-0.5 ${
+                  isActive ? 'text-[#3A6B80]' : 'text-[#556575] hover:text-[#2C3E50]'
+                }`}
+              >
+                {isActive && (
+                  <motion.span
+                    layoutId="bottom-nav-active-indicator"
+                    className="absolute top-0 w-8 h-1 rounded-full bg-[#3A6B80]"
+                    transition={shouldReduceMotion ? { duration: 0 } : { type: 'spring', stiffness: 500, damping: 35 }}
+                  />
+                )}
 
-            {tab.isProfile ? (
-              <div className="flex items-center justify-center h-[24px]">
-                <Avatar size="sm" active={isActive} />
-              </div>
-            ) : (
-              <Icon className="w-5 h-5 stroke-[2.2]" />
-            )}
+                {tab.isProfile ? (
+                  <div className="flex items-center justify-center h-[24px]" aria-hidden="true">
+                    <Avatar size="sm" active={isActive} />
+                  </div>
+                ) : (
+                  <Icon className="w-5 h-5 stroke-[2.2]" aria-hidden="true" />
+                )}
 
-            <span className="text-[11px] font-semibold mt-1 tracking-tight leading-none truncate max-w-full">
-              {tab.label}
-            </span>
-          </motion.button>
-        )
-      })}
+                <span className="text-[11px] font-semibold mt-1 tracking-tight leading-none truncate max-w-full">
+                  {tab.label}
+                </span>
+              </motion.button>
+            </li>
+          )
+        })}
+      </ul>
     </nav>
   )
 }

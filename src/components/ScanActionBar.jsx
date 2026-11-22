@@ -6,7 +6,7 @@ import ScanFeedbackBanner from './ScanFeedbackBanner'
  * Komponen Bersama ScanActionBar untuk 4 Halaman Karyawan MES:
  * - Giling & Mix (Daging & Adonan)
  * - Bumbu Sparta
- * - Kulit Dimsum
+ * - Kulit Pangsit
  * - Saos Dimsum
  * 
  * Karakteristik Visual & Perilaku:
@@ -30,17 +30,17 @@ export default function ScanActionBar({
   const openCameraScanner = useProduction1Store((s) => s.openCameraScanner)
 
   // Aturan tampil tombol:
-  // - Di Giling & Mix (MEAT_STATION): Scan In SELALU tampil di mode 1x maupun 2x (dipakai terima bumbu).
-  // - Di Bumbu, Kulit, dan Saos: Scan In disembunyikan di mode 1x (hanya Scan Out selebar layar). Di mode 2x keduanya tampil.
+  // - Di Giling & Mix (MEAT_STATION): Scan In SELALU tampil di mode 1x maupun 2x (dipakai terima bumbu & daging).
+  // - Di Bumbu, Kulit, dan Saos: Scan In tampil jika mode 2x ATAU ada kiriman barang masuk transit (inTransitCount > 0).
   const isMeatStation = stationId === 'MEAT_STATION'
-  const showScanIn = isMeatStation || scanMode === '2X'
+  const showScanIn = isMeatStation || scanMode === '2X' || inTransitCount > 0
   const isSingleButton = !showScanIn
 
   // Keterangan teks Scan In (Scan Out bersih tanpa badge)
   const resolvedScanInText = scanInSubtext !== undefined
     ? scanInSubtext
-    : (isMeatStation && inTransitCount > 0
-        ? `${inTransitCount} kiriman bumbu`
+    : (inTransitCount > 0
+        ? `${inTransitCount} kiriman masuk`
         : (scanMode === '2X' && pendingCount > 0
             ? `${pendingCount} perlu scan in`
             : null))

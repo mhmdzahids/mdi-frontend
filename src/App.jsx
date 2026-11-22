@@ -142,11 +142,15 @@ export default function App() {
   }, [authToken, fetchCurrentUserProfile])
 
   useEffect(() => {
+    if (!authToken) {
+      stopAutoSync()
+      return
+    }
     startAutoSync()
     return () => {
       stopAutoSync()
     }
-  }, [startAutoSync, stopAutoSync])
+  }, [authToken, startAutoSync, stopAutoSync])
 
   // Global listener untuk Scanner Barcode Fisik (Hardware Gun / Ring Scanner)
   const barcodeBufferRef = useRef('')

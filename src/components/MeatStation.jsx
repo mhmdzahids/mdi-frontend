@@ -151,6 +151,7 @@ export default function MeatStation() {
 
   const seasoningLots = useProduction1Store((s) => s.seasoningLots)
   const doughLots = useProduction1Store((s) => s.doughLots)
+  const meatLots = useProduction1Store((s) => s.meatLots)
 
   const recordMaterialUsage = useProduction1Store((s) => s.recordMaterialUsage)
   const scanInSeasoningBatch = useProduction1Store((s) => s.scanInSeasoningBatch)
@@ -162,6 +163,10 @@ export default function MeatStation() {
 
   const filteredDoughLots = filterAndSortLots(doughLots, 'TODAY', 'OPERATOR')
   const filteredSeasoningLots = filterAndSortLots(seasoningLots, 'TODAY', 'OPERATOR')
+  const filteredMeatLots = filterAndSortLots(meatLots, 'TODAY', 'OPERATOR')
+  const incomingMeatTransit = filteredMeatLots.filter(
+    (m) => m.status === 'IN_TRANSIT_TO_MEAT_MIXING' || m.status === 'IN_TRANSIT_TO_MEAT_STATION'
+  )
 
   // Pengelompokan Gilingan sesuai status proses
   const readyLots = filteredDoughLots.filter(
@@ -194,24 +199,26 @@ export default function MeatStation() {
     (b) => b.status !== 'CONSUMED' && (b.quantity === undefined || Number(b.quantity) > 0)
   )
 
-  // Perhitungan 3-Metrik Bumbu: Ada, Digunakan, Sisa
-  const totalBumbuAda = relevantBumbuLots.reduce(
+  // Perhitungan Metrik Bumbu (Satuan Karung & Rincian Kresek)
+  const totalBumbuAdaSacks = relevantBumbuLots.length
+  const totalBumbuAdaKresek = relevantBumbuLots.reduce(
     (sum, b) => sum + (Number(b.initialQuantity) || 20),
     0
   )
 
-  const deductedFromLots = relevantBumbuLots.reduce((sum, b) => {
+  const deductedKresekFromLots = relevantBumbuLots.reduce((sum, b) => {
     const initial = Number(b.initialQuantity) || 20
     const remaining = b.status === 'CONSUMED' ? 0 : (b.quantity !== undefined ? Number(b.quantity) : initial)
     return sum + Math.max(0, initial - remaining)
   }, 0)
 
   const doughGilinganCount = filteredDoughLots.length
-  const totalBumbuDigunakan = totalBumbuAda > 0
-    ? Math.min(totalBumbuAda, Math.max(deductedFromLots, doughGilinganCount))
+  const totalBumbuDigunakanKresek = totalBumbuAdaKresek > 0
+    ? Math.min(totalBumbuAdaKresek, Math.max(deductedKresekFromLots, doughGilinganCount))
     : 0
 
-  const totalBumbuSisa = Math.max(0, totalBumbuAda - totalBumbuDigunakan)
+  const totalBumbuSisaKresek = Math.max(0, totalBumbuAdaKresek - totalBumbuDigunakanKresek)
+  const totalBumbuSisaSacks = availableBumbuSacks.length
   const transitBumbu = filteredSeasoningLots.filter((b) => b.status === 'IN_TRANSIT_TO_MEAT_MIXING')
 
   // Adonan di Ruangan sesuai Mode Scan
@@ -289,9 +296,9 @@ export default function MeatStation() {
   // Buka Modal 3-Metrik Bumbu
   const handleOpenBumbuModal = (bumbuLot) => {
     setBumbuModalLot(bumbuLot)
-    const currentQ = Number(bumbuLot.quantity) || 20
+    const currentQ = (bumbuLot.unit === 'KARUNG' && Number(bumbuLot.quantity) === 1) ? 20 : (Number(bumbuLot.quantity) || 20)
     setBumbuQtySent(currentQ.toString())
-    setBumbuQtyUsed(Math.min(currentQ, gilinganInput).toString())
+    setBumbuQtyUsed('1')
     setBumbuRemainingAction('STORE_IN_ROOM')
     setBumbuNotes('')
   }
@@ -345,10 +352,10 @@ export default function MeatStation() {
         scanMode={scanMode}
         readyCount={readyDough.length}
         pendingCount={pendingDough.length}
-        inTransitCount={transitBumbu.length}
+        inTransitCount={transitBumbu.length + incomingMeatTransit.length}
         scanInSubtext={
-          activeMeatTab === 'BUMBU'
-            ? (transitBumbu.length > 0 ? `${transitBumbu.length} kiriman bumbu` : null)
+          (transitBumbu.length + incomingMeatTransit.length) > 0
+            ? `${transitBumbu.length + incomingMeatTransit.length} kiriman masuk`
             : (scanMode === '2X' && pendingDough.length > 0 ? `${pendingDough.length} perlu scan in` : null)
         }
       />
@@ -395,6 +402,52 @@ export default function MeatStation() {
       {/* =================================================================== */}
       {activeMeatTab === 'GILING' && (
         <div className="space-y-3.5">
+          {/* Banner Peringatan Jika Ada Daging Mentah Dalam Pengiriman */}
+          {incomingMeatTransit.length > 0 && (
+            <div className="bg-[#FAF4E6] border border-[#F3E5C1] rounded-xl p-3.5 space-y-3 shadow-2xs">
+              <div className="flex items-start justify-between gap-2 border-b border-[#F3E5C1] pb-2">
+                <div>
+                  <span className="text-xs font-bold text-[#A8862E] block">
+                    Ada {incomingMeatTransit.length} kiriman daging mentah dalam pengiriman
+                  </span>
+                </div>
+              </div>
+
+              {/* Daftar Daging yang Sedang Dalam Pengiriman */}
+              <div className="space-y-1.5">
+                {incomingMeatTransit.map((m) => (
+                  <div
+                    key={m.lotCode}
+                    className="bg-white border border-[#F3E5C1] rounded-xl p-3 flex items-center justify-between text-xs shadow-2xs"
+                  >
+                    <div className="min-w-0 pr-2">
+                      <span className="font-mono font-bold text-[#2C3E50] text-sm block">
+                        {m.lotCode}
+                      </span>
+                      <span className="text-[11px] text-[#6B7B8D] block">
+                        Daging Mentah · {m.weightKg || 15} kg
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        openCameraScanner({
+                          mode: 'UNIVERSAL',
+                          title: `Scan In ${m.lotCode}`
+                        })
+                      }
+                      className="h-8 px-3 rounded-xl bg-[#d4a340] hover:bg-[#c29334] active:bg-[#b08328] text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-95 shrink-0"
+                      title={`Scan in lot ${m.lotCode}`}
+                    >
+                      <ScanIcon className="w-3.5 h-3.5 text-white stroke-[2.2]" />
+                      <span>Scan in</span>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Card Daftar Adonan */}
           <Card className="border-[#EDE8DF] bg-white shadow-2xs">
             <CardContent className="p-4 space-y-3">
@@ -585,76 +638,71 @@ export default function MeatStation() {
         <div className="space-y-3.5">
           {/* Banner Peringatan Jika Ada Kiriman Masuk */}
           {transitBumbu.length > 0 && (
-            <div className="bg-[#FAF4E6] border border-[#F3E5C1] rounded-xl p-3.5 space-y-3 shadow-2xs">
-              <div className="flex items-start justify-between gap-2 border-b border-[#F3E5C1] pb-2">
-                <div>
-                  <span className="text-xs font-bold text-[#A8862E] block">
-                    Ada {transitBumbu.length} karung bumbu dalam pengiriman
-                  </span>
-                  <span className="text-[11px] text-[#6B7B8D] block mt-0.5">
-                    {isPIC
-                      ? 'Pindai barcode untuk verifikasi, atau gunakan terima langsung.'
-                      : 'Pindai barcode pada karung bumbu untuk menerima kiriman.'}
-                  </span>
-                </div>
-                <Badge variant="warning" size="sm">
-                  Perlu scan masuk
-                </Badge>
+            <div className="bg-[#FAF4E6] border border-[#F3E5C1] rounded-xl p-3 sm:p-3.5 space-y-2.5 shadow-2xs">
+              <div className="border-b border-[#F3E5C1] pb-2">
+                <span className="text-xs font-bold text-[#A8862E] block">
+                  Ada {transitBumbu.length} karung bumbu dalam pengiriman
+                </span>
               </div>
 
               {/* Daftar Karung Bumbu yang Sedang Dalam Pengiriman */}
               <div className="space-y-1.5">
-                {transitBumbu.map((b) => (
-                  <div
-                    key={b.lotCode}
-                    className="bg-white/90 border border-[#F3E5C1] rounded-xl p-2.5 flex items-center justify-between text-xs gap-2"
-                  >
-                    <div>
-                      <span className="tabular-nums font-bold text-[#2C3E50] block">{b.lotCode}</span>
-                      <span className="text-[11px] text-[#6B7B8D]">
-                        Karung bumbu racik · {b.quantity || 20} kresek
-                      </span>
-                    </div>
+                {transitBumbu.map((b) => {
+                  const qtyKresek = (b.unit === 'KARUNG' && Number(b.quantity) === 1) ? 20 : (Number(b.quantity) || 20)
+                  return (
+                    <div
+                      key={b.lotCode}
+                      className="bg-white border border-[#F3E5C1] rounded-xl p-2.5 sm:p-3 flex items-center justify-between text-xs gap-2 shadow-2xs"
+                    >
+                      <div className="min-w-0 pr-2">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono font-bold text-[#2C3E50] text-sm block">{b.lotCode}</span>
+                          <span className="px-1.5 py-0.5 bg-[#F3E5C1] text-[#A8862E] text-[10px] font-bold rounded">1 Karung</span>
+                        </div>
+                        <span className="text-[11px] text-[#6B7B8D] block">
+                          Isi: {qtyKresek} kresek bumbu racik
+                        </span>
+                      </div>
 
-                    <div className="flex items-center gap-1.5">
-                      {canOpenQr(userRole, currentUser) && (
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {canOpenQr(userRole, currentUser) && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setPrintModal({
+                                lotCode: b.lotCode,
+                                title: 'KARUNG BUMBU RACIK',
+                                detail: 'Kiriman Bumbu ke Gilingan',
+                                weight: '1 Karung (@ 20 kresek)',
+                                createdAt: b.createdAt
+                              })
+                            }
+                            className="w-8 h-8 rounded-lg border border-[#EDE8DF] bg-white hover:bg-[#EDE8DF] flex items-center justify-center text-[#2C3E50] cursor-pointer shadow-2xs active:scale-95 transition-all"
+                            title="Lihat QR"
+                            aria-label="Lihat QR"
+                          >
+                            <PrinterIcon className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+
                         <button
                           type="button"
                           onClick={() =>
-                            setPrintModal({
-                              lotCode: b.lotCode,
-                              title: 'KARUNG BUMBU RACIK',
-                              detail: 'Kiriman Bumbu ke Gilingan',
-                              weight: `${b.quantity || 20} kresek`,
-                              createdAt: b.createdAt
+                            openCameraScanner({
+                              mode: 'UNIVERSAL',
+                              title: `Scan In ${b.lotCode}`
                             })
                           }
-                          className="w-8 h-8 rounded-lg border border-[#EDE8DF] bg-white hover:bg-[#EDE8DF] flex items-center justify-center text-[#2C3E50] cursor-pointer shadow-2xs active:scale-95 transition-all"
-                          title="Lihat QR"
-                          aria-label="Lihat QR"
+                          className="h-8 px-3 rounded-xl bg-[#d4a340] hover:bg-[#c29334] active:bg-[#b08328] text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-95 shrink-0"
+                          title={`Scan in karung ${b.lotCode}`}
                         >
-                          <PrinterIcon className="w-3.5 h-3.5" />
+                          <ScanIcon className="w-3.5 h-3.5 text-white stroke-[2.2]" />
+                          <span>Scan in</span>
                         </button>
-                      )}
-
-                      {isPIC ? (
-                        <button
-                          type="button"
-                          disabled={isReceivingBumbu}
-                          onClick={() => handleReceiveSingleBumbu(b.lotCode)}
-                          className="h-8 px-2.5 text-xs text-[#4685ac] hover:text-[#3A6B80] underline cursor-pointer font-semibold disabled:opacity-50"
-                          title="Terima karung ini secara manual"
-                        >
-                          Terima
-                        </button>
-                      ) : (
-                        <Badge variant="warning" size="sm">
-                          Belum di-scan
-                        </Badge>
-                      )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
 
               {/* Tombol Aksi Penerimaan Bumbu:
@@ -686,9 +734,6 @@ export default function MeatStation() {
                 <span className="text-xs font-bold text-[#2C3E50] block">
                   Stok bumbu di ruangan
                 </span>
-                <span className="text-[11px] text-[#6B7B8D] block mt-0.5">
-                  Standar @ 20 kresek per karung
-                </span>
               </div>
 
               {/* Komponen Detail 3-Metrik Bumbu: Ada, Digunakan, Sisa */}
@@ -696,27 +741,29 @@ export default function MeatStation() {
                 <div className="bg-white border border-[#EDE8DF] rounded-xl p-2.5 shadow-2xs">
                   <span className="text-[11px] text-[#6B7B8D] block font-medium">Ada</span>
                   <span className="text-base sm:text-lg font-bold text-[#2C3E50] tabular-nums block my-0.5">
-                    {totalBumbuAda}
+                    {totalBumbuAdaSacks} <span className="text-xs font-semibold text-[#6B7B8D]">krg</span>
                   </span>
-                  <span className="text-[10px] text-[#6B7B8D] block font-sans">kresek</span>
+                  <span className="text-[10px] text-[#6B7B8D] block font-sans">{totalBumbuAdaKresek} kresek</span>
                 </div>
 
                 <div className="bg-white border border-[#EDE8DF] rounded-xl p-2.5 shadow-2xs">
                   <span className="text-[11px] text-[#A8862E] block font-medium">Digunakan</span>
                   <span className="text-base sm:text-lg font-bold text-[#A8862E] tabular-nums block my-0.5">
-                    {totalBumbuDigunakan}
+                    {totalBumbuDigunakanKresek} <span className="text-xs font-semibold text-[#A8862E]">krsk</span>
                   </span>
-                  <span className="text-[10px] text-[#6B7B8D] block font-sans">kresek</span>
+                  <span className="text-[10px] text-[#6B7B8D] block font-sans">
+                    {totalBumbuDigunakanKresek > 0 ? `${(totalBumbuDigunakanKresek / 20).toFixed(1)} krg` : '0 krg'}
+                  </span>
                 </div>
 
                 <div className="bg-white border border-[#EDE8DF] rounded-xl p-2.5 shadow-2xs">
-                  <span className={`text-[11px] block font-medium ${totalBumbuSisa > 0 ? 'text-[#2F7D5B]' : 'text-[#6B7B8D]'}`}>
+                  <span className={`text-[11px] block font-medium ${totalBumbuSisaKresek > 0 ? 'text-[#2F7D5B]' : 'text-[#6B7B8D]'}`}>
                     Sisa
                   </span>
-                  <span className={`text-base sm:text-lg font-bold tabular-nums block my-0.5 ${totalBumbuSisa > 0 ? 'text-[#2F7D5B]' : 'text-[#6B7B8D]'}`}>
-                    {totalBumbuSisa}
+                  <span className={`text-base sm:text-lg font-bold tabular-nums block my-0.5 ${totalBumbuSisaKresek > 0 ? 'text-[#2F7D5B]' : 'text-[#6B7B8D]'}`}>
+                    {totalBumbuSisaSacks} <span className="text-xs font-semibold">krg</span>
                   </span>
-                  <span className="text-[10px] text-[#6B7B8D] block font-sans">kresek</span>
+                  <span className="text-[10px] text-[#6B7B8D] block font-sans">{totalBumbuSisaKresek} kresek</span>
                 </div>
               </div>
 
@@ -724,9 +771,6 @@ export default function MeatStation() {
               {availableBumbuSacks.length === 0 ? (
                 <div className="py-4 px-3 text-center bg-[#F5F1EB] rounded-xl border border-[#EDE8DF] text-[#6B7B8D] text-xs space-y-2">
                   <p className="font-semibold text-[#2C3E50]">Belum ada bumbu aktif di ruangan.</p>
-                  <p className="text-[11px]">
-                    Scan barcode karung bumbu untuk menerima kiriman dari bumbu.
-                  </p>
                   {transitBumbu.length === 0 && (
                     <div className="pt-1">
                       <Button
@@ -758,18 +802,24 @@ export default function MeatStation() {
                   </div>
 
                   {availableBumbuSacks.map((bumbu) => {
-                    const currentQ = Number(bumbu.quantity) || 20
+                    const currentQ = (bumbu.unit === 'KARUNG' && Number(bumbu.quantity) === 1) ? 20 : (Number(bumbu.quantity) || 20)
+                    const isFull = currentQ >= 20
                     return (
                       <div
                         key={bumbu.lotCode}
                         className="bg-[#F5F1EB] border border-[#EDE8DF] rounded-xl p-3 flex items-center justify-between text-xs gap-2"
                       >
                         <div>
-                          <span className="tabular-nums font-bold text-[#2C3E50] block text-xs">
-                            {bumbu.lotCode}
-                          </span>
-                          <span className="text-[11px] text-[#6B7B8D]">
-                            Tersedia: <strong className="text-[#2C3E50] tabular-nums font-bold">{currentQ}</strong> kresek
+                          <div className="flex items-center gap-2">
+                            <span className="tabular-nums font-bold text-[#2C3E50] block text-xs">
+                              {bumbu.lotCode}
+                            </span>
+                            <Badge variant={isFull ? 'success' : 'warning'} size="sm">
+                              {isFull ? '1 Karung Utuh' : 'Terpakai Sebagian'}
+                            </Badge>
+                          </div>
+                          <span className="text-[11px] text-[#6B7B8D] mt-0.5 block">
+                            Tersedia: <strong className="text-[#2C3E50] tabular-nums font-bold">{currentQ}</strong> / 20 kresek
                           </span>
                         </div>
 
@@ -777,7 +827,7 @@ export default function MeatStation() {
                           type="button"
                           variant="secondary"
                           size="sm"
-                          onClick={() => handleOpenBumbuModal(bumbu)}
+                          onClick={() => handleOpenBumbuModal({ ...bumbu, quantity: currentQ })}
                         >
                           Gunakan
                         </Button>
@@ -796,21 +846,21 @@ export default function MeatStation() {
         isOpen={Boolean(bumbuModalLot)}
         onClose={() => setBumbuModalLot(null)}
         title="Catat pemakaian bumbu"
-        subtitle={bumbuModalLot ? `${bumbuModalLot.lotCode} · Bumbu racik` : ''}
+        subtitle={bumbuModalLot ? `${bumbuModalLot.lotCode} · 1 Karung Sak (@ 20 kresek)` : ''}
         size="sm"
       >
         {bumbuModalLot && (
           <div className="space-y-4">
-            {/* Ringkasan Ringkas 1 Baris: Tersedia & Sisa */}
+            {/* Ringkasan Ringkas 1 Baris: Tersedia di Karung & Sisa */}
             <div className="grid grid-cols-2 gap-2 text-center text-xs">
               <div className="bg-[#F5F1EB] border border-[#EDE8DF] rounded-xl p-3">
-                <span className="text-[11px] text-[#6B7B8D] font-medium block">Tersedia</span>
+                <span className="text-[11px] text-[#6B7B8D] font-medium block">Tersedia di Karung</span>
                 <span className="font-bold text-[#2C3E50] text-xl tabular-nums block my-0.5">{bumbuQtySent}</span>
                 <span className="text-[10px] text-[#6B7B8D] block">kresek</span>
               </div>
 
               <div className="bg-[#F5F1EB] border border-[#EDE8DF] rounded-xl p-3">
-                <span className="text-[11px] text-[#6B7B8D] font-medium block">Sisa</span>
+                <span className="text-[11px] text-[#6B7B8D] font-medium block">Sisa di Karung</span>
                 <span className="font-bold text-[#2C3E50] text-xl tabular-nums block my-0.5">
                   {Math.max(0, (Number(bumbuQtySent) || 0) - (Number(bumbuQtyUsed) || 0))}
                 </span>
@@ -822,10 +872,10 @@ export default function MeatStation() {
             <div className="space-y-1.5">
               <div className="flex items-center justify-between text-xs">
                 <label className="font-bold text-[#2C3E50]">
-                  Jumlah digunakan (kresek)
+                  Jumlah kresek digunakan
                 </label>
                 <span className="text-[11px] text-[#6B7B8D] tabular-nums">
-                  Maks {bumbuQtySent}
+                  Maks {bumbuQtySent} kresek
                 </span>
               </div>
 
@@ -870,6 +920,9 @@ export default function MeatStation() {
                   <PlusIcon className="w-5 h-5" />
                 </button>
               </div>
+              <p className="text-[11px] text-[#6B7B8D] mt-1">
+                1 gilingan adonan membutuhkan 1 kresek bumbu Sparta. Sisa kresek tetap tersimpan di dalam karung ini.
+              </p>
             </div>
 
             {/* Kolom Catatan */}

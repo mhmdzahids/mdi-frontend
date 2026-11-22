@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { playSuccessBeep, playErrorBeep } from '../utils/soundFx.js'
-import { apiFetch, apiGet, apiPut, apiDelete, apiUpload } from '../utils/api.js'
+import { apiFetch, apiGet, apiPut, apiDelete, apiUpload, setApiAuthToken } from '../utils/api.js'
 
 let autoSyncInterval = null
 let lastTransitBumbuCount = 0
@@ -215,7 +215,7 @@ export const useProduction1Store = create(
       // 3. STATE ADONAN KALIS (Hasil 1 Daging 15 kg + 1 Plastik Sparta di Mixer)
       doughLots: [],
 
-      // 4. STATE KULIT DIMSUM (7 cm Vakum / 9 cm Mika, 1 Bal = 15 kg)
+      // 4. STATE KULIT PANGSIT (7 cm Vakum / 9 cm Mika, 1 Bal = 15 kg)
       wrapperLots: [],
 
       // 5. STATE SAOS DIMSUM (Reguler 50 Pouch / Mini 200 Plastik per Bal)
@@ -242,14 +242,14 @@ export const useProduction1Store = create(
         {
           id: 'FG_MIKA',
           name: 'Dimsum Mika',
-          description: 'Dimsum kukus isi 50 pcs kemasan mika menggunakan kulit 9 cm.',
+          description: 'Dimsum kukus isi 50 pcs kemasan mika menggunakan kulit pangsit 9 cm.',
           spec: '50 Pcs / Mika',
           isDisplayActive: true
         },
         {
           id: 'FG_VAKUM',
           name: 'Dimsum Vakum',
-          description: 'Dimsum beku isi 25 pcs kemasan vakum menggunakan kulit 7 cm.',
+          description: 'Dimsum beku isi 25 pcs kemasan vakum menggunakan kulit pangsit 7 cm.',
           spec: '25 Pcs / Pack',
           isDisplayActive: true
         }
@@ -636,7 +636,7 @@ export const useProduction1Store = create(
               weight = '15.00 kg'
             } else if (item.lotCode?.startsWith('KL-')) {
               const is7cm = item.type === 'KULIT_7CM' || item.type === 'VAKUM_7CM' || item.type === 'VAKUM_10CM'
-              detail = item.typeName || (is7cm ? 'Kulit Dimsum 7 cm (Vakum)' : 'Kulit Dimsum 9 cm (Mika)')
+              detail = item.typeName || (is7cm ? 'Kulit Pangsit 7 cm (Vakum)' : 'Kulit Pangsit 9 cm (Mika)')
               weight = `${item.balQty || 1} Bal (${item.weightKg || (item.balQty || 1) * 15} kg)`
             } else if (item.lotCode?.startsWith('SS-')) {
               const isMini = item.type === 'MINI'
@@ -1529,7 +1529,7 @@ export const useProduction1Store = create(
 
         const is7cm = type === 'KULIT_7CM' || type === 'VAKUM_7CM' || type === 'VAKUM_10CM'
         const cleanType = is7cm ? 'KULIT_7CM' : 'KULIT_9CM'
-        const typeName = is7cm ? 'Kulit Dimsum 7 cm (Vakum)' : 'Kulit Dimsum 9 cm (Mika)'
+        const typeName = is7cm ? 'Kulit Pangsit 7 cm (Vakum)' : 'Kulit Pangsit 9 cm (Mika)'
         const count = Math.max(1, parseInt(balQty, 10) || 1)
         const isExternal = sourceType === 'EXTERNAL'
         const cleanSupplier = supplierName.trim() || (isExternal ? 'Supplier Luar' : '')
@@ -1577,7 +1577,7 @@ export const useProduction1Store = create(
         }
 
         const createdLotsAsc = [...newLots]
-        const modalTitle = isExternal ? 'LOT KULIT SUPPLIER LUAR (PPIC)' : 'LOT KULIT DIMSUM'
+        const modalTitle = isExternal ? 'LOT KULIT SUPPLIER LUAR (PPIC)' : 'LOT KULIT PANGSIT'
         const modalDetail = isExternal ? `${typeName} · ${cleanSupplier}` : typeName
 
         set({
@@ -3061,9 +3061,14 @@ export const useProduction1Store = create(
       // BACKGROUND AUTO-SYNC & INITIAL DATA FETCH ENGINE
       // =========================================================================
       startAutoSync: () => {
+        if (!get().authToken) return
         if (autoSyncInterval) return
         get().fetchInitialData(true)
         autoSyncInterval = setInterval(() => {
+          if (!get().authToken) {
+            get().stopAutoSync()
+            return
+          }
           get().fetchInitialData(true)
         }, 3000)
       },
@@ -3076,6 +3081,7 @@ export const useProduction1Store = create(
       },
 
       fetchInitialData: async (isSilent = false) => {
+        if (!get().authToken) return
         if (!isSilent) {
           set({ isSyncing: true })
         }
@@ -3180,12 +3186,16 @@ export const useProduction1Store = create(
                 .map((l) => {
                   const parts = l.lot_qr_code.split('-')
                   const idx = parseInt(parts[parts.length - 1] || '1', 10)
+                  const rawQty = Number(l.quantity) || 0
+                  // 1 karung standar = 20 kresek. Jika nilai DB adalah 1 (karung), normalisasi ke 20 kresek
+                  const qtyKresek = (l.unit === 'KARUNG' && rawQty === 1) ? 20 : rawQty
                   return {
                     lotCode: l.lot_qr_code,
                     planId: l.plan_id || state.activePlanId,
                     sackNumber: idx,
-                    quantity: Number(l.quantity) || 0,
-                    unit: l.unit || 'PORSI',
+                    quantity: qtyKresek,
+                    initialQuantity: 20,
+                    unit: 'KARUNG',
                     status: l.current_status,
                     stationId: l.current_station,
                     createdDate: formatBackendLotDate(l.lot_qr_code, l.created_at),
@@ -3253,7 +3263,7 @@ export const useProduction1Store = create(
                   const cleanType = l.lot_type === 'KULIT_7CM' || l.lot_type === 'KULIT_9CM'
                     ? l.lot_type
                     : (existing?.type || 'KULIT_9CM')
-                  const typeName = existing?.typeName || (cleanType === 'KULIT_7CM' ? 'Kulit Dimsum 7 cm (Vakum)' : 'Kulit Dimsum 9 cm (Mika)')
+                  const typeName = existing?.typeName || (cleanType === 'KULIT_7CM' ? 'Kulit Pangsit 7 cm (Vakum)' : 'Kulit Pangsit 9 cm (Mika)')
 
                   return {
                     lotCode: l.lot_qr_code,
@@ -3416,6 +3426,8 @@ export const useProduction1Store = create(
           if (prod2Tab === 'PACKING') prod2Tab = 'FREEZER'
           if (prod2Tab === 'SALES') prod2Tab = 'PRODUCTS'
 
+          setApiAuthToken(data.access_token)
+
           if (data.user.is_superadmin) {
             set({
               authToken: data.access_token,
@@ -3550,6 +3562,8 @@ export const useProduction1Store = create(
           if (prod2Tab === 'PACKING') prod2Tab = 'FREEZER'
           if (prod2Tab === 'SALES') prod2Tab = 'PRODUCTS'
 
+          setApiAuthToken(data.access_token)
+
           if (data.user.is_superadmin) {
             set({
               authToken: data.access_token,
@@ -3613,6 +3627,8 @@ export const useProduction1Store = create(
       },
 
       logout: () => {
+        get().stopAutoSync()
+        setApiAuthToken(null)
         set({
           authToken: null,
           currentUser: null,
@@ -4299,6 +4315,9 @@ export const useProduction1Store = create(
         custodyLogs: state.custodyLogs,
         targetGilingan: state.targetGilingan,
         dailyPlan: state.dailyPlan,
+        planStatus: state.planStatus,
+        planVersion: state.planVersion,
+        activePlanId: state.activePlanId,
         operatorId: state.operatorId,
         operatorName: state.operatorName,
         userRole: state.userRole,

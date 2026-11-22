@@ -101,6 +101,7 @@ export default function ProductionPlanView() {
   // State auto-save debounce
   const [isDraftSaving, setIsDraftSaving] = useState(false)
   const autoSaveTimerRef = useRef(null)
+  const isDirtyRef = useRef(false)
   const triggerRef = useRef(null)
 
   // State untuk Segmen Cetak Ulang
@@ -177,6 +178,7 @@ export default function ProductionPlanView() {
   if (planSyncKey !== prevPlanSyncKey) {
     setPrevPlanSyncKey(planSyncKey)
     setForm(getInitialForm(dailyPlan))
+    isDirtyRef.current = false
   }
 
   // Hitung metrik rencana produksi
@@ -213,9 +215,9 @@ export default function ProductionPlanView() {
   // Jika sudah DITERBITKAN, input rencana terkunci secara permanen (hanya bisa tambah batch)
   const isInputDisabled = !isAuthorized || isPublished
 
-  // Trigger Debounced Auto-Save jika status masih DRAFT
+  // Trigger Debounced Auto-Save jika status masih DRAFT dan telah dimodifikasi oleh user
   useEffect(() => {
-    if (isPublished || !isAuthorized) return
+    if (isPublished || !isAuthorized || !isDirtyRef.current) return
 
     if (autoSaveTimerRef.current) {
       clearTimeout(autoSaveTimerRef.current)
@@ -238,6 +240,7 @@ export default function ProductionPlanView() {
           saosMika: form.saosMika,
           saosVakum: form.saosVakum
         })
+        isDirtyRef.current = false
         setValidationError('')
       } catch (err) {
         setValidationError(err.message || 'Gagal menyimpan draft.')
@@ -255,6 +258,7 @@ export default function ProductionPlanView() {
   const handleChange = (field, val) => {
     if (isInputDisabled) return
     const clean = val.replace(/[^0-9]/g, '')
+    isDirtyRef.current = true
     setValidationError('')
     setForm((prev) => ({ ...prev, [field]: clean }))
   }
@@ -262,6 +266,7 @@ export default function ProductionPlanView() {
   // Handler stepper + / - untuk layar sentuh
   const handleStep = (field, delta) => {
     if (isInputDisabled) return
+    isDirtyRef.current = true
     setValidationError('')
     setForm((prev) => {
       const current = parseInt(prev[field], 10) || 0
@@ -430,7 +435,7 @@ export default function ProductionPlanView() {
       if (res?.lots && res.lots.length > 0) {
         const printList = res.lots.map((l) => ({
           lotCode: l.lot_qr_code,
-          title: l.lot_type?.startsWith('KULIT') ? 'BAL KULIT DIMSUM' : l.lot_type === 'BUMBU' ? 'KARUNG BUMBU SPARTA' : l.lot_type?.startsWith('SAOS') ? 'BAL SAOS' : 'WADAH ADONAN',
+          title: l.lot_type?.startsWith('KULIT') ? 'BAL KULIT PANGSIT' : l.lot_type === 'BUMBU' ? 'KARUNG BUMBU SPARTA' : l.lot_type?.startsWith('SAOS') ? 'BAL SAOS' : 'WADAH ADONAN',
           detail: `${l.lot_type} - ${l.quantity} ${l.unit}`,
           weight: `${l.quantity} ${l.unit}`
         }))

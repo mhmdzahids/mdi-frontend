@@ -8,7 +8,7 @@ import { useLockBodyScroll } from '../utils/useLockBodyScroll'
 const STATION_LIST = [
   { id: 'MEAT_STATION', label: 'Daging / Giling' },
   { id: 'SEASONING_STATION', label: 'Bumbu Racik' },
-  { id: 'WRAPPER_STATION', label: 'Kulit Dimsum' },
+  { id: 'WRAPPER_STATION', label: 'Kulit Pangsit' },
   { id: 'SAUCE_STATION', label: 'Saos Dimsum' },
   { id: 'ASSEMBLY_STATION', label: 'Meja Cetak' },
   { id: 'FINISHING_STATION', label: 'Meja Packing' }

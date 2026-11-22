@@ -168,7 +168,7 @@ const adversarialInboundList = [
     inbound_id: 1,
     inbound_date: '2026-10-25',
     category: 'KULIT & TEPUNG',
-    item_name: 'Kulit Dimsum 9cm <Special> & Grade "A"',
+    item_name: 'Kulit Pangsit 9cm <Special> & Grade "A"',
     quantity: 50.5,
     unit: 'BAL',
     supplier_name: 'CV "Sumber & Rezeki" <Pusat>',
@@ -198,7 +198,7 @@ exportSupplierInboundExcel({
 });
 
 assert(lastExport.fileName === 'Barang_Masuk_Supplier_2026-10-01_sd_2026-10-31.xls', `Inbound filename sanitized: ${lastExport.fileName}`);
-assert(lastExport.xml.includes('Kulit Dimsum 9cm &lt;Special&gt; &amp; Grade &quot;A&quot;'), 'Item name special chars escaped');
+assert(lastExport.xml.includes('Kulit Pangsit 9cm &lt;Special&gt; &amp; Grade &quot;A&quot;'), 'Item name special chars escaped');
 assert(lastExport.xml.includes('CV &quot;Sumber &amp; Rezeki&quot; &lt;Pusat&gt;'), 'Supplier name special chars escaped');
 assert(lastExport.xml.includes('SJ/2026/10/&lt;001&gt;&amp;EXP'), 'Document no special chars escaped');
 assert(lastExport.xml.includes('Suhu &lt; 4°C &amp; segel utuh'), 'Notes special chars escaped');
