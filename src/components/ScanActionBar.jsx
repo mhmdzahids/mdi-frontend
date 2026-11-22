@@ -30,9 +30,9 @@ export default function ScanActionBar({
   const openCameraScanner = useProduction1Store((s) => s.openCameraScanner)
 
   // Aturan tampil tombol:
-  // - Di Giling & Mix (MEAT_STATION) & Bumbu Sparta (SEASONING_STATION): Scan In SELALU tampil berdampingan dengan Scan Out.
-  // - Di Kulit dan Saos: Scan In tampil jika mode 2x ATAU ada kiriman barang masuk transit (inTransitCount > 0).
-  const isDualScanStation = stationId === 'MEAT_STATION' || stationId === 'SEASONING_STATION'
+  // - Di Giling & Mix (MEAT_STATION), Bumbu Sparta (SEASONING_STATION), & Kulit Pangsit (WRAPPER_STATION): Scan In SELALU tampil berdampingan dengan Scan Out.
+  // - Di Saos: Scan In tampil jika mode 2x ATAU ada kiriman barang masuk transit (inTransitCount > 0).
+  const isDualScanStation = stationId === 'MEAT_STATION' || stationId === 'SEASONING_STATION' || stationId === 'WRAPPER_STATION'
   const showScanIn = isDualScanStation || scanMode === '2X' || inTransitCount > 0
   const isSingleButton = !showScanIn
 

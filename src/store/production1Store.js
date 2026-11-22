@@ -3263,10 +3263,18 @@ export const useProduction1Store = create(
                 }))
 
               const wrapperLots = dbLots
-                .filter((l) => l.lot_type === 'KULIT' || l.lot_type?.startsWith('KULIT'))
+                .filter(
+                  (l) =>
+                    l.lot_type === 'KULIT' ||
+                    l.lot_type?.startsWith('KULIT') ||
+                    (l.lot_qr_code && l.lot_qr_code.startsWith('OUT-KL-')) ||
+                    (l.current_status && l.current_status.includes('WRAPPER')) ||
+                    l.current_station === 'WRAPPER_STATION'
+                )
                 .map((l) => {
                   const qty = Number(l.quantity) || 1
-                  const unit = l.unit || 'BAL'
+                  const isOutLot = Boolean(l.lot_qr_code && l.lot_qr_code.startsWith('OUT-'))
+                  const unit = l.unit || (isOutLot ? 'KG' : 'BAL')
                   const balCount = unit === 'BAL' ? qty : Number((qty / 15).toFixed(2))
                   const weightKg = unit === 'BAL' ? Number((qty * 15).toFixed(2)) : qty
                   const existing = state.wrapperLots.find((w) => w.lotCode === l.lot_qr_code)
@@ -3278,8 +3286,13 @@ export const useProduction1Store = create(
                   return {
                     lotCode: l.lot_qr_code,
                     type: cleanType,
-                    typeName: typeName,
-                    balQty: balCount,
+                    typeName: isOutLot ? (l.item_name || 'Bahan Baku Kulit') : typeName,
+                    itemName: l.item_name || (isOutLot ? 'Bahan Baku Kulit' : typeName),
+                    isRawMaterial: isOutLot,
+                    balQty: isOutLot ? qty : balCount,
+                    quantity: qty,
+                    initialQuantity: qty,
+                    unit: unit,
                     weightKg: weightKg,
                     status: l.current_status,
                     stationId: l.current_station,
