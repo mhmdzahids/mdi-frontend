@@ -17,6 +17,11 @@
   --color-text-primary: #2C3E50;
   --color-text-secondary: #556575;
 
+  /* Semantic Aliases for Active Chips / Switch Segments */
+  --color-chip-active-bg: #4685ac;
+  --color-chip-active-fg: #FFFFFF;
+  --color-chip-active-border: #4685ac;
+
   --font-display: 'Poppins', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
   --font-heading: 'Fredoka', sans-serif;
   --font-body: 'Poppins', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
@@ -57,6 +62,9 @@
     --primary-accent: #4685ac;
     --primary-accent-hover: #3A6B80;
     --primary-accent-subtle: #EAF2F7;
+    --chip-active-bg: var(--primary-accent);
+    --chip-active-fg: #FFFFFF;
+    --chip-active-border: var(--primary-accent);
 
     /* Hero Card & Action Button Shared Height Token */
     --size-hero-card: 96px;

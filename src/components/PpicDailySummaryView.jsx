@@ -6,9 +6,15 @@ import { Button } from './ui/Button'
 import { Input } from './ui/Input'
 import { exportPpicRecapExcel } from '../utils/excelExport'
 import { SummaryCardSkeleton, DivisionCardSkeleton } from './ui/Skeleton'
-import { SquarePen, Lock, ChevronRight, RefreshCw, Info } from 'lucide-react'
+import { SquarePen, Lock, ChevronRight, RefreshCw, Info, Download } from 'lucide-react'
 import { canAccess } from '../utils/rbac'
 import { apiGet } from '../utils/api'
+
+const SEGMENTS = [
+  { id: 'stasiun', label: 'Stasiun' },
+  { id: 'bahan', label: 'Bahan Baku' },
+  { id: 'stok', label: 'Stok' }
+]
 
 const DIVISION_CONFIG = [
   { id: 'DAGING', name: 'Daging (Giling & Mix)', defaultUnit: 'Gilingan', unitLabel: 'gilingan', station: 'MEAT', stage: 'PROD_1', perm: 'meat:view' },
@@ -245,13 +251,6 @@ export default function PpicDailySummaryView() {
   }
 
   const divisions = useMemo(() => dailyRecapData?.divisions || {}, [dailyRecapData?.divisions])
-  const bumbuUsage = useMemo(() => dailyRecapData?.bumbu_usage || {
-    total_initial: 0,
-    total_used: 0,
-    total_remaining: 0,
-    unit: 'KRESEK',
-    records: []
-  }, [dailyRecapData?.bumbu_usage])
   const rawMaterialUsage = useMemo(() => dailyRecapData?.raw_material_usage || {
     total_records: 0,
     records: [],
@@ -284,6 +283,70 @@ export default function PpicDailySummaryView() {
       setRawMaterialTab('ALL')
     }
   }, [divisionFilterTabs, rawMaterialTab])
+
+  // State Switch 3 Segmen Tampilan dengan sinkronisasi URL query (?tampil=stasiun|bahan|stok)
+  const getInitialSegment = () => {
+    if (typeof window === 'undefined') return 'stasiun'
+    const p = new URLSearchParams(window.location.search).get('tampil')
+    if (p === 'bahan' || p === 'stok' || p === 'stasiun') return p
+    return 'stasiun'
+  }
+
+  const [activeSegment, setActiveSegment] = useState(getInitialSegment)
+  const switchRowRef = useRef(null)
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const p = new URLSearchParams(window.location.search).get('tampil')
+      if (p === 'bahan' || p === 'stok' || p === 'stasiun') {
+        setActiveSegment(p)
+      } else {
+        setActiveSegment('stasiun')
+      }
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [])
+
+  const handleSelectSegment = useCallback((segId) => {
+    if (segId === activeSegment) return
+    setActiveSegment(segId)
+    const url = new URL(window.location.href)
+    if (segId === 'stasiun') {
+      url.searchParams.delete('tampil')
+    } else {
+      url.searchParams.set('tampil', segId)
+    }
+    window.history.pushState({}, '', url.toString())
+
+    if (switchRowRef.current) {
+      const rect = switchRowRef.current.getBoundingClientRect()
+      if (rect.top < 0) {
+        switchRowRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }
+    }
+  }, [activeSegment])
+
+  const handleSegmentKeyDown = (e, index) => {
+    let nextIndex
+    if (e.key === 'ArrowRight') {
+      nextIndex = (index + 1) % SEGMENTS.length
+    } else if (e.key === 'ArrowLeft') {
+      nextIndex = (index - 1 + SEGMENTS.length) % SEGMENTS.length
+    } else if (e.key === 'Home') {
+      nextIndex = 0
+    } else if (e.key === 'End') {
+      nextIndex = SEGMENTS.length - 1
+    } else {
+      return
+    }
+    e.preventDefault()
+    handleSelectSegment(SEGMENTS[nextIndex].id)
+    const tabElements = switchRowRef.current?.querySelectorAll('[role="tab"]')
+    if (tabElements && tabElements[nextIndex]) {
+      tabElements[nextIndex].focus()
+    }
+  }
   const primaryOfficer = useMemo(() => {
     const officers = DIVISION_CONFIG.map((d) => divisions[d.id]?.updated_by).filter(Boolean)
     if (officers.length === 0) return operatorName || operatorId || 'PPIC-AYU'
@@ -506,417 +569,274 @@ export default function PpicDailySummaryView() {
             </div>
           </div>
 
-          {/* Tombol Unduh Excel */}
-          <div className="flex items-center justify-end">
+          {/* Baris Switch Tampilan & Tombol Unduh Excel */}
+          <div ref={switchRowRef} className="flex items-center gap-2 sm:gap-3">
+            {/* Switch 3 Segmen (role="tablist") */}
+            <div
+              role="tablist"
+              aria-label="Pilihan Tampilan Rekap PPIC"
+              className="flex-1 min-w-0 p-1 bg-bg-cream rounded-2xl border border-bg-cream-dark flex items-center min-h-11"
+            >
+              {SEGMENTS.map((seg, idx) => {
+                const isActive = activeSegment === seg.id
+                return (
+                  <button
+                    key={seg.id}
+                    role="tab"
+                    id={`tab-${seg.id}`}
+                    aria-selected={isActive}
+                    aria-controls={`panel-${seg.id}`}
+                    tabIndex={isActive ? 0 : -1}
+                    onClick={() => handleSelectSegment(seg.id)}
+                    onKeyDown={(e) => handleSegmentKeyDown(e, idx)}
+                    className={`flex-1 min-h-9 px-2 sm:px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all duration-150 cursor-pointer flex items-center justify-center text-center leading-tight focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-blue-dark ${
+                      isActive
+                        ? 'bg-chip-active-bg text-chip-active-fg shadow-xs'
+                        : 'text-text-secondary hover:text-text-primary'
+                    }`}
+                  >
+                    <span className="truncate">{seg.label}</span>
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* Tombol Unduh Excel (Ikon saja di mobile < 640px agar muat di 360px tanpa memotong label) */}
             <button
               type="button"
               onClick={handleExportExcel}
-              className="min-h-[44px] px-4 py-2 bg-white hover:bg-[#F5F1EB] active:bg-[#EDE8DF] border border-[#3A6B80] text-[#3A6B80] text-xs sm:text-sm font-bold rounded-2xl flex items-center justify-center gap-2 cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3A6B80] shadow-2xs"
+              aria-label="Unduh Excel"
+              title="Unduh Excel"
+              className="min-h-11 px-3 sm:px-4 py-2 bg-white hover:bg-bg-cream active:bg-bg-cream-dark border border-brand-blue-dark text-brand-blue-dark text-xs sm:text-sm font-bold rounded-2xl flex items-center justify-center gap-1.5 shrink-0 cursor-pointer transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-blue-dark shadow-2xs"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              <span>Unduh Excel</span>
+              <Download className="w-4 h-4 shrink-0" />
+              <span className="hidden sm:inline">Unduh Excel</span>
             </button>
           </div>
 
-          {/* Daftar Kartu Rekap Per Divisi */}
-          <div className="space-y-4">
-            {DIVISION_CONFIG.map((divConfig) => {
-              const divData = divisions[divConfig.id] || {}
-              const hasDiffOfficer = Boolean(divData.updated_by && divData.updated_by !== primaryOfficer)
-              const canOpenStation = canAccess(divConfig.perm, currentUser, isDevMode)
+          {/* Area Konten Panel Sesuai Switch (Transisi Fade 150ms) */}
+          <div className="transition-opacity duration-150 ease-out">
+            {/* Panel 1: Stasiun */}
+            {activeSegment === 'stasiun' && (
+              <div
+                role="tabpanel"
+                id="panel-stasiun"
+                aria-labelledby="tab-stasiun"
+                className="space-y-4"
+              >
+                {DIVISION_CONFIG.map((divConfig) => {
+                  const divData = divisions[divConfig.id] || {}
+                  const hasDiffOfficer = Boolean(divData.updated_by && divData.updated_by !== primaryOfficer)
+                  const canOpenStation = canAccess(divConfig.perm, currentUser, isDevMode)
 
-              const stationMaterials = (divData.raw_materials && divData.raw_materials.length > 0)
-                ? divData.raw_materials
-                : (divConfig.id === 'DAGING' && bumbuUsage.records && bumbuUsage.records.length > 0
-                  ? bumbuUsage.records.map((b) => ({
-                      id: b.id || b.lot_qr_code,
-                      item_name: b.item_name || 'Bumbu Sparta',
-                      quantity_used: b.quantity_used,
-                      initial_quantity: b.initial_quantity,
-                      unit: b.unit || 'kresek'
-                    }))
-                  : [])
-              const hasStationUsage = stationMaterials.length > 0 && stationMaterials.some((m) => Number(m.quantity_used) > 0)
-
-              const handleStationClick = () => {
-                if (!canOpenStation) return
-                if (divConfig.stage === 'PROD_2') {
-                  navigateToRoute({ stage: 'PROD_2', prod2Tab: divConfig.prod2Tab })
-                } else {
-                  navigateToRoute({ stage: 'PROD_1', station: divConfig.station })
-                }
-              }
-
-              return (
-                <div
-                  key={divConfig.id}
-                  className="border border-bg-cream-dark shadow-2xs rounded-2xl bg-white overflow-hidden"
-                >
-                  {/* Header Card Satu Baris */}
-                  <div
-                    onClick={canOpenStation ? handleStationClick : undefined}
-                    className={`px-4 py-2 flex items-center justify-between border-b border-bg-cream-dark select-none ${
-                      canOpenStation
-                        ? 'cursor-pointer hover:bg-[#F5F1EB]/60 active:bg-[#EDE8DF]/70 transition-colors'
-                        : ''
-                    }`}
-                    title={canOpenStation ? `Buka Halaman ${divConfig.name}` : undefined}
-                  >
-                    <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-                      <h2 className="text-sm font-bold text-text-primary tracking-tight">
-                        {divConfig.name}
-                      </h2>
-                      {canOpenStation && (
-                        <ChevronRight className="w-4 h-4 text-[#3A6B80] shrink-0" />
-                      )}
-                      {hasDiffOfficer && (
-                        <span className="text-[11px] font-medium text-text-secondary bg-bg-cream px-2 py-0.5 rounded-md border border-bg-cream-dark">
-                          Petugas: {divData.updated_by}
-                        </span>
-                      )}
-                      {divData.reject_count > 0 && (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-brand-red/10 text-brand-red border border-brand-red/20">
-                          {divData.reject_count} Reject
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-1 shrink-0">
-                      {isHistorical ? (
-                        <div
-                          className="min-w-[44px] min-h-[44px] flex items-center justify-center text-text-secondary/60"
-                          title="Arsip Riwayat"
-                          aria-label="Arsip Riwayat"
-                        >
-                          <Lock className="w-5 h-5" />
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            openEditModal(divConfig)
-                          }}
-                          aria-label="Catat Reject & Kendala"
-                          title="Catat Reject & Kendala"
-                          className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-brand-blue hover:text-brand-blue-dark hover:bg-bg-cream active:scale-95 transition-all cursor-pointer focus-visible:outline-none"
-                        >
-                          <SquarePen className="w-5 h-5" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Metrik Satu Baris */}
-                  {divConfig.id === 'CETAK' ? (
-                    <div className="grid grid-cols-2 gap-3 px-4 py-3">
-                      <div>
-                        <div className="text-xs uppercase text-text-secondary leading-tight truncate">
-                          Adonan Diterima
-                        </div>
-                        <div className="text-lg font-semibold text-text-primary tabular-nums mt-0.5">
-                          {divData.adonan_received_count || 0} <span className="text-xs font-normal text-text-secondary">gilingan</span>
-                        </div>
-                      </div>
-
-                      <div>
-                        <div className="text-xs uppercase text-text-secondary leading-tight truncate">
-                          Kulit Diterima
-                        </div>
-                        <div className="text-lg font-semibold text-text-primary tabular-nums mt-0.5">
-                          {divData.kulit_received_count || 0} <span className="text-xs font-normal text-text-secondary">bal</span>
-                        </div>
-                      </div>
-                    </div>
-                  ) : divConfig.id === 'PACKING' ? (
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 px-4 py-3">
-                      <div>
-                        <div className="text-xs uppercase text-text-secondary leading-tight truncate">
-                          Target Rencana
-                        </div>
-                        <div className="text-lg font-semibold text-text-primary tabular-nums mt-0.5">
-                          {divData.target_pack || 0} <span className="text-xs font-normal text-text-secondary">pack</span>
-                        </div>
-                      </div>
-
-                      <div>
-                        <div className="text-xs uppercase text-text-secondary leading-tight truncate">
-                          Sudah Scan (Packing)
-                        </div>
-                        <div className="text-lg font-semibold text-brand-blue-dark tabular-nums mt-0.5">
-                          {divData.scan_pack || 0} <span className="text-xs font-normal text-text-secondary">pack</span>
-                        </div>
-                      </div>
-
-                      <div>
-                        <div className="text-xs uppercase text-text-secondary leading-tight truncate">
-                          Audit Penjualan
-                        </div>
-                        <div className="text-lg font-semibold text-brand-green-dark tabular-nums mt-0.5">
-                          {divData.sales_pack || 0} <span className="text-xs font-normal text-text-secondary">pack</span>
-                        </div>
-                      </div>
-
-                      <div>
-                        <div className="text-xs uppercase text-text-secondary leading-tight truncate">
-                          Selisih (Audit)
-                        </div>
-                        <div className={`text-lg font-semibold tabular-nums mt-0.5 ${
-                          (divData.selisih_sales || 0) === 0
-                            ? 'text-brand-green-dark'
-                            : (divData.selisih_sales || 0) > 0
-                            ? 'text-amber-600'
-                            : 'text-rose-600'
-                        }`}>
-                          {(divData.selisih_sales || 0) > 0 ? `+${divData.selisih_sales}` : (divData.selisih_sales || 0)} <span className="text-xs font-normal text-text-secondary">pack</span>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 px-4 py-3">
-                      <div>
-                        <div className="text-xs uppercase text-text-secondary leading-tight truncate">
-                          Target
-                        </div>
-                        <div className="text-lg font-semibold text-text-primary tabular-nums mt-0.5">
-                          {divData.total_lots || 0} <span className="text-xs font-normal text-text-secondary">{divConfig.unitLabel || 'lot'}</span>
-                        </div>
-                      </div>
-
-                      <div>
-                        <div className="text-xs uppercase text-text-secondary leading-tight truncate">
-                          Realisasi Selesai
-                        </div>
-                        <div className="text-lg font-semibold text-brand-green-dark tabular-nums mt-0.5">
-                          {divData.completed_count || 0} <span className="text-xs font-normal text-text-secondary">{divConfig.unitLabel || 'lot'}</span>
-                        </div>
-                      </div>
-
-                      <div>
-                        <div className="text-xs uppercase text-text-secondary leading-tight truncate">
-                          Sisa Belum Dibuat
-                        </div>
-                        <div className={`text-lg font-semibold tabular-nums mt-0.5 ${(divData.printed_count || 0) > 0 ? 'text-amber-600' : 'text-text-secondary'}`}>
-                          {divData.printed_count || 0} <span className="text-xs font-normal text-text-secondary">{divConfig.unitLabel || 'lot'}</span>
-                        </div>
-                      </div>
-
-                      <div>
-                        <div className="text-xs uppercase text-text-secondary leading-tight truncate">
-                          Batal (VOID)
-                        </div>
-                        <div className={`text-lg font-semibold tabular-nums mt-0.5 ${(divData.void_count || 0) > 0 ? 'text-rose-600' : 'text-text-secondary'}`}>
-                          {divData.void_count || 0} <span className="text-xs font-normal text-text-secondary">{divConfig.unitLabel || 'lot'}</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Sub-metrik Pemakaian Bahan Baku Divisi */}
-                  {hasStationUsage && (
-                    <div
-                      onClick={() => {
-                        const el = document.getElementById('section-pemakaian-bahan')
-                        if (el) {
-                          el.scrollIntoView({ behavior: 'smooth' })
-                          setRawMaterialTab(divConfig.id)
-                        }
-                      }}
-                      className="px-4 py-3 border-t border-[#EDE8DF] cursor-pointer hover:bg-[#F5F1EB]/40 transition-colors space-y-2.5"
-                      title="Ketuk untuk melihat detail pemakaian bahan baku"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="text-xs uppercase text-text-secondary leading-tight">
-                          Bahan Baku
-                        </div>
-                        {stationMaterials.length > 2 && (
-                          <span className="text-[11px] font-medium text-[#4685ac] hover:underline">
-                            +{stationMaterials.length - 2} lainnya
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="space-y-2">
-                        {stationMaterials.slice(0, 2).map((m, idx) => {
-                          const used = Number(m.quantity_used) || 0
-                          const total = Number(m.initial_quantity) || 0
-                          const unit = (m.unit || 'kg').toLowerCase()
-                          const isExceeded = total > 0 && used > total
-                          const pct = total > 0 ? Math.min(100, Math.max(0, (used / total) * 100)) : 0
-
-                          return (
-                            <div key={m.id || idx} className="space-y-1">
-                              <div className="flex items-center justify-between text-xs">
-                                <span className="font-medium text-[#2C3E50] truncate mr-2">
-                                  {m.item_name}
-                                </span>
-                                <span className="tabular-nums shrink-0 text-xs">
-                                  <strong className={isExceeded ? 'text-rose-600 font-bold' : 'font-bold text-[#2C3E50]'}>
-                                    {used}
-                                  </strong>
-                                  <span className="text-[#6B7B8D]"> / {total} {unit}</span>
-                                </span>
-                              </div>
-                              <div className="w-full h-1 bg-[#F5F1EB] rounded-full overflow-hidden">
-                                <div
-                                  className={`h-full rounded-full transition-all duration-300 ${isExceeded ? 'bg-rose-500' : 'bg-[#4685ac]'}`}
-                                  style={{ width: `${pct}%` }}
-                                />
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Alert & Tombol Rekonsiliasi Sisa QR */}
-                  {(divData.printed_count || 0) > 0 && !isHistorical && (
-                    <div className="px-4 py-2.5 bg-amber-50/80 border-t border-amber-200/70 flex items-center justify-between gap-3 text-xs">
-                      <div className="flex items-center gap-2 text-amber-900 font-medium min-w-0">
-                        <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
-                        <span className="truncate">
-                          Ada <strong>{divData.printed_count} QR</strong> belum dikerjakan (sisa stiker fisik)
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => openVoidModal(divConfig, divData)}
-                        className="shrink-0 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white font-semibold rounded-lg text-xs shadow-2xs transition-all cursor-pointer flex items-center gap-1.5"
-                      >
-                        <span>Batalkan Sisa QR</span>
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Catatan Reject & Operasional (Hanya jika ada isinya) */}
-                  {(divData.reject_notes || divData.operational_notes) && (
-                    <div className="px-4 pb-3 pt-2.5 border-t border-bg-cream-dark space-y-1 text-xs">
-                      {divData.reject_notes && (
-                        <div className="leading-relaxed">
-                          <span className="font-semibold text-text-primary">Alasan Reject: </span>
-                          <span className="text-text-secondary">{divData.reject_notes}</span>
-                        </div>
-                      )}
-                      {divData.operational_notes && (
-                        <div className="leading-relaxed">
-                          <span className="font-semibold text-text-primary">Catatan Operasional: </span>
-                          <span className="text-text-secondary">{divData.operational_notes}</span>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-
-          {/* REKAPITULASI PEMAKAIAN BAHAN BAKU (REAL-TIME) */}
-          <div id="section-pemakaian-bahan" className="bg-white border border-[#EDE8DF] rounded-2xl p-4 sm:p-5 shadow-xs space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-[#EDE8DF] pb-2.5">
-              <h3 className="text-sm font-bold text-[#2C3E50]">
-                Pemakaian Bahan Baku
-              </h3>
-
-              {/* Filter Tab Divisi Bahan Baku (Chips tanpa angka) */}
-              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-                {divisionFilterTabs.map((tab) => (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => setRawMaterialTab(tab.id)}
-                    className={`min-h-[32px] px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                      rawMaterialTab === tab.id
-                        ? 'bg-white text-[#2C3E50] shadow-2xs border border-[#EDE8DF]'
-                        : 'text-[#6B7B8D] hover:text-[#2C3E50] bg-[#F5F1EB]'
-                    }`}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Daftar Kartu Ringkas Bahan Baku */}
-            {filteredMaterialRecords.length === 0 ? (
-              <div className="py-6 text-center text-xs text-[#6B7B8D]">
-                Belum ada pemakaian
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {filteredMaterialRecords.map((item) => {
-                  const unit = (item.unit || 'kg').toLowerCase()
-                  const initial = Number(item.initial_quantity) || 0
-                  const used = Number(item.quantity_used) || 0
-                  const remaining = (item.remaining_quantity !== undefined && item.remaining_quantity !== null)
-                    ? Number(item.remaining_quantity)
-                    : Math.max(0, initial - used)
-                  const hasRemaining = !isNaN(remaining)
-                  const pct = initial > 0 ? Math.min(100, Math.max(0, (used / initial) * 100)) : 0
+                  const handleStationClick = () => {
+                    if (!canOpenStation) return
+                    if (divConfig.stage === 'PROD_2') {
+                      navigateToRoute({ stage: 'PROD_2', prod2Tab: divConfig.prod2Tab })
+                    } else {
+                      navigateToRoute({ stage: 'PROD_1', station: divConfig.station })
+                    }
+                  }
 
                   return (
                     <div
-                      key={item.id}
-                      className="border border-[#EDE8DF] rounded-xl bg-white p-3.5 space-y-2.5 shadow-2xs"
+                      key={divConfig.id}
+                      className="border border-bg-cream-dark shadow-2xs rounded-2xl bg-white overflow-hidden"
                     >
-                      {/* Header: Nama Bahan + Chip Divisi */}
-                      <div className="flex items-center justify-between gap-2 min-w-0">
-                        <div className="font-bold text-xs sm:text-sm text-[#2C3E50] truncate">
-                          {item.item_name}
+                      {/* Header Card Satu Baris */}
+                      <div
+                        onClick={canOpenStation ? handleStationClick : undefined}
+                        className={`px-4 py-2 flex items-center justify-between border-b border-bg-cream-dark select-none ${
+                          canOpenStation
+                            ? 'cursor-pointer hover:bg-bg-cream/60 active:bg-bg-cream-dark/70 transition-colors'
+                            : ''
+                        }`}
+                        title={canOpenStation ? `Buka Halaman ${divConfig.name}` : undefined}
+                      >
+                        <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                          <h2 className="text-sm font-bold text-text-primary tracking-tight">
+                            {divConfig.name}
+                          </h2>
+                          {canOpenStation && (
+                            <ChevronRight className="w-4 h-4 text-brand-blue-dark shrink-0" />
+                          )}
+                          {hasDiffOfficer && (
+                            <span className="text-[11px] font-medium text-text-secondary bg-bg-cream px-2 py-0.5 rounded-md border border-bg-cream-dark">
+                              Petugas: {divData.updated_by}
+                            </span>
+                          )}
+                          {divData.reject_count > 0 && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-brand-red/10 text-brand-red border border-brand-red/20">
+                              {divData.reject_count} Reject
+                            </span>
+                          )}
                         </div>
-                        <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-[#F5F1EB] text-[#6B7B8D] border border-[#EDE8DF] shrink-0">
-                          {item.division_label || item.division}
-                        </span>
+
+                        <div className="flex items-center gap-1 shrink-0">
+                          {isHistorical ? (
+                            <div
+                              className="min-w-11 min-h-11 flex items-center justify-center text-text-secondary/60"
+                              title="Arsip Riwayat"
+                              aria-label="Arsip Riwayat"
+                            >
+                              <Lock className="w-5 h-5" />
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                openEditModal(divConfig)
+                              }}
+                              aria-label="Catat Reject & Kendala"
+                              title="Catat Reject & Kendala"
+                              className="min-w-11 min-h-11 flex items-center justify-center rounded-xl text-brand-blue hover:text-brand-blue-dark hover:bg-bg-cream active:scale-95 transition-all cursor-pointer focus-visible:outline-none"
+                            >
+                              <SquarePen className="w-5 h-5" />
+                            </button>
+                          )}
+                        </div>
                       </div>
 
-                      {/* Kode Lot Muted Satu Baris, Tidak Patah */}
-                      <div className="text-[11px] font-mono text-[#6B7B8D] truncate leading-tight">
-                        {item.lot_qr_code}
-                      </div>
-
-                      <div className="border-t border-[#EDE8DF]" />
-
-                      {/* Grid 3 Kolom ala Kartu Stasiun: DIKIRIM | DIPAKAI | SISA */}
-                      <div className={`grid ${hasRemaining ? 'grid-cols-3' : 'grid-cols-2'} gap-2`}>
-                        <div>
-                          <div className="text-[10px] sm:text-xs uppercase text-text-secondary leading-tight truncate">
-                            Dikirim
-                          </div>
-                          <div className="text-sm sm:text-base font-semibold text-text-primary tabular-nums mt-0.5">
-                            {initial} <span className="text-[10px] sm:text-xs font-normal text-text-secondary">{unit}</span>
-                          </div>
-                        </div>
-
-                        <div>
-                          <div className="text-[10px] sm:text-xs uppercase text-text-secondary leading-tight truncate">
-                            Dipakai
-                          </div>
-                          <div className="text-sm sm:text-base font-semibold text-text-primary tabular-nums mt-0.5">
-                            {used} <span className="text-[10px] sm:text-xs font-normal text-text-secondary">{unit}</span>
-                          </div>
-                        </div>
-
-                        {hasRemaining && (
+                      {/* Metrik Satu Baris */}
+                      {divConfig.id === 'CETAK' ? (
+                        <div className="grid grid-cols-2 gap-3 px-4 py-3">
                           <div>
-                            <div className="text-[10px] sm:text-xs uppercase text-text-secondary leading-tight truncate">
-                              Sisa
+                            <div className="text-xs uppercase text-text-secondary leading-tight truncate">
+                              Adonan Diterima
                             </div>
-                            <div className="text-sm sm:text-base font-semibold text-text-primary tabular-nums mt-0.5">
-                              {remaining} <span className="text-[10px] sm:text-xs font-normal text-text-secondary">{unit}</span>
+                            <div className="text-lg font-semibold text-text-primary tabular-nums mt-0.5">
+                              {divData.adonan_received_count || 0} <span className="text-xs font-normal text-text-secondary">gilingan</span>
                             </div>
                           </div>
-                        )}
-                      </div>
 
-                      {/* Progress bar tipis */}
-                      {initial > 0 && (
-                        <div className="w-full h-1 bg-[#F5F1EB] rounded-full overflow-hidden mt-1">
-                          <div
-                            className="h-full rounded-full bg-[#4685ac] transition-all duration-300"
-                            style={{ width: `${pct}%` }}
-                          />
+                          <div>
+                            <div className="text-xs uppercase text-text-secondary leading-tight truncate">
+                              Kulit Diterima
+                            </div>
+                            <div className="text-lg font-semibold text-text-primary tabular-nums mt-0.5">
+                              {divData.kulit_received_count || 0} <span className="text-xs font-normal text-text-secondary">bal</span>
+                            </div>
+                          </div>
+                        </div>
+                      ) : divConfig.id === 'PACKING' ? (
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 px-4 py-3">
+                          <div>
+                            <div className="text-xs uppercase text-text-secondary leading-tight truncate">
+                              Target Rencana
+                            </div>
+                            <div className="text-lg font-semibold text-text-primary tabular-nums mt-0.5">
+                              {divData.target_pack || 0} <span className="text-xs font-normal text-text-secondary">pack</span>
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="text-xs uppercase text-text-secondary leading-tight truncate">
+                              Sudah Scan (Packing)
+                            </div>
+                            <div className="text-lg font-semibold text-brand-blue-dark tabular-nums mt-0.5">
+                              {divData.scan_pack || 0} <span className="text-xs font-normal text-text-secondary">pack</span>
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="text-xs uppercase text-text-secondary leading-tight truncate">
+                              Audit Penjualan
+                            </div>
+                            <div className="text-lg font-semibold text-brand-green-dark tabular-nums mt-0.5">
+                              {divData.sales_pack || 0} <span className="text-xs font-normal text-text-secondary">pack</span>
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="text-xs uppercase text-text-secondary leading-tight truncate">
+                              Selisih (Audit)
+                            </div>
+                            <div className={`text-lg font-semibold tabular-nums mt-0.5 ${
+                              (divData.selisih_sales || 0) === 0
+                                ? 'text-brand-green-dark'
+                                : (divData.selisih_sales || 0) > 0
+                                ? 'text-amber-600'
+                                : 'text-brand-red'
+                            }`}>
+                              {(divData.selisih_sales || 0) > 0 ? `+${divData.selisih_sales}` : (divData.selisih_sales || 0)} <span className="text-xs font-normal text-text-secondary">pack</span>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 px-4 py-3">
+                          <div>
+                            <div className="text-xs uppercase text-text-secondary leading-tight truncate">
+                              Target
+                            </div>
+                            <div className="text-lg font-semibold text-text-primary tabular-nums mt-0.5">
+                              {divData.total_lots || 0} <span className="text-xs font-normal text-text-secondary">{divConfig.unitLabel || 'lot'}</span>
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="text-xs uppercase text-text-secondary leading-tight truncate">
+                              Realisasi Selesai
+                            </div>
+                            <div className="text-lg font-semibold text-brand-green-dark tabular-nums mt-0.5">
+                              {divData.completed_count || 0} <span className="text-xs font-normal text-text-secondary">{divConfig.unitLabel || 'lot'}</span>
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="text-xs uppercase text-text-secondary leading-tight truncate">
+                              Sisa Belum Dibuat
+                            </div>
+                            <div className={`text-lg font-semibold tabular-nums mt-0.5 ${(divData.printed_count || 0) > 0 ? 'text-amber-600' : 'text-text-secondary'}`}>
+                              {divData.printed_count || 0} <span className="text-xs font-normal text-text-secondary">{divConfig.unitLabel || 'lot'}</span>
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="text-xs uppercase text-text-secondary leading-tight truncate">
+                              Batal (VOID)
+                            </div>
+                            <div className={`text-lg font-semibold tabular-nums mt-0.5 ${(divData.void_count || 0) > 0 ? 'text-brand-red' : 'text-text-secondary'}`}>
+                              {divData.void_count || 0} <span className="text-xs font-normal text-text-secondary">{divConfig.unitLabel || 'lot'}</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Alert & Tombol Rekonsiliasi Sisa QR */}
+                      {(divData.printed_count || 0) > 0 && !isHistorical && (
+                        <div className="px-4 py-2.5 bg-brand-gold/10 border-t border-brand-gold/30 flex items-center justify-between gap-3 text-xs">
+                          <div className="flex items-center gap-2 text-brand-gold-dark font-medium min-w-0">
+                            <span className="w-2 h-2 rounded-full bg-brand-gold-dark animate-pulse shrink-0" />
+                            <span className="truncate">
+                              Ada <strong>{divData.printed_count} QR</strong> belum dikerjakan (sisa stiker fisik)
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => openVoidModal(divConfig, divData)}
+                            className="shrink-0 px-3 py-1.5 bg-brand-gold-dark hover:opacity-90 active:scale-95 text-white font-semibold rounded-lg text-xs shadow-2xs transition-all cursor-pointer flex items-center gap-1.5"
+                          >
+                            <span>Batalkan Sisa QR</span>
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Catatan Reject & Operasional (Hanya jika ada isinya) */}
+                      {(divData.reject_notes || divData.operational_notes) && (
+                        <div className="px-4 pb-3 pt-2.5 border-t border-bg-cream-dark space-y-1 text-xs">
+                          {divData.reject_notes && (
+                            <div className="leading-relaxed">
+                              <span className="font-semibold text-text-primary">Alasan Reject: </span>
+                              <span className="text-text-secondary">{divData.reject_notes}</span>
+                            </div>
+                          )}
+                          {divData.operational_notes && (
+                            <div className="leading-relaxed">
+                              <span className="font-semibold text-text-primary">Catatan Operasional: </span>
+                              <span className="text-text-secondary">{divData.operational_notes}</span>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -924,108 +844,230 @@ export default function PpicDailySummaryView() {
                 })}
               </div>
             )}
-          </div>
 
-          {/* REKAP SALDO STOK BARANG JADI (GUDANG SALES & FREEZER) */}
-          <div className="bg-white border border-[#EDE8DF] rounded-2xl p-4 sm:p-5 shadow-xs space-y-3">
-            <div className="flex items-center justify-between border-b border-[#EDE8DF] pb-2.5">
-              <div className="flex items-center gap-1.5">
-                <h3 className="text-sm font-bold text-[#2C3E50]">
-                  Stok Barang Jadi
-                </h3>
-                <span
-                  title="Stok aktif hasil verifikasi ACC Sales vs antrean di Packing"
-                  className="cursor-help text-[#6B7B8D] hover:text-[#2C3E50] transition-colors"
-                >
-                  <Info className="w-3.5 h-3.5" />
-                </span>
-              </div>
+            {/* Panel 2: Bahan Baku */}
+            {activeSegment === 'bahan' && (
+              <div
+                role="tabpanel"
+                id="panel-bahan"
+                aria-labelledby="tab-bahan"
+                className="space-y-3"
+              >
+                {/* Filter Tab Divisi Bahan Baku (Chips tanpa angka) */}
+                <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+                  {divisionFilterTabs.map((tab) => {
+                    const isTabActive = rawMaterialTab === tab.id
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setRawMaterialTab(tab.id)}
+                        className={`min-h-8 px-3 py-1 rounded-xl text-xs font-semibold shrink-0 cursor-pointer transition active:scale-95 border ${
+                          isTabActive
+                            ? 'bg-chip-active-bg text-chip-active-fg border-chip-active-border shadow-xs'
+                            : 'bg-white text-text-secondary border-bg-cream-dark hover:bg-bg-cream hover:text-text-primary'
+                        }`}
+                      >
+                        {tab.label}
+                      </button>
+                    )
+                  })}
+                </div>
 
-              <div className="flex items-center gap-2">
-                {lastInventoryUpdated && (
-                  <span className="text-[11px] text-[#6B7B8D]">
-                    Diperbarui {lastInventoryUpdated}
-                  </span>
-                )}
-                <button
-                  type="button"
-                  onClick={fetchInventory}
-                  disabled={loadingInventory}
-                  className="p-1.5 rounded-lg text-[#6B7B8D] hover:text-[#3A6B80] hover:bg-[#F5F1EB] active:scale-95 cursor-pointer transition-all focus-visible:outline-none"
-                  title="Perbarui stok"
-                  aria-label="Perbarui stok"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${loadingInventory ? 'animate-spin text-[#3A6B80]' : ''}`} />
-                </button>
-              </div>
-            </div>
+                {/* Daftar Kartu Ringkas Tingkat Pertama Bahan Baku */}
+                {filteredMaterialRecords.length === 0 ? (
+                  <div className="py-8 text-center text-xs text-text-secondary bg-white rounded-2xl border border-bg-cream-dark">
+                    Belum ada pemakaian
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {filteredMaterialRecords.map((item) => {
+                      const unit = (item.unit || 'kg').toLowerCase()
+                      const initial = Number(item.initial_quantity) || 0
+                      const used = Number(item.quantity_used) || 0
+                      const remaining = (item.remaining_quantity !== undefined && item.remaining_quantity !== null)
+                        ? Number(item.remaining_quantity)
+                        : Math.max(0, initial - used)
+                      const hasRemaining = !isNaN(remaining)
+                      const pct = initial > 0 ? Math.min(100, Math.max(0, (used / initial) * 100)) : 0
 
-            {inventoryList.length === 0 ? (
-              <div className="py-6 text-center text-xs text-[#6B7B8D]">
-                Belum ada data stok barang jadi
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {inventoryList.map((item) => {
-                  const waitingAcc = Number(item.staged_from_kitchen) || 0
-                  const readyStock = Number(item.verified_sales_stock) || 0
-                  const soldToday = Number(item.sold_today) || 0
-                  const hasWaiting = waitingAcc > 0
-
-                  return (
-                    <div
-                      key={item.product_id}
-                      className="bg-white border border-[#EDE8DF] rounded-xl p-3.5 space-y-2.5 shadow-2xs"
-                    >
-                      <div className="flex items-baseline justify-between gap-2 min-w-0">
-                        <span className="font-bold text-xs sm:text-sm text-[#2C3E50] truncate">
-                          {item.product_name}
-                        </span>
-                        {item.spec && (
-                          <span className="text-[11px] text-[#6B7B8D] shrink-0">
-                            {item.spec}
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="border-t border-[#EDE8DF]" />
-
-                      <div className="grid grid-cols-3 gap-2">
-                        <div>
-                          <div className="text-[10px] sm:text-xs uppercase text-text-secondary leading-tight truncate flex items-center gap-1">
-                            {hasWaiting && (
-                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                      return (
+                        <div
+                          key={item.id}
+                          className="border border-bg-cream-dark shadow-2xs rounded-2xl bg-white p-4 space-y-3"
+                        >
+                          {/* Header: Nama Bahan + Tag Divisi (Hanya saat filter 'Semua' aktif) */}
+                          <div className="flex items-center justify-between gap-2 min-w-0">
+                            <div className="font-bold text-sm text-text-primary truncate">
+                              {item.item_name}
+                            </div>
+                            {rawMaterialTab === 'ALL' && (
+                              <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-bg-cream text-text-secondary border border-bg-cream-dark shrink-0">
+                                {item.division_label || item.division}
+                              </span>
                             )}
-                            <span>Menunggu ACC</span>
                           </div>
-                          <div className={`text-base sm:text-lg font-semibold tabular-nums mt-0.5 ${
-                            hasWaiting ? 'text-[#A8862E]' : 'text-text-primary'
-                          }`}>
-                            {waitingAcc} <span className="text-[10px] sm:text-xs font-normal text-text-secondary">pack</span>
-                          </div>
-                        </div>
 
-                        <div>
-                          <div className="text-[10px] sm:text-xs uppercase text-text-secondary leading-tight truncate">
-                            Siap Jual
+                          {/* Kode Lot Muted Satu Baris, Tidak Patah */}
+                          <div className="text-[11px] font-mono text-text-secondary truncate leading-tight">
+                            {item.lot_qr_code}
                           </div>
-                          <div className="text-base sm:text-lg font-semibold text-text-primary tabular-nums mt-0.5">
-                            {readyStock} <span className="text-[10px] sm:text-xs font-normal text-text-secondary">pack</span>
-                          </div>
-                        </div>
 
-                        <div>
-                          <div className="text-[10px] sm:text-xs uppercase text-text-secondary leading-tight truncate">
-                            Terjual
+                          <div className="border-t border-bg-cream-dark" />
+
+                          {/* Grid 3 Kolom ala Kartu Stasiun: DIKIRIM | DIPAKAI | SISA */}
+                          <div className={`grid ${hasRemaining ? 'grid-cols-3' : 'grid-cols-2'} gap-3`}>
+                            <div>
+                              <div className="text-xs uppercase text-text-secondary leading-tight truncate">
+                                Dikirim
+                              </div>
+                              <div className="text-base sm:text-lg font-semibold text-text-primary tabular-nums mt-0.5">
+                                {initial} <span className="text-xs font-normal text-text-secondary">{unit}</span>
+                              </div>
+                            </div>
+
+                            <div>
+                              <div className="text-xs uppercase text-text-secondary leading-tight truncate">
+                                Dipakai
+                              </div>
+                              <div className="text-base sm:text-lg font-semibold text-text-primary tabular-nums mt-0.5">
+                                {used} <span className="text-xs font-normal text-text-secondary">{unit}</span>
+                              </div>
+                            </div>
+
+                            {hasRemaining && (
+                              <div>
+                                <div className="text-xs uppercase text-text-secondary leading-tight truncate">
+                                  Sisa
+                                </div>
+                                <div className="text-base sm:text-lg font-semibold text-text-primary tabular-nums mt-0.5">
+                                  {remaining} <span className="text-xs font-normal text-text-secondary">{unit}</span>
+                                </div>
+                              </div>
+                            )}
                           </div>
-                          <div className="text-base sm:text-lg font-semibold text-text-primary tabular-nums mt-0.5">
-                            {soldToday} <span className="text-[10px] sm:text-xs font-normal text-text-secondary">pack</span>
+
+                          {/* Progress bar tipis */}
+                          {initial > 0 && (
+                            <div className="w-full h-1 bg-bg-cream rounded-full overflow-hidden mt-1">
+                              <div
+                                className="h-full rounded-full bg-brand-blue transition-all duration-300"
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Panel 3: Stok Barang Jadi */}
+            {activeSegment === 'stok' && (
+              <div
+                role="tabpanel"
+                id="panel-stok"
+                aria-labelledby="tab-stok"
+                className="space-y-3"
+              >
+                {/* Baris Tipis: Diperbarui + Info di kiri, Refresh di kanan */}
+                <div className="flex items-center justify-between py-1 px-0.5 text-xs text-text-secondary">
+                  <div className="flex items-center gap-1.5">
+                    {lastInventoryUpdated && (
+                      <span className="text-[11px] text-text-secondary">
+                        Diperbarui {lastInventoryUpdated}
+                      </span>
+                    )}
+                    <span
+                      title="Stok aktif hasil verifikasi ACC Sales vs antrean di Packing"
+                      className="cursor-help text-text-secondary hover:text-text-primary transition-colors"
+                    >
+                      <Info className="w-3.5 h-3.5" />
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={fetchInventory}
+                    disabled={loadingInventory}
+                    className="p-1.5 rounded-lg text-text-secondary hover:text-brand-blue-dark hover:bg-bg-cream active:scale-95 cursor-pointer transition-all focus-visible:outline-none"
+                    title="Perbarui stok"
+                    aria-label="Perbarui stok"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${loadingInventory ? 'animate-spin text-brand-blue-dark' : ''}`} />
+                  </button>
+                </div>
+
+                {inventoryList.length === 0 ? (
+                  <div className="py-8 text-center text-xs text-text-secondary bg-white rounded-2xl border border-bg-cream-dark">
+                    Belum ada data stok barang jadi
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {inventoryList.map((item) => {
+                      const waitingAcc = Number(item.staged_from_kitchen) || 0
+                      const readyStock = Number(item.verified_sales_stock) || 0
+                      const soldToday = Number(item.sold_today) || 0
+                      const hasWaiting = waitingAcc > 0
+
+                      return (
+                        <div
+                          key={item.product_id}
+                          className="border border-bg-cream-dark shadow-2xs rounded-2xl bg-white p-4 space-y-3"
+                        >
+                          <div className="flex items-baseline justify-between gap-2 min-w-0">
+                            <span className="font-bold text-sm text-text-primary truncate">
+                              {item.product_name}
+                            </span>
+                            {item.spec && (
+                              <span className="text-xs text-text-secondary shrink-0">
+                                {item.spec}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="border-t border-bg-cream-dark" />
+
+                          <div className="grid grid-cols-3 gap-2">
+                            <div>
+                              <div className="text-xs uppercase text-text-secondary leading-tight truncate flex items-center gap-1">
+                                {hasWaiting && (
+                                  <span className="w-1.5 h-1.5 rounded-full bg-brand-gold-dark shrink-0" />
+                                )}
+                                <span>Menunggu ACC</span>
+                              </div>
+                              <div className={`text-base sm:text-lg font-semibold tabular-nums mt-0.5 ${
+                                hasWaiting ? 'text-brand-gold-dark' : 'text-text-primary'
+                              }`}>
+                                {waitingAcc} <span className="text-xs font-normal text-text-secondary">pack</span>
+                              </div>
+                            </div>
+
+                            <div>
+                              <div className="text-xs uppercase text-text-secondary leading-tight truncate">
+                                Siap Jual
+                              </div>
+                              <div className="text-base sm:text-lg font-semibold text-text-primary tabular-nums mt-0.5">
+                                {readyStock} <span className="text-xs font-normal text-text-secondary">pack</span>
+                              </div>
+                            </div>
+
+                            <div>
+                              <div className="text-xs uppercase text-text-secondary leading-tight truncate">
+                                Terjual
+                              </div>
+                              <div className="text-base sm:text-lg font-semibold text-text-primary tabular-nums mt-0.5">
+                                {soldToday} <span className="text-xs font-normal text-text-secondary">pack</span>
+                              </div>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </div>
-                  )
-                })}
+                      )
+                    })}
+                  </div>
+                )}
               </div>
             )}
           </div>
