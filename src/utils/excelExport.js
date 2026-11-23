@@ -245,82 +245,10 @@ export function exportPpicRecapExcel({ dateStr, recapData, operatorName }) {
     records: []
   }
 
-  const divRows = [
-    {
-      divisi: 'Daging (Giling & Mix)',
-      satuan: divisions.DAGING?.unit || 'Gilingan',
-      diterbitkan: divisions.DAGING?.total_lots || 0,
-      total_qty: divisions.DAGING?.total_quantity || 0,
-      terkirim: divisions.DAGING?.completed_count || 0,
-      sisa_qr: divisions.DAGING?.printed_count || 0,
-      void_qr: divisions.DAGING?.void_count || 0,
-      reject: divisions.DAGING?.reject_count || 0,
-      reject_notes: divisions.DAGING?.reject_notes || '-',
-      catatan: divisions.DAGING?.operational_notes || '-'
-    },
-    {
-      divisi: 'Bumbu Sparta',
-      satuan: divisions.BUMBU?.unit || 'Karung',
-      diterbitkan: divisions.BUMBU?.total_lots || 0,
-      total_qty: divisions.BUMBU?.total_quantity || 0,
-      terkirim: divisions.BUMBU?.completed_count || 0,
-      sisa_qr: divisions.BUMBU?.printed_count || 0,
-      void_qr: divisions.BUMBU?.void_count || 0,
-      reject: divisions.BUMBU?.reject_count || 0,
-      reject_notes: divisions.BUMBU?.reject_notes || '-',
-      catatan: divisions.BUMBU?.operational_notes || '-'
-    },
-    {
-      divisi: 'Kulit Pangsit',
-      satuan: divisions.KULIT?.unit || 'BAL',
-      diterbitkan: divisions.KULIT?.total_lots || 0,
-      total_qty: divisions.KULIT?.total_quantity || 0,
-      terkirim: divisions.KULIT?.completed_count || 0,
-      sisa_qr: divisions.KULIT?.printed_count || 0,
-      void_qr: divisions.KULIT?.void_count || 0,
-      reject: divisions.KULIT?.reject_count || 0,
-      reject_notes: divisions.KULIT?.reject_notes || '-',
-      catatan: divisions.KULIT?.operational_notes || '-'
-    },
-    {
-      divisi: 'Saos Dimsum',
-      satuan: divisions.SAOS?.unit || 'BAL',
-      diterbitkan: divisions.SAOS?.total_lots || 0,
-      total_qty: divisions.SAOS?.total_quantity || 0,
-      terkirim: divisions.SAOS?.completed_count || 0,
-      sisa_qr: divisions.SAOS?.printed_count || 0,
-      void_qr: divisions.SAOS?.void_count || 0,
-      reject: divisions.SAOS?.reject_count || 0,
-      reject_notes: divisions.SAOS?.reject_notes || '-',
-      catatan: divisions.SAOS?.operational_notes || '-'
-    },
-    {
-      divisi: 'Meja Cetak',
-      satuan: 'PCS',
-      diterbitkan: divisions.CETAK?.adonan_received_count ? `${divisions.CETAK.adonan_received_count} Adonan` : '-',
-      total_qty: divisions.CETAK?.total_pcs_cetak || 0,
-      terkirim: divisions.CETAK?.kulit_received_count ? `${divisions.CETAK.kulit_received_count} Kulit` : '-',
-      sisa_qr: '-',
-      void_qr: '-',
-      reject: divisions.CETAK?.reject_count || 0,
-      reject_notes: divisions.CETAK?.reject_notes || '-',
-      catatan: `Adonan: ${divisions.CETAK?.adonan_received_count || 0} lot (${divisions.CETAK?.adonan_received_qty || 0} kg), Kulit: ${divisions.CETAK?.kulit_received_count || 0} lot (${divisions.CETAK?.kulit_received_qty || 0} bal). ${divisions.CETAK?.operational_notes || ''}`.trim()
-    },
-    {
-      divisi: 'Meja Packing',
-      satuan: 'PACK',
-      diterbitkan: divisions.PACKING?.target_pack || 0,
-      total_qty: divisions.PACKING?.scan_pack || 0,
-      terkirim: divisions.PACKING?.sales_pack || 0,
-      sisa_qr: divisions.PACKING?.selisih_sales || 0,
-      void_qr: '-',
-      reject: divisions.PACKING?.reject_count || 0,
-      reject_notes: divisions.PACKING?.reject_notes || '-',
-      catatan: `Target: ${divisions.PACKING?.target_pack || 0} pk, Scan: ${divisions.PACKING?.scan_pack || 0} pk, Audit Sales: ${divisions.PACKING?.sales_pack || 0} pk (Selisih: ${divisions.PACKING?.selisih_sales || 0} pk). ${divisions.PACKING?.operational_notes || ''}`.trim()
-    }
-  ]
-
-  const totalReject = divRows.reduce((acc, r) => acc + (typeof r.reject === 'number' ? r.reject : 0), 0)
+  const totalReject = Object.values(divisions).reduce(
+    (acc, d) => acc + (typeof d.reject_count === 'number' ? d.reject_count : 0),
+    0
+  )
   const safeDateStr = (dateStr || 'HariIni')
     .replace(/\s*s\/d\s*/gi, '_sd_')
     .replace(/\s+/g, '_')
@@ -437,19 +365,82 @@ export function exportPpicRecapExcel({ dateStr, recapData, operatorName }) {
    <Font ss:FontName="Calibri" ss:Size="11" ss:Color="#1E3A5F" ss:Bold="1"/>
    <Interior ss:Color="#F5F1EB" ss:Pattern="Solid"/>
   </Style>
+  <Style ss:ID="DivMainLeft">
+   <Alignment ss:Horizontal="Left" ss:Vertical="Center"/>
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#B0C4DE"/>
+    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#B0C4DE"/>
+    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#B0C4DE"/>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#B0C4DE"/>
+   </Borders>
+   <Font ss:FontName="Calibri" ss:Size="10" ss:Color="#1E3A5F" ss:Bold="1"/>
+   <Interior ss:Color="#EDF4F8" ss:Pattern="Solid"/>
+  </Style>
+  <Style ss:ID="DivMainCenter">
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#B0C4DE"/>
+    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#B0C4DE"/>
+    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#B0C4DE"/>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#B0C4DE"/>
+   </Borders>
+   <Font ss:FontName="Calibri" ss:Size="10" ss:Color="#1E3A5F" ss:Bold="1"/>
+   <Interior ss:Color="#EDF4F8" ss:Pattern="Solid"/>
+  </Style>
+  <Style ss:ID="DivMainRight">
+   <Alignment ss:Horizontal="Right" ss:Vertical="Center"/>
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#B0C4DE"/>
+    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#B0C4DE"/>
+    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#B0C4DE"/>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#B0C4DE"/>
+   </Borders>
+   <Font ss:FontName="Calibri" ss:Size="10" ss:Color="#1E3A5F" ss:Bold="1"/>
+   <Interior ss:Color="#EDF4F8" ss:Pattern="Solid"/>
+  </Style>
+  <Style ss:ID="SubDataLeft">
+   <Alignment ss:Horizontal="Left" ss:Vertical="Center"/>
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E9ECEF"/>
+    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E9ECEF"/>
+    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E9ECEF"/>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E9ECEF"/>
+   </Borders>
+   <Font ss:FontName="Calibri" ss:Size="9" ss:Color="#495057"/>
+  </Style>
+  <Style ss:ID="SubDataCenter">
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E9ECEF"/>
+    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E9ECEF"/>
+    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E9ECEF"/>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E9ECEF"/>
+   </Borders>
+   <Font ss:FontName="Calibri" ss:Size="9" ss:Color="#495057"/>
+  </Style>
+  <Style ss:ID="SubDataRight">
+   <Alignment ss:Horizontal="Right" ss:Vertical="Center"/>
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E9ECEF"/>
+    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E9ECEF"/>
+    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E9ECEF"/>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E9ECEF"/>
+   </Borders>
+   <Font ss:FontName="Calibri" ss:Size="9" ss:Color="#495057"/>
+  </Style>
  </Styles>
  <Worksheet ss:Name="Rekap PPIC">
   <Table ss:DefaultRowHeight="20">
-   <Column ss:AutoFitWidth="0" ss:Width="50"/>
-   <Column ss:AutoFitWidth="0" ss:Width="110"/>
-   <Column ss:AutoFitWidth="0" ss:Width="150"/>
-   <Column ss:AutoFitWidth="0" ss:Width="110"/>
-   <Column ss:AutoFitWidth="0" ss:Width="110"/>
-   <Column ss:AutoFitWidth="0" ss:Width="100"/>
-   <Column ss:AutoFitWidth="0" ss:Width="100"/>
-   <Column ss:AutoFitWidth="0" ss:Width="100"/>
-   <Column ss:AutoFitWidth="0" ss:Width="160"/>
+   <Column ss:AutoFitWidth="0" ss:Width="35"/>
+   <Column ss:AutoFitWidth="0" ss:Width="130"/>
    <Column ss:AutoFitWidth="0" ss:Width="200"/>
+   <Column ss:AutoFitWidth="0" ss:Width="140"/>
+   <Column ss:AutoFitWidth="0" ss:Width="95"/>
+   <Column ss:AutoFitWidth="0" ss:Width="105"/>
+   <Column ss:AutoFitWidth="0" ss:Width="75"/>
+   <Column ss:AutoFitWidth="0" ss:Width="75"/>
+   <Column ss:AutoFitWidth="0" ss:Width="130"/>
+   <Column ss:AutoFitWidth="0" ss:Width="220"/>
 `
 
   // Baris Judul Utama Kop
@@ -478,130 +469,193 @@ export function exportPpicRecapExcel({ dateStr, recapData, operatorName }) {
   xml += `   <Row ss:Height="12"/>\n`
 
   // =========================================================================
-  // SEKSI I: REKAPITULASI PRODUKSI DIVISI PABRIK
-  // =========================================================================
-  xml += `   <Row ss:Height="24">
-    <Cell ss:MergeAcross="${totalCols - 1}" ss:StyleID="SectionHeader">
-     <Data ss:Type="String">I. REKAPITULASI PRODUKSI DIVISI PABRIK</Data>
-    </Cell>
-   </Row>\n`
-
-  // Header Kolom Tabel 1
-  const t1Cols = [
-    { header: 'Divisi', key: 'divisi', align: 'left' },
-    { header: 'Satuan', key: 'satuan', align: 'center' },
-    { header: 'Target', key: 'diterbitkan', align: 'right' },
-    { header: 'Total Qty', key: 'total_qty', align: 'right' },
-    { header: 'Terkirim / Selesai', key: 'terkirim', align: 'right' },
-    { header: 'Sisa Belum Dibuat', key: 'sisa_qr', align: 'right' },
-    { header: 'Batal (VOID)', key: 'void_qr', align: 'right' },
-    { header: 'Reject', key: 'reject', align: 'right' },
-    { header: 'Alasan Reject', key: 'reject_notes', align: 'left' },
-    { header: 'Catatan Operasional', key: 'catatan', align: 'left' }
-  ]
-
-  xml += `   <Row ss:Height="26">\n`
-  t1Cols.forEach((col) => {
-    xml += `    <Cell ss:StyleID="TableHeader"><Data ss:Type="String">${escapeXml(col.header)}</Data></Cell>\n`
-  })
-  xml += `   </Row>\n`
-
-  // Data Baris Tabel 1
-  divRows.forEach((row) => {
-    xml += `   <Row ss:Height="22">\n`
-    t1Cols.forEach((col) => {
-      const rawVal = row[col.key]
-      const align = col.align || (typeof rawVal === 'number' ? 'right' : 'left')
-      const styleId = align === 'right' ? 'DataRight' : align === 'center' ? 'DataCenter' : 'DataLeft'
-      const isNum = typeof rawVal === 'number' && !isNaN(rawVal)
-      if (isNum) {
-        xml += `    <Cell ss:StyleID="${styleId}"><Data ss:Type="Number">${rawVal}</Data></Cell>\n`
-      } else {
-        xml += `    <Cell ss:StyleID="${styleId}"><Data ss:Type="String">${escapeXml(rawVal !== undefined && rawVal !== null ? rawVal : '-')}</Data></Cell>\n`
-      }
-    })
-    xml += `   </Row>\n`
-  })
-
-  // Baris Total Tabel 1
-  xml += `   <Row ss:Height="24">
-    <Cell ss:MergeAcross="6" ss:StyleID="TotalRowLeft"><Data ss:Type="String">TOTAL REJECT</Data></Cell>
-    <Cell ss:StyleID="TotalRowRight"><Data ss:Type="Number">${totalReject}</Data></Cell>
-    <Cell ss:StyleID="TotalRowRight"><Data ss:Type="String">-</Data></Cell>
-    <Cell ss:StyleID="TotalRowRight"><Data ss:Type="String">-</Data></Cell>
-   </Row>\n`
-
-  // Jarak antar seksi
-  xml += `   <Row ss:Height="16"/>\n`
-
-  // =========================================================================
-  // SEKSI II: REKAPITULASI PEMAKAIAN BAHAN BAKU (SEMUA DIVISI)
+  // REKAPITULASI PRODUKSI & PEMAKAIAN BAHAN BAKU (SATU TABEL TUNGGAL)
   // =========================================================================
   const rawMaterialUsage = recapData?.raw_material_usage || {
     total_records: 0,
     records: [],
+    by_division: { BUMBU: [], KULIT: [], DAGING: [] },
     summary_by_item: []
   }
-  const allMaterialRecords = (rawMaterialUsage.records && rawMaterialUsage.records.length > 0)
-    ? rawMaterialUsage.records
-    : (bumbuUsage.records || []).map((r) => ({
-      ...r,
-      item_name: 'Karung Bumbu Sparta',
-      division_label: 'Daging (Giling & Mix)',
-      unit: r.unit || 'KRESEK'
-    }))
 
+  // Helper untuk mengambil bahan baku per divisi
+  const getDivisionMaterials = (divId) => {
+    if (divisions[divId]?.raw_materials && divisions[divId].raw_materials.length > 0) {
+      return divisions[divId].raw_materials
+    }
+    if (rawMaterialUsage.by_division?.[divId] && rawMaterialUsage.by_division[divId].length > 0) {
+      return rawMaterialUsage.by_division[divId]
+    }
+    const filtered = (rawMaterialUsage.records || []).filter((r) => r.division === divId)
+    if (filtered.length > 0) return filtered
+
+    // Fallback khusus Daging jika ada bumbuUsage legacy
+    if (divId === 'DAGING' && bumbuUsage.records && bumbuUsage.records.length > 0) {
+      return bumbuUsage.records.map((r) => ({
+        ...r,
+        item_name: 'Karung Bumbu Sparta',
+        division_label: 'Daging (Giling & Mix)',
+        unit: r.unit || 'KRESEK'
+      }))
+    }
+    return []
+  }
+
+  const unifiedDivisions = [
+    {
+      id: 'BUMBU',
+      name: 'Bumbu Sparta',
+      outputItem: 'Produksi Karung Bumbu (Output)',
+      lotCode: '-',
+      target: divisions.BUMBU?.total_lots || 0,
+      realisasi: divisions.BUMBU?.completed_count || 0,
+      sisa: divisions.BUMBU?.printed_count || 0,
+      satuan: divisions.BUMBU?.unit || 'Karung',
+      status: `${divisions.BUMBU?.reject_count || 0} Reject${divisions.BUMBU?.reject_notes ? ` (${divisions.BUMBU.reject_notes})` : ''}`,
+      catatan: `${divisions.BUMBU?.updated_by || 'Ayu (PPIC)'}${divisions.BUMBU?.operational_notes ? ` | ${divisions.BUMBU.operational_notes}` : ''}`,
+      materials: getDivisionMaterials('BUMBU')
+    },
+    {
+      id: 'KULIT',
+      name: 'Kulit Pangsit',
+      outputItem: 'Produksi Bal Kulit (Output)',
+      lotCode: '-',
+      target: divisions.KULIT?.total_lots || 0,
+      realisasi: divisions.KULIT?.completed_count || 0,
+      sisa: divisions.KULIT?.printed_count || 0,
+      satuan: divisions.KULIT?.unit || 'BAL',
+      status: `${divisions.KULIT?.reject_count || 0} Reject${divisions.KULIT?.reject_notes ? ` (${divisions.KULIT.reject_notes})` : ''}`,
+      catatan: `${divisions.KULIT?.updated_by || 'Ayu (PPIC)'}${divisions.KULIT?.operational_notes ? ` | ${divisions.KULIT.operational_notes}` : ''}`,
+      materials: getDivisionMaterials('KULIT')
+    },
+    {
+      id: 'DAGING',
+      name: 'Daging (Giling & Mix)',
+      outputItem: 'Produksi Gilingan Adonan (Output)',
+      lotCode: '-',
+      target: divisions.DAGING?.total_lots || 0,
+      realisasi: divisions.DAGING?.completed_count || 0,
+      sisa: divisions.DAGING?.printed_count || 0,
+      satuan: divisions.DAGING?.unit || 'Gilingan',
+      status: `${divisions.DAGING?.reject_count || 0} Reject${divisions.DAGING?.reject_notes ? ` (${divisions.DAGING.reject_notes})` : ''}`,
+      catatan: `${divisions.DAGING?.updated_by || 'Ayu (PPIC)'}${divisions.DAGING?.operational_notes ? ` | ${divisions.DAGING.operational_notes}` : ''}`,
+      materials: getDivisionMaterials('DAGING')
+    },
+    {
+      id: 'SAOS',
+      name: 'Saos Dimsum',
+      outputItem: 'Produksi Bal Saos (Output)',
+      lotCode: '-',
+      target: divisions.SAOS?.total_lots || 0,
+      realisasi: divisions.SAOS?.completed_count || 0,
+      sisa: divisions.SAOS?.printed_count || 0,
+      satuan: divisions.SAOS?.unit || 'BAL',
+      status: `${divisions.SAOS?.reject_count || 0} Reject${divisions.SAOS?.reject_notes ? ` (${divisions.SAOS.reject_notes})` : ''}`,
+      catatan: `${divisions.SAOS?.updated_by || 'Ayu (PPIC)'}${divisions.SAOS?.operational_notes ? ` | ${divisions.SAOS.operational_notes}` : ''}`,
+      materials: getDivisionMaterials('SAOS')
+    },
+    {
+      id: 'CETAK',
+      name: 'Meja Cetak',
+      outputItem: 'Pencetakan Dimsum (Output)',
+      lotCode: '-',
+      target: divisions.CETAK?.adonan_received_count ? `${divisions.CETAK.adonan_received_count} Adonan` : '-',
+      realisasi: divisions.CETAK?.total_pcs_cetak || 0,
+      sisa: '-',
+      satuan: 'PCS',
+      status: `${divisions.CETAK?.reject_count || 0} Reject${divisions.CETAK?.reject_notes ? ` (${divisions.CETAK.reject_notes})` : ''}`,
+      catatan: `Adonan: ${divisions.CETAK?.adonan_received_count || 0} lot (${divisions.CETAK?.adonan_received_qty || 0} kg), Kulit: ${divisions.CETAK?.kulit_received_count || 0} lot (${divisions.CETAK?.kulit_received_qty || 0} bal). ${divisions.CETAK?.operational_notes || ''}`.trim(),
+      materials: []
+    },
+    {
+      id: 'PACKING',
+      name: 'Meja Packing',
+      outputItem: 'Packing Siap Jual (Output)',
+      lotCode: '-',
+      target: divisions.PACKING?.target_pack || 0,
+      realisasi: divisions.PACKING?.scan_pack || 0,
+      sisa: divisions.PACKING?.selisih_sales || 0,
+      satuan: 'PACK',
+      status: `${divisions.PACKING?.reject_count || 0} Reject${divisions.PACKING?.reject_notes ? ` (${divisions.PACKING.reject_notes})` : ''}`,
+      catatan: `Target: ${divisions.PACKING?.target_pack || 0} pk, Scan: ${divisions.PACKING?.scan_pack || 0} pk, Audit Sales: ${divisions.PACKING?.sales_pack || 0} pk. ${divisions.PACKING?.operational_notes || ''}`.trim(),
+      materials: []
+    }
+  ]
+
+  // Judul Tabel Tunggal
   xml += `   <Row ss:Height="24">
     <Cell ss:MergeAcross="${totalCols - 1}" ss:StyleID="SectionHeader">
-     <Data ss:Type="String">II. REKAPITULASI PEMAKAIAN BAHAN BAKU (SEMUA DIVISI)</Data>
+     <Data ss:Type="String">REKAPITULASI PRODUKSI &amp; PEMAKAIAN BAHAN BAKU PABRIK</Data>
     </Cell>
    </Row>\n`
 
-  // Subtitle Seksi Bahan Baku
-  const rawSub = `Total Transaksi: ${allMaterialRecords.length} Catatan Pemakaian  |  Mencakup Divisi Bumbu Sparta, Kulit Pangsit, dan Giling & Mix`
-  xml += `   <Row ss:Height="18">
-    <Cell ss:MergeAcross="${totalCols - 1}" ss:StyleID="MetaLabel">
-     <Data ss:Type="String">${escapeXml(rawSub)}</Data>
-    </Cell>
-   </Row>\n`
-
-  // Header Kolom Tabel 2
+  // Header Kolom Tabel Tunggal
   xml += `   <Row ss:Height="26">
-    <Cell ss:StyleID="TableHeaderAmber"><Data ss:Type="String">No</Data></Cell>
-    <Cell ss:StyleID="TableHeaderAmber"><Data ss:Type="String">Tanggal</Data></Cell>
-    <Cell ss:StyleID="TableHeaderAmber"><Data ss:Type="String">Divisi</Data></Cell>
-    <Cell ss:StyleID="TableHeaderAmber"><Data ss:Type="String">Kode Lot Bahan</Data></Cell>
-    <Cell ss:StyleID="TableHeaderAmber"><Data ss:Type="String">Nama Bahan Baku</Data></Cell>
-    <Cell ss:StyleID="TableHeaderAmber"><Data ss:Type="String">Stok Awal / Kirim</Data></Cell>
-    <Cell ss:StyleID="TableHeaderAmber"><Data ss:Type="String">Digunakan</Data></Cell>
-    <Cell ss:StyleID="TableHeaderAmber"><Data ss:Type="String">Sisa</Data></Cell>
-    <Cell ss:StyleID="TableHeaderAmber"><Data ss:Type="String">Satuan</Data></Cell>
-    <Cell ss:StyleID="TableHeaderAmber"><Data ss:Type="String">Status Sisa &amp; Petugas</Data></Cell>
+    <Cell ss:StyleID="TableHeader"><Data ss:Type="String">No</Data></Cell>
+    <Cell ss:StyleID="TableHeader"><Data ss:Type="String">Divisi / Stasiun</Data></Cell>
+    <Cell ss:StyleID="TableHeader"><Data ss:Type="String">Item / Rincian</Data></Cell>
+    <Cell ss:StyleID="TableHeader"><Data ss:Type="String">Kode Lot</Data></Cell>
+    <Cell ss:StyleID="TableHeader"><Data ss:Type="String">Target / Masuk</Data></Cell>
+    <Cell ss:StyleID="TableHeader"><Data ss:Type="String">Selesai / Terpakai</Data></Cell>
+    <Cell ss:StyleID="TableHeader"><Data ss:Type="String">Sisa</Data></Cell>
+    <Cell ss:StyleID="TableHeader"><Data ss:Type="String">Satuan</Data></Cell>
+    <Cell ss:StyleID="TableHeader"><Data ss:Type="String">Status / Reject</Data></Cell>
+    <Cell ss:StyleID="TableHeader"><Data ss:Type="String">Petugas &amp; Catatan</Data></Cell>
    </Row>\n`
 
-  if (allMaterialRecords.length === 0) {
-    xml += `   <Row ss:Height="24">
-    <Cell ss:MergeAcross="${totalCols - 1}" ss:StyleID="DataCenter">
-     <Data ss:Type="String">Belum ada transaksi pemakaian bahan baku tercatat pada periode ini.</Data>
-    </Cell>
-   </Row>\n`
-  } else {
-    allMaterialRecords.forEach((rec, idx) => {
-      const statusPetugas = `${rec.remaining_action || 'Di Ruangan'} | ${rec.operator_id || '-'}${rec.notes && rec.notes !== '-' ? ` (${rec.notes})` : ''}`
-      xml += `   <Row ss:Height="22">
-    <Cell ss:StyleID="DataCenter"><Data ss:Type="Number">${idx + 1}</Data></Cell>
-    <Cell ss:StyleID="DataCenter"><Data ss:Type="String">${escapeXml(rec.date)}</Data></Cell>
-    <Cell ss:StyleID="DataCenter"><Data ss:Type="String">${escapeXml(rec.division_label || rec.division || '-')}</Data></Cell>
-    <Cell ss:StyleID="DataCenter"><Data ss:Type="String">${escapeXml(rec.lot_qr_code)}</Data></Cell>
-    <Cell ss:StyleID="DataLeft"><Data ss:Type="String">${escapeXml(rec.item_name || '-')}</Data></Cell>
-    <Cell ss:StyleID="DataRight"><Data ss:Type="Number">${Number(rec.initial_quantity) || 0}</Data></Cell>
-    <Cell ss:StyleID="DataRight"><Data ss:Type="Number">${Number(rec.quantity_used) || 0}</Data></Cell>
-    <Cell ss:StyleID="DataRight"><Data ss:Type="Number">${Number(rec.remaining_quantity) || 0}</Data></Cell>
-    <Cell ss:StyleID="DataCenter"><Data ss:Type="String">${escapeXml(rec.unit || 'KG')}</Data></Cell>
-    <Cell ss:StyleID="DataLeft"><Data ss:Type="String">${escapeXml(statusPetugas)}</Data></Cell>
-   </Row>\n`
+  // Data Baris: Divisi (Parent) + Bahan Baku (Sub-rows)
+  unifiedDivisions.forEach((div, idx) => {
+    // Baris Induk Divisi
+    xml += `   <Row ss:Height="24">\n`
+    xml += `    <Cell ss:StyleID="DivMainCenter"><Data ss:Type="Number">${idx + 1}</Data></Cell>\n`
+    xml += `    <Cell ss:StyleID="DivMainLeft"><Data ss:Type="String">${escapeXml(div.name)}</Data></Cell>\n`
+    xml += `    <Cell ss:StyleID="DivMainLeft"><Data ss:Type="String">${escapeXml(div.outputItem)}</Data></Cell>\n`
+    xml += `    <Cell ss:StyleID="DivMainCenter"><Data ss:Type="String">${escapeXml(div.lotCode)}</Data></Cell>\n`
+    if (typeof div.target === 'number') {
+      xml += `    <Cell ss:StyleID="DivMainRight"><Data ss:Type="Number">${div.target}</Data></Cell>\n`
+    } else {
+      xml += `    <Cell ss:StyleID="DivMainCenter"><Data ss:Type="String">${escapeXml(div.target)}</Data></Cell>\n`
+    }
+    if (typeof div.realisasi === 'number') {
+      xml += `    <Cell ss:StyleID="DivMainRight"><Data ss:Type="Number">${div.realisasi}</Data></Cell>\n`
+    } else {
+      xml += `    <Cell ss:StyleID="DivMainCenter"><Data ss:Type="String">${escapeXml(div.realisasi)}</Data></Cell>\n`
+    }
+    if (typeof div.sisa === 'number') {
+      xml += `    <Cell ss:StyleID="DivMainRight"><Data ss:Type="Number">${div.sisa}</Data></Cell>\n`
+    } else {
+      xml += `    <Cell ss:StyleID="DivMainCenter"><Data ss:Type="String">${escapeXml(div.sisa)}</Data></Cell>\n`
+    }
+    xml += `    <Cell ss:StyleID="DivMainCenter"><Data ss:Type="String">${escapeXml(div.satuan)}</Data></Cell>\n`
+    xml += `    <Cell ss:StyleID="DivMainCenter"><Data ss:Type="String">${escapeXml(div.status)}</Data></Cell>\n`
+    xml += `    <Cell ss:StyleID="DivMainLeft"><Data ss:Type="String">${escapeXml(div.catatan || '-')}</Data></Cell>\n`
+    xml += `   </Row>\n`;
+
+    // Sub-baris Bahan Baku
+    ;(div.materials || []).forEach((mat) => {
+      const matStatus = `${mat.remaining_action || 'Di Ruangan'}`
+      const matCatatan = `${mat.operator_id || '-'}${mat.notes && mat.notes !== '-' ? ` | ${mat.notes}` : ''}`
+      xml += `   <Row ss:Height="21">\n`
+      xml += `    <Cell ss:StyleID="SubDataCenter"><Data ss:Type="String">-</Data></Cell>\n`
+      xml += `    <Cell ss:StyleID="SubDataLeft"><Data ss:Type="String">   ↳ Bahan</Data></Cell>\n`
+      xml += `    <Cell ss:StyleID="SubDataLeft"><Data ss:Type="String">   ↳ ${escapeXml(mat.item_name)}</Data></Cell>\n`
+      xml += `    <Cell ss:StyleID="SubDataCenter"><Data ss:Type="String">${escapeXml(mat.lot_qr_code)}</Data></Cell>\n`
+      xml += `    <Cell ss:StyleID="SubDataRight"><Data ss:Type="Number">${Number(mat.initial_quantity) || 0}</Data></Cell>\n`
+      xml += `    <Cell ss:StyleID="SubDataRight"><Data ss:Type="Number">${Number(mat.quantity_used) || 0}</Data></Cell>\n`
+      xml += `    <Cell ss:StyleID="SubDataRight"><Data ss:Type="Number">${Number(mat.remaining_quantity) || 0}</Data></Cell>\n`
+      xml += `    <Cell ss:StyleID="SubDataCenter"><Data ss:Type="String">${escapeXml(mat.unit || 'KG')}</Data></Cell>\n`
+      xml += `    <Cell ss:StyleID="SubDataCenter"><Data ss:Type="String">${escapeXml(matStatus)}</Data></Cell>\n`
+      xml += `    <Cell ss:StyleID="SubDataLeft"><Data ss:Type="String">${escapeXml(matCatatan)}</Data></Cell>\n`
+      xml += `   </Row>\n`
     })
-  }
+  })
+
+  // Baris Total Tabel Tunggal
+  xml += `   <Row ss:Height="24">
+    <Cell ss:MergeAcross="7" ss:StyleID="TotalRowLeft"><Data ss:Type="String">TOTAL REJECT PRODUKSI PABRIK</Data></Cell>
+    <Cell ss:StyleID="TotalRowRight"><Data ss:Type="Number">${totalReject}</Data></Cell>
+    <Cell ss:StyleID="TotalRowRight"><Data ss:Type="String">-</Data></Cell>
+   </Row>\n`
 
   xml += `  </Table>
   <WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel">
