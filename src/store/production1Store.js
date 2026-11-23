@@ -3230,19 +3230,35 @@ export const useProduction1Store = create(
               lastTransitBumbuCount = currentTransitCount
 
               const meatLots = dbLots
-                .filter((l) => l.lot_type === 'DAGING')
-                .map((l) => ({
-                  lotCode: l.lot_qr_code,
-                  planId: l.plan_id || state.activePlanId,
-                  weightKg: Number(l.quantity) || 15.0,
-                  status: l.current_status,
-                  stationId: l.current_station,
-                  createdDate: formatBackendLotDate(l.lot_qr_code, l.created_at),
-                  createdAtIso: l.created_at || '',
-                  createdAt: l.created_at
-                    ? new Date(l.created_at.endsWith('Z') ? l.created_at : l.created_at + 'Z').toLocaleTimeString('id-ID', { hour12: false })
-                    : '--:--:--'
-                }))
+                .filter(
+                  (l) =>
+                    l.lot_type === 'DAGING' ||
+                    (l.lot_qr_code && l.lot_qr_code.startsWith('OUT-DG-')) ||
+                    (l.lot_qr_code && l.lot_qr_code.startsWith('OUT-') && (l.current_status?.includes('MEAT') || l.current_station === 'MEAT_STATION')) ||
+                    (l.current_status && (l.current_status.includes('MEAT') || l.current_status.includes('MIXING'))) ||
+                    l.current_station === 'MEAT_STATION'
+                )
+                .map((l) => {
+                  const qty = Number(l.quantity) || 15.0
+                  const isOutLot = Boolean(l.lot_qr_code && l.lot_qr_code.startsWith('OUT-'))
+                  return {
+                    lotCode: l.lot_qr_code,
+                    planId: l.plan_id || state.activePlanId,
+                    itemName: l.item_name || (isOutLot ? 'Bahan Mentah Daging' : 'Daging Giling'),
+                    weightKg: qty,
+                    quantity: qty,
+                    initialQuantity: qty,
+                    unit: l.unit || 'KG',
+                    isRawMaterial: isOutLot,
+                    status: l.current_status,
+                    stationId: l.current_station,
+                    createdDate: formatBackendLotDate(l.lot_qr_code, l.created_at),
+                    createdAtIso: l.created_at || '',
+                    createdAt: l.created_at
+                      ? new Date(l.created_at.endsWith('Z') ? l.created_at : l.created_at + 'Z').toLocaleTimeString('id-ID', { hour12: false })
+                      : '--:--:--'
+                  }
+                })
 
               const doughLots = dbLots
                 .filter((l) => l.lot_type === 'ADONAN')
