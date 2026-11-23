@@ -465,8 +465,8 @@ export default function PpicDailySummaryView() {
 
         {/* Input Tanggal Tunggal */}
         {filterPreset === 'single' && (
-          <div className="flex items-center gap-2 pt-2 border-t border-[#EDE8DF]">
-            <span className="text-xs font-bold text-[#6B7B8D]">Tanggal:</span>
+          <div className="flex items-center gap-2 pt-2 border-t border-bg-cream-dark">
+            <span className="text-xs font-bold text-text-secondary">Tanggal:</span>
             <input
               type="date"
               value={selectedDate}
@@ -475,27 +475,27 @@ export default function PpicDailySummaryView() {
                 setSelectedDate(val)
                 if (val) fetchDailyRecap(val)
               }}
-              className="px-3 py-1.5 rounded-xl border border-[#EDE8DF] text-xs font-semibold text-[#2C3E50] bg-white focus:outline-none focus:ring-2 focus:ring-[#3A6B80]"
+              className="px-3 py-1.5 rounded-xl border border-bg-cream-dark text-xs font-semibold text-text-primary bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue-dark"
             />
           </div>
         )}
 
-        {/* Input Rentang Tanggal */}
+        {/* Input Rentang Tanggal (Satu Baris Simetris) */}
         {filterPreset === 'range' && (
-          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-[#EDE8DF]">
-            <span className="text-xs font-bold text-[#6B7B8D]">Dari:</span>
+          <div className="flex items-center gap-1 sm:gap-1.5 pt-2 border-t border-bg-cream-dark w-full overflow-x-auto no-scrollbar">
+            <span className="text-[11px] sm:text-xs font-bold text-text-secondary shrink-0">Dari:</span>
             <input
               type="date"
               value={rangeStartDate}
               onChange={(e) => setRangeStartDate(e.target.value)}
-              className="px-3 py-1.5 rounded-xl border border-[#EDE8DF] text-xs font-semibold text-[#2C3E50] bg-white focus:outline-none focus:ring-2 focus:ring-[#3A6B80]"
+              className="flex-1 min-w-0 max-w-[130px] px-1 sm:px-2 py-1.5 rounded-xl border border-bg-cream-dark text-[11px] sm:text-xs font-semibold text-text-primary bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue-dark"
             />
-            <span className="text-xs font-bold text-[#6B7B8D]">Sampai:</span>
+            <span className="text-[11px] sm:text-xs font-bold text-text-secondary shrink-0">Sampai:</span>
             <input
               type="date"
               value={rangeEndDate}
               onChange={(e) => setRangeEndDate(e.target.value)}
-              className="px-3 py-1.5 rounded-xl border border-[#EDE8DF] text-xs font-semibold text-[#2C3E50] bg-white focus:outline-none focus:ring-2 focus:ring-[#3A6B80]"
+              className="flex-1 min-w-0 max-w-[130px] px-1 sm:px-2 py-1.5 rounded-xl border border-bg-cream-dark text-[11px] sm:text-xs font-semibold text-text-primary bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue-dark"
             />
             <button
               type="button"
@@ -504,7 +504,7 @@ export default function PpicDailySummaryView() {
                   fetchDailyRecap(rangeStartDate, rangeEndDate)
                 }
               }}
-              className="px-3.5 py-1.5 bg-[#3A6B80] hover:bg-[#2C3E50] text-white text-xs font-bold rounded-xl transition-colors cursor-pointer"
+              className="h-8 px-2 sm:px-3 bg-brand-blue-dark hover:opacity-90 text-white text-[11px] sm:text-xs font-bold rounded-xl transition-colors cursor-pointer shrink-0"
             >
               Terapkan
             </button>
@@ -572,13 +572,13 @@ export default function PpicDailySummaryView() {
             </div>
           </div>
 
-          {/* Baris Chip Switch Tampilan & Tombol Unduh Excel */}
-          <div ref={switchRowRef} className="flex flex-wrap items-center justify-between gap-3">
+          {/* Baris Chip Switch Tampilan & Tombol Unduh Excel (Satu Baris Simetris & Sampingan) */}
+          <div ref={switchRowRef} className="flex items-center justify-between gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar py-0.5 w-full">
             {/* Baris Chip Navigasi (Persis seperti Barang Masuk pada gambar referensi) */}
             <div
               role="tablist"
               aria-label="Pilihan Tampilan Rekap PPIC"
-              className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5"
+              className="flex items-center gap-1 sm:gap-1.5 shrink-0"
             >
               {SEGMENTS.map((seg, idx) => {
                 const isActive = activeSegment === seg.id
@@ -592,7 +592,7 @@ export default function PpicDailySummaryView() {
                     tabIndex={isActive ? 0 : -1}
                     onClick={() => handleSelectSegment(seg.id)}
                     onKeyDown={(e) => handleSegmentKeyDown(e, idx)}
-                    className={`h-9 px-3.5 rounded-xl text-xs sm:text-sm font-semibold shrink-0 cursor-pointer transition active:scale-95 border flex items-center justify-center focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-blue-dark ${
+                    className={`h-9 px-2.5 sm:px-3.5 rounded-xl text-xs sm:text-sm font-semibold shrink-0 cursor-pointer transition active:scale-95 border flex items-center justify-center focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-blue-dark ${
                       isActive
                         ? 'bg-chip-active-bg text-chip-active-fg border-chip-active-border shadow-xs'
                         : 'bg-white text-text-secondary border-bg-cream-dark hover:bg-bg-cream hover:text-text-primary'
@@ -604,15 +604,15 @@ export default function PpicDailySummaryView() {
               })}
             </div>
 
-            {/* Tombol Unduh Excel Utuh (Teks Lengkap, Tidak Disingkat) */}
+            {/* Tombol Unduh Excel Simetris di Samping Tombol Stok */}
             <button
               type="button"
               onClick={handleExportExcel}
               aria-label="Unduh Excel"
               title="Unduh Excel"
-              className="min-h-11 px-4 py-2 bg-white hover:bg-bg-cream active:bg-bg-cream-dark border border-brand-blue-dark text-brand-blue-dark text-xs sm:text-sm font-bold rounded-2xl flex items-center justify-center gap-2 shrink-0 cursor-pointer transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-blue-dark shadow-2xs"
+              className="h-9 px-2.5 sm:px-3.5 bg-white hover:bg-bg-cream active:bg-bg-cream-dark border border-brand-blue-dark text-brand-blue-dark text-xs sm:text-sm font-semibold rounded-xl flex items-center justify-center gap-1 sm:gap-1.5 shrink-0 cursor-pointer transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-blue-dark shadow-2xs"
             >
-              <Download className="w-4 h-4 shrink-0" />
+              <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
               <span>Unduh Excel</span>
             </button>
           </div>
