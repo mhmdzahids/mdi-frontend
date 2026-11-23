@@ -11,7 +11,7 @@ import { canAccess } from '../utils/rbac'
 import { apiGet } from '../utils/api'
 
 const SEGMENTS = [
-  { id: 'stasiun', label: 'Stasiun' },
+  { id: 'produksi', label: 'Produksi' },
   { id: 'bahan', label: 'Bahan Baku' },
   { id: 'stok', label: 'Stok' }
 ]
@@ -284,12 +284,13 @@ export default function PpicDailySummaryView() {
     }
   }, [divisionFilterTabs, rawMaterialTab])
 
-  // State Switch 3 Segmen Tampilan dengan sinkronisasi URL query (?tampil=stasiun|bahan|stok)
+  // State Switch 3 Segmen Tampilan dengan sinkronisasi URL query (?tampil=produksi|bahan|stok)
   const getInitialSegment = () => {
-    if (typeof window === 'undefined') return 'stasiun'
+    if (typeof window === 'undefined') return 'produksi'
     const p = new URLSearchParams(window.location.search).get('tampil')
-    if (p === 'bahan' || p === 'stok' || p === 'stasiun') return p
-    return 'stasiun'
+    if (p === 'bahan' || p === 'stok' || p === 'produksi') return p
+    if (p === 'stasiun') return 'produksi'
+    return 'produksi'
   }
 
   const [activeSegment, setActiveSegment] = useState(getInitialSegment)
@@ -298,10 +299,12 @@ export default function PpicDailySummaryView() {
   useEffect(() => {
     const handlePopState = () => {
       const p = new URLSearchParams(window.location.search).get('tampil')
-      if (p === 'bahan' || p === 'stok' || p === 'stasiun') {
+      if (p === 'bahan' || p === 'stok' || p === 'produksi') {
         setActiveSegment(p)
+      } else if (p === 'stasiun') {
+        setActiveSegment('produksi')
       } else {
-        setActiveSegment('stasiun')
+        setActiveSegment('produksi')
       }
     }
     window.addEventListener('popstate', handlePopState)
@@ -312,7 +315,7 @@ export default function PpicDailySummaryView() {
     if (segId === activeSegment) return
     setActiveSegment(segId)
     const url = new URL(window.location.href)
-    if (segId === 'stasiun') {
+    if (segId === 'produksi') {
       url.searchParams.delete('tampil')
     } else {
       url.searchParams.set('tampil', segId)
@@ -569,13 +572,13 @@ export default function PpicDailySummaryView() {
             </div>
           </div>
 
-          {/* Baris Switch Tampilan & Tombol Unduh Excel */}
-          <div ref={switchRowRef} className="flex items-center gap-2 sm:gap-3">
-            {/* Switch 3 Segmen (role="tablist") */}
+          {/* Baris Chip Switch Tampilan & Tombol Unduh Excel */}
+          <div ref={switchRowRef} className="flex flex-wrap items-center justify-between gap-3">
+            {/* Baris Chip Navigasi (Persis seperti Barang Masuk pada gambar referensi) */}
             <div
               role="tablist"
               aria-label="Pilihan Tampilan Rekap PPIC"
-              className="flex-1 min-w-0 p-1 bg-bg-cream rounded-2xl border border-bg-cream-dark flex items-center min-h-11"
+              className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5"
             >
               {SEGMENTS.map((seg, idx) => {
                 const isActive = activeSegment === seg.id
@@ -589,39 +592,39 @@ export default function PpicDailySummaryView() {
                     tabIndex={isActive ? 0 : -1}
                     onClick={() => handleSelectSegment(seg.id)}
                     onKeyDown={(e) => handleSegmentKeyDown(e, idx)}
-                    className={`flex-1 min-h-9 px-2 sm:px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all duration-150 cursor-pointer flex items-center justify-center text-center leading-tight focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-blue-dark ${
+                    className={`h-9 px-3.5 rounded-xl text-xs sm:text-sm font-semibold shrink-0 cursor-pointer transition active:scale-95 border flex items-center justify-center focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-blue-dark ${
                       isActive
-                        ? 'bg-chip-active-bg text-chip-active-fg shadow-xs'
-                        : 'text-text-secondary hover:text-text-primary'
+                        ? 'bg-chip-active-bg text-chip-active-fg border-chip-active-border shadow-xs'
+                        : 'bg-white text-text-secondary border-bg-cream-dark hover:bg-bg-cream hover:text-text-primary'
                     }`}
                   >
-                    <span className="truncate">{seg.label}</span>
+                    <span>{seg.label}</span>
                   </button>
                 )
               })}
             </div>
 
-            {/* Tombol Unduh Excel (Ikon saja di mobile < 640px agar muat di 360px tanpa memotong label) */}
+            {/* Tombol Unduh Excel Utuh (Teks Lengkap, Tidak Disingkat) */}
             <button
               type="button"
               onClick={handleExportExcel}
               aria-label="Unduh Excel"
               title="Unduh Excel"
-              className="min-h-11 px-3 sm:px-4 py-2 bg-white hover:bg-bg-cream active:bg-bg-cream-dark border border-brand-blue-dark text-brand-blue-dark text-xs sm:text-sm font-bold rounded-2xl flex items-center justify-center gap-1.5 shrink-0 cursor-pointer transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-blue-dark shadow-2xs"
+              className="min-h-11 px-4 py-2 bg-white hover:bg-bg-cream active:bg-bg-cream-dark border border-brand-blue-dark text-brand-blue-dark text-xs sm:text-sm font-bold rounded-2xl flex items-center justify-center gap-2 shrink-0 cursor-pointer transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-blue-dark shadow-2xs"
             >
               <Download className="w-4 h-4 shrink-0" />
-              <span className="hidden sm:inline">Unduh Excel</span>
+              <span>Unduh Excel</span>
             </button>
           </div>
 
           {/* Area Konten Panel Sesuai Switch (Transisi Fade 150ms) */}
           <div className="transition-opacity duration-150 ease-out">
-            {/* Panel 1: Stasiun */}
-            {activeSegment === 'stasiun' && (
+            {/* Panel 1: Produksi */}
+            {activeSegment === 'produksi' && (
               <div
                 role="tabpanel"
-                id="panel-stasiun"
-                aria-labelledby="tab-stasiun"
+                id="panel-produksi"
+                aria-labelledby="tab-produksi"
                 className="space-y-4"
               >
                 {DIVISION_CONFIG.map((divConfig) => {
