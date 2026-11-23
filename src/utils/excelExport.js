@@ -535,79 +535,72 @@ export function exportPpicRecapExcel({ dateStr, recapData, operatorName }) {
   xml += `   <Row ss:Height="16"/>\n`
 
   // =========================================================================
-  // SEKSI II: PENGGUNAAN BUMBU DI RUANG GILING & MIX (SATUAN: KRESEK)
+  // SEKSI II: REKAPITULASI PEMAKAIAN BAHAN BAKU (SEMUA DIVISI)
   // =========================================================================
+  const rawMaterialUsage = recapData?.raw_material_usage || {
+    total_records: 0,
+    records: [],
+    summary_by_item: []
+  }
+  const allMaterialRecords = (rawMaterialUsage.records && rawMaterialUsage.records.length > 0)
+    ? rawMaterialUsage.records
+    : (bumbuUsage.records || []).map((r) => ({
+      ...r,
+      item_name: 'Karung Bumbu Sparta',
+      division_label: 'Daging (Giling & Mix)',
+      unit: r.unit || 'KRESEK'
+    }))
+
   xml += `   <Row ss:Height="24">
     <Cell ss:MergeAcross="${totalCols - 1}" ss:StyleID="SectionHeader">
-     <Data ss:Type="String">II. PENGGUNAAN BUMBU DI RUANG GILING &amp; MIX (SATUAN: KRESEK)</Data>
+     <Data ss:Type="String">II. REKAPITULASI PEMAKAIAN BAHAN BAKU (SEMUA DIVISI)</Data>
     </Cell>
    </Row>\n`
 
-  // Subtitle Seksi Bumbu
-  const bumbuSub = `Ringkasan: Stok Tersedia: ${bumbuUsage.total_initial || 0} Kresek  |  Digunakan: ${bumbuUsage.total_used || 0} Kresek  |  Sisa di Ruangan: ${bumbuUsage.total_remaining || 0} Kresek`
+  // Subtitle Seksi Bahan Baku
+  const rawSub = `Total Transaksi: ${allMaterialRecords.length} Catatan Pemakaian  |  Mencakup Divisi Bumbu Sparta, Kulit Pangsit, dan Giling & Mix`
   xml += `   <Row ss:Height="18">
     <Cell ss:MergeAcross="${totalCols - 1}" ss:StyleID="MetaLabel">
-     <Data ss:Type="String">${escapeXml(bumbuSub)}</Data>
+     <Data ss:Type="String">${escapeXml(rawSub)}</Data>
     </Cell>
    </Row>\n`
 
   // Header Kolom Tabel 2
-  const t2Cols = [
-    'No',
-    'Tanggal',
-    'Kode Lot Karung',
-    'Stok Awal (Kresek)',
-    'Digunakan (Kresek)',
-    'Sisa (Kresek)',
-    'Status Sisa',
-    'Petugas',
-    'Catatan Operasional'
-  ]
-
   xml += `   <Row ss:Height="26">
     <Cell ss:StyleID="TableHeaderAmber"><Data ss:Type="String">No</Data></Cell>
     <Cell ss:StyleID="TableHeaderAmber"><Data ss:Type="String">Tanggal</Data></Cell>
-    <Cell ss:StyleID="TableHeaderAmber"><Data ss:Type="String">Kode Lot Karung</Data></Cell>
-    <Cell ss:StyleID="TableHeaderAmber"><Data ss:Type="String">Stok Awal (Kresek)</Data></Cell>
-    <Cell ss:StyleID="TableHeaderAmber"><Data ss:Type="String">Digunakan (Kresek)</Data></Cell>
-    <Cell ss:StyleID="TableHeaderAmber"><Data ss:Type="String">Sisa (Kresek)</Data></Cell>
-    <Cell ss:StyleID="TableHeaderAmber"><Data ss:Type="String">Status Sisa</Data></Cell>
-    <Cell ss:StyleID="TableHeaderAmber"><Data ss:Type="String">Petugas</Data></Cell>
-    <Cell ss:MergeAcross="1" ss:StyleID="TableHeaderAmber"><Data ss:Type="String">Catatan Operasional</Data></Cell>
+    <Cell ss:StyleID="TableHeaderAmber"><Data ss:Type="String">Divisi</Data></Cell>
+    <Cell ss:StyleID="TableHeaderAmber"><Data ss:Type="String">Kode Lot Bahan</Data></Cell>
+    <Cell ss:StyleID="TableHeaderAmber"><Data ss:Type="String">Nama Bahan Baku</Data></Cell>
+    <Cell ss:StyleID="TableHeaderAmber"><Data ss:Type="String">Stok Awal / Kirim</Data></Cell>
+    <Cell ss:StyleID="TableHeaderAmber"><Data ss:Type="String">Digunakan</Data></Cell>
+    <Cell ss:StyleID="TableHeaderAmber"><Data ss:Type="String">Sisa</Data></Cell>
+    <Cell ss:StyleID="TableHeaderAmber"><Data ss:Type="String">Satuan</Data></Cell>
+    <Cell ss:StyleID="TableHeaderAmber"><Data ss:Type="String">Status Sisa &amp; Petugas</Data></Cell>
    </Row>\n`
 
-  const bumbuRecords = bumbuUsage.records || []
-  if (bumbuRecords.length === 0) {
+  if (allMaterialRecords.length === 0) {
     xml += `   <Row ss:Height="24">
     <Cell ss:MergeAcross="${totalCols - 1}" ss:StyleID="DataCenter">
-     <Data ss:Type="String">Belum ada transaksi pemakaian bumbu tercatat pada periode ini.</Data>
+     <Data ss:Type="String">Belum ada transaksi pemakaian bahan baku tercatat pada periode ini.</Data>
     </Cell>
    </Row>\n`
   } else {
-    bumbuRecords.forEach((rec, idx) => {
+    allMaterialRecords.forEach((rec, idx) => {
+      const statusPetugas = `${rec.remaining_action || 'Di Ruangan'} | ${rec.operator_id || '-'}${rec.notes && rec.notes !== '-' ? ` (${rec.notes})` : ''}`
       xml += `   <Row ss:Height="22">
     <Cell ss:StyleID="DataCenter"><Data ss:Type="Number">${idx + 1}</Data></Cell>
     <Cell ss:StyleID="DataCenter"><Data ss:Type="String">${escapeXml(rec.date)}</Data></Cell>
+    <Cell ss:StyleID="DataCenter"><Data ss:Type="String">${escapeXml(rec.division_label || rec.division || '-')}</Data></Cell>
     <Cell ss:StyleID="DataCenter"><Data ss:Type="String">${escapeXml(rec.lot_qr_code)}</Data></Cell>
+    <Cell ss:StyleID="DataLeft"><Data ss:Type="String">${escapeXml(rec.item_name || '-')}</Data></Cell>
     <Cell ss:StyleID="DataRight"><Data ss:Type="Number">${Number(rec.initial_quantity) || 0}</Data></Cell>
     <Cell ss:StyleID="DataRight"><Data ss:Type="Number">${Number(rec.quantity_used) || 0}</Data></Cell>
     <Cell ss:StyleID="DataRight"><Data ss:Type="Number">${Number(rec.remaining_quantity) || 0}</Data></Cell>
-    <Cell ss:StyleID="DataCenter"><Data ss:Type="String">${escapeXml(rec.remaining_action || 'Di Ruangan')}</Data></Cell>
-    <Cell ss:StyleID="DataCenter"><Data ss:Type="String">${escapeXml(rec.operator_id || '-')}</Data></Cell>
-    <Cell ss:MergeAcross="1" ss:StyleID="DataLeft"><Data ss:Type="String">${escapeXml(rec.notes || '-')}</Data></Cell>
+    <Cell ss:StyleID="DataCenter"><Data ss:Type="String">${escapeXml(rec.unit || 'KG')}</Data></Cell>
+    <Cell ss:StyleID="DataLeft"><Data ss:Type="String">${escapeXml(statusPetugas)}</Data></Cell>
    </Row>\n`
     })
-
-    // Baris Total Tabel Bumbu
-    xml += `   <Row ss:Height="24">
-    <Cell ss:MergeAcross="2" ss:StyleID="TotalRowLeft"><Data ss:Type="String">TOTAL PEMAKAIAN BUMBU (KRESEK)</Data></Cell>
-    <Cell ss:StyleID="TotalRowRight"><Data ss:Type="Number">${Number(bumbuUsage.total_initial) || 0}</Data></Cell>
-    <Cell ss:StyleID="TotalRowRight"><Data ss:Type="Number">${Number(bumbuUsage.total_used) || 0}</Data></Cell>
-    <Cell ss:StyleID="TotalRowRight"><Data ss:Type="Number">${Number(bumbuUsage.total_remaining) || 0}</Data></Cell>
-    <Cell ss:StyleID="TotalRowRight"><Data ss:Type="String">-</Data></Cell>
-    <Cell ss:StyleID="TotalRowRight"><Data ss:Type="String">-</Data></Cell>
-    <Cell ss:MergeAcross="1" ss:StyleID="TotalRowRight"><Data ss:Type="String">-</Data></Cell>
-   </Row>\n`
   }
 
   xml += `  </Table>

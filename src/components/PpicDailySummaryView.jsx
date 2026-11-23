@@ -6,7 +6,7 @@ import { Button } from './ui/Button'
 import { Input } from './ui/Input'
 import { exportPpicRecapExcel } from '../utils/excelExport'
 import { SummaryCardSkeleton, DivisionCardSkeleton } from './ui/Skeleton'
-import { SquarePen, Lock, ChevronRight, Store, RefreshCw } from 'lucide-react'
+import { SquarePen, Lock, ChevronRight, Store, RefreshCw, Boxes } from 'lucide-react'
 import { canAccess } from '../utils/rbac'
 import { apiGet } from '../utils/api'
 
@@ -247,6 +247,19 @@ export default function PpicDailySummaryView() {
     unit: 'KRESEK',
     records: []
   }, [dailyRecapData?.bumbu_usage])
+  const rawMaterialUsage = useMemo(() => dailyRecapData?.raw_material_usage || {
+    total_records: 0,
+    records: [],
+    by_division: { BUMBU: [], KULIT: [], DAGING: [] },
+    summary_by_item: []
+  }, [dailyRecapData?.raw_material_usage])
+
+  const [rawMaterialTab, setRawMaterialTab] = useState('ALL') // 'ALL' | 'BUMBU' | 'KULIT' | 'DAGING'
+  const filteredMaterialRecords = useMemo(() => {
+    const list = rawMaterialUsage.records || []
+    if (rawMaterialTab === 'ALL') return list
+    return list.filter((r) => r.division === rawMaterialTab)
+  }, [rawMaterialUsage.records, rawMaterialTab])
   const primaryOfficer = useMemo(() => {
     const officers = DIVISION_CONFIG.map((d) => divisions[d.id]?.updated_by).filter(Boolean)
     if (officers.length === 0) return operatorName || operatorId || 'PPIC-AYU'
@@ -664,8 +677,24 @@ export default function PpicDailySummaryView() {
                     </div>
                   )}
 
-                  {/* Sub-metrik Penggunaan Bumbu Sparta (Satuan: Kresek) */}
-                  {divConfig.id === 'DAGING' && (
+                  {/* Sub-metrik Pemakaian Bahan Baku Divisi */}
+                  {divData.raw_materials && divData.raw_materials.length > 0 ? (
+                    <div className="px-4 py-2.5 bg-[#F5F1EB]/70 border-t border-[#EDE8DF] flex flex-wrap items-center justify-between gap-2 text-xs">
+                      <div className="flex items-center gap-1.5 text-[#2C3E50] font-semibold">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#4685ac] shrink-0" />
+                        <span>Pemakaian Bahan Baku:</span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1.5 text-xs tabular-nums text-[#2C3E50]">
+                        {divData.raw_materials.map((m, idx) => (
+                          <span key={m.id || idx} className="inline-flex items-center gap-1 bg-white px-2 py-0.5 rounded-md border border-[#EDE8DF]">
+                            <span className="font-medium text-[#6B7B8D]">{m.item_name}:</span>
+                            <strong className="text-amber-700">{m.quantity_used}</strong>
+                            <span className="text-[#6B7B8D]">/ {m.initial_quantity} {m.unit}</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ) : divConfig.id === 'DAGING' && bumbuUsage.records && bumbuUsage.records.length > 0 ? (
                     <div className="px-4 py-2.5 bg-blue-50/50 border-t border-blue-100/80 flex flex-wrap items-center justify-between gap-2 text-xs">
                       <div className="flex items-center gap-1.5 text-blue-900 font-medium">
                         <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
@@ -679,7 +708,7 @@ export default function PpicDailySummaryView() {
                         <span>Sisa: <strong className="text-emerald-700">{bumbuUsage.total_remaining || 0}</strong> krsk</span>
                       </div>
                     </div>
-                  )}
+                  ) : null}
 
                   {/* Alert & Tombol Rekonsiliasi Sisa QR */}
                   {(divData.printed_count || 0) > 0 && !isHistorical && (
@@ -720,6 +749,128 @@ export default function PpicDailySummaryView() {
                 </div>
               )
             })}
+          </div>
+
+          {/* REKAPITULASI PEMAKAIAN BAHAN BAKU (REAL-TIME) */}
+          <div className="bg-white border border-[#EDE8DF] rounded-2xl p-4 sm:p-5 shadow-xs space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-[#EDE8DF] pb-2.5">
+              <div className="flex items-center gap-2">
+                <Boxes className="w-4 h-4 text-[#4685ac]" />
+                <div>
+                  <h3 className="text-sm font-bold text-[#2C3E50]">
+                    Rekap Pemakaian Bahan Baku
+                  </h3>
+                  <p className="text-[11px] text-[#6B7B8D]">
+                    Pencatatan real-time pemakaian bahan baku di stasiun Bumbu, Kulit, dan Giling &amp; Mix
+                  </p>
+                </div>
+              </div>
+
+              {/* Filter Tab Divisi Bahan Baku */}
+              <div className="flex items-center gap-1 p-1 bg-[#F5F1EB] rounded-xl self-start sm:self-auto overflow-x-auto max-w-full">
+                <button
+                  type="button"
+                  onClick={() => setRawMaterialTab('ALL')}
+                  className={`min-h-[36px] px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    rawMaterialTab === 'ALL'
+                      ? 'bg-white text-[#2C3E50] shadow-2xs'
+                      : 'text-[#6B7B8D] hover:text-[#2C3E50]'
+                  }`}
+                >
+                  Semua ({rawMaterialUsage.records?.length || 0})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRawMaterialTab('BUMBU')}
+                  className={`min-h-[36px] px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    rawMaterialTab === 'BUMBU'
+                      ? 'bg-white text-[#2C3E50] shadow-2xs'
+                      : 'text-[#6B7B8D] hover:text-[#2C3E50]'
+                  }`}
+                >
+                  Bumbu ({rawMaterialUsage.by_division?.BUMBU?.length || 0})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRawMaterialTab('KULIT')}
+                  className={`min-h-[36px] px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    rawMaterialTab === 'KULIT'
+                      ? 'bg-white text-[#2C3E50] shadow-2xs'
+                      : 'text-[#6B7B8D] hover:text-[#2C3E50]'
+                  }`}
+                >
+                  Kulit ({rawMaterialUsage.by_division?.KULIT?.length || 0})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRawMaterialTab('DAGING')}
+                  className={`min-h-[36px] px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    rawMaterialTab === 'DAGING'
+                      ? 'bg-white text-[#2C3E50] shadow-2xs'
+                      : 'text-[#6B7B8D] hover:text-[#2C3E50]'
+                  }`}
+                >
+                  Giling &amp; Mix ({rawMaterialUsage.by_division?.DAGING?.length || 0})
+                </button>
+              </div>
+            </div>
+
+            {/* Tabel / Daftar Bahan Baku */}
+            {filteredMaterialRecords.length === 0 ? (
+              <div className="py-6 text-center text-xs text-[#6B7B8D]">
+                Belum ada transaksi pemakaian bahan baku tercatat pada filter ini.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs text-left">
+                  <thead>
+                    <tr className="border-b border-[#EDE8DF] text-[11px] font-bold text-[#6B7B8D] uppercase tracking-wider">
+                      <th className="py-2 px-2.5">Bahan Baku</th>
+                      <th className="py-2 px-2.5">Divisi</th>
+                      <th className="py-2 px-2.5 text-right">Dikirim</th>
+                      <th className="py-2 px-2.5 text-right">Digunakan</th>
+                      <th className="py-2 px-2.5 text-right">Sisa</th>
+                      <th className="py-2 px-2.5 text-center">Status Sisa</th>
+                      <th className="py-2 px-2.5 text-left">Petugas</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#EDE8DF]">
+                    {filteredMaterialRecords.map((item) => (
+                      <tr key={item.id} className="hover:bg-[#F5F1EB]/40 transition-colors">
+                        <td className="py-2.5 px-2.5">
+                          <div className="font-bold text-[#2C3E50]">{item.item_name}</div>
+                          <div className="font-mono text-[10px] text-[#6B7B8D]">{item.lot_qr_code}</div>
+                        </td>
+                        <td className="py-2.5 px-2.5 whitespace-nowrap text-[#6B7B8D]">
+                          {item.division_label}
+                        </td>
+                        <td className="py-2.5 px-2.5 text-right tabular-nums font-semibold text-[#2C3E50] whitespace-nowrap">
+                          {item.initial_quantity} <span className="text-[10px] font-normal text-[#6B7B8D]">{item.unit}</span>
+                        </td>
+                        <td className="py-2.5 px-2.5 text-right tabular-nums font-bold text-amber-700 whitespace-nowrap">
+                          {item.quantity_used} <span className="text-[10px] font-normal text-[#6B7B8D]">{item.unit}</span>
+                        </td>
+                        <td className="py-2.5 px-2.5 text-right tabular-nums font-bold text-emerald-700 whitespace-nowrap">
+                          {item.remaining_quantity} <span className="text-[10px] font-normal text-[#6B7B8D]">{item.unit}</span>
+                        </td>
+                        <td className="py-2.5 px-2.5 text-center whitespace-nowrap">
+                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                            item.remaining_action === 'Diretur'
+                              ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                              : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          }`}>
+                            {item.remaining_action}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-2.5 whitespace-nowrap text-[#6B7B8D]">
+                          {item.operator_id}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
 
           {/* REKAP SALDO STOK BARANG JADI (GUDANG SALES & FREEZER) */}
